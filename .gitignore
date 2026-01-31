@@ -1,0 +1,28 @@
+cat > .gitignore <<'EOF'
+# Unreal Engine generated folders
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Content/
+
+# Visual Studio / Rider / CLion / VSCode
+.vs/
+.idea/
+.vscode/
+*.VC.db
+*.sln
+*.xcodeproj
+*.xcworkspace
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.log
+
+# Optional: If you build from source, you may ignore these too depending on workflow
+# Plugins/*/Intermediate/
+# Plugins/*/Binaries/
+EOF

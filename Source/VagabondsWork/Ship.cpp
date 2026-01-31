@@ -1,0 +1,1482 @@
+#include "Ship.h"
+#include "AIShipController.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
+#include "DrawDebugHelpers.h"
+
+namespace
+{
+    FCollisionObjectQueryParams BuildObjectQueryStatic()
+    {
+        FCollisionObjectQueryParams Obj;
+        Obj.AddObjectTypesToQuery(ECC_WorldStatic);
+        Obj.AddObjectTypesToQuery(ECC_WorldDynamic);
+        return Obj;
+    }
+
+    FCollisionObjectQueryParams BuildObjectQueryDynamic()
+    {
+        FCollisionObjectQueryParams Obj;
+        Obj.AddObjectTypesToQuery(ECC_Pawn);
+        Obj.AddObjectTypesToQuery(ECC_PhysicsBody);
+        return Obj;
+    }
+
+    FCollisionObjectQueryParams BuildObjectQueryAllAvoid()
+    {
+        FCollisionObjectQueryParams Obj = BuildObjectQueryStatic();
+        Obj.AddObjectTypesToQuery(ECC_Pawn);
+        Obj.AddObjectTypesToQuery(ECC_PhysicsBody);
+        return Obj;
+    }
+
+    bool IsStaticObstacleChannel(ECollisionChannel Channel)
+    {
+        return Channel == ECC_WorldStatic || Channel == ECC_WorldDynamic;
+    }
+
+    bool IsDynamicObstacleChannel(ECollisionChannel Channel)
+    {
+        return Channel == ECC_Pawn || Channel == ECC_PhysicsBody;
+    }
+}
+
+AShip::AShip()
+{
+    PrimaryActorTick.bCanEverTick = true;
+
+    AIControllerClass = AAIShipController::StaticClass();
+    AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+
+    ShipBase = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ShipBase"));
+    SetRootComponent(ShipBase);
+
+    ShipBase->SetSimulatePhysics(true);
+    ShipBase->SetEnableGravity(false);
+    ShipBase->SetCollisionProfileName(TEXT("Pawn"));
+
+    ShipRadius = CreateDefaultSubobject<USphereComponent>(TEXT("ShipRadius"));
+    ShipRadius->SetupAttachment(ShipBase);
+
+    ShipRadius->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    ShipRadius->SetCollisionProfileName(TEXT("Pawn"));
+    ShipRadius->SetSphereRadius(300.f);
+}
+
+void AShip::BeginPlay()
+{
+    Super::BeginPlay();
+
+    ShipController = Cast<AAIShipController>(GetController());
+
+    if (!ShipController)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ShipController not found on %s"), *GetName());
+        return;
+    }
+
+    // Initialize first target immediately (prevents rotating toward (0,0,0) before first timer tick)
+    CurrentTargetLocation = GetGoalLocation();
+    bGoalVisible = IsLocationVisible(CurrentTargetLocation);
+    PreviousShipLocation = GetActorLocation();
+
+    // Stagger start so lots of ships don't spike the same frame
+    const float StartDelay = FMath::FRandRange(0.f, EvadeCheckInterval);
+
+    GetWorldTimerManager().SetTimer(
+        EvadeTimerHandle,
+        this,
+        &AShip::EvadeThink,
+        EvadeCheckInterval,
+        true,
+        StartDelay
+    );
+}
+
+void AShip::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+    ApplyUnstuckForce(DeltaTime);
+
+    // Prefer avoidance target if active
+    const FVector Goal = GetGoalLocation();
+    const FVector SteeringTarget = bHasAvoidanceTarget ? CurrentTargetLocation : Goal;
+
+    // Steering mode selection:
+    // 1) If avoiding -> Default (stable)
+    // 2) Else if goal is visible -> AggressiveSeek
+    // 3) Else -> Default
+    if (bHasAvoidanceTarget)
+    {
+        SteeringState.Mode = EShipSteeringMode::Default;
+    }
+    else
+    {
+        SteeringState.Mode = (bEnableAggressiveSeek && bGoalVisible)
+            ? EShipSteeringMode::AggressiveSeek
+            : EShipSteeringMode::Default;
+    }
+
+    // Steering
+    if (SteeringState.Mode == EShipSteeringMode::AggressiveSeek)
+    {
+        ApplyAggressiveSeekForce(SteeringTarget, DeltaTime);
+    }
+    else
+    {
+        ApplySteeringForce(SteeringTarget, DeltaTime);
+    }
+
+    // Rotation
+    if (ShipController)
+    {
+        ShipController->ApplyShipRotation(SteeringTarget);
+    }
+}
+
+void AShip::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+    Super::SetupPlayerInputComponent(PlayerInputComponent);
+}
+
+UStaticMeshComponent* AShip::GetShipBase() const
+{
+    return ShipBase;
+}
+
+FVector AShip::GetGoalLocation() const
+{
+    return ShipController ? ShipController->GetFocusLocation() : GetActorLocation();
+}
+
+bool AShip::IsLocationVisible(const FVector& TargetLocation) const
+{
+    UWorld* World = GetWorld();
+    if (!World) return false;
+
+    const FVector Start = ShipBase ? ShipBase->GetComponentLocation() : GetActorLocation();
+    const FVector End = TargetLocation;
+
+    FHitResult Hit;
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(GoalVis), false);
+    Params.bTraceComplex = false;
+    Params.AddIgnoredActor(this);
+
+    const bool bHit = World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params);
+
+    return !bHit;
+}
+
+void AShip::EvadeThink()
+{
+    if (!ShipController || !ShipRadius) return;
+
+    const FVector Start = GetActorLocation();
+    const UWorld* World = GetWorld();
+    const float CurrentTime = World ? World->GetTimeSeconds() : 0.f;
+
+    // Update the current goal (destination) location and visibility.
+    const FVector GoalLocation = GetGoalLocation();
+    bGoalVisible = IsLocationVisible(GoalLocation);
+    if (ObstacleDebugSettings.bLogObstacleEvents && GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green,
+            FString::Printf(TEXT("GoalVisible: %s"), bGoalVisible ? TEXT("true") : TEXT("false")));
+    }
+
+    const FVector ShipVelocity = CalculateVelocity();
+    const float Speed = ShipVelocity.Size();
+    const FVector ForwardDir = ShipBase ? ShipBase->GetForwardVector() : GetActorForwardVector();
+    //const FVector PredictDir = CalculateProbeDirection(ForwardDir, ShipVelocity);
+    const FVector RightDir = ShipBase ? ShipBase->GetRightVector() : GetActorRightVector();
+
+    const float Radius = ShipRadius->GetScaledSphereRadius();
+    const float MinProbeDistance = ObstacleDetectionSettings.MinProbeDistanceMultiplier * Radius;
+    const float ProbeSpeed = Speed * FMath::Max(ObstacleDetectionSettings.ProbeSpeedMultiplier, 0.f);
+    const float LookAheadSeconds = FMath::Max(ObstacleDetectionSettings.ProbeLookAheadSeconds, 0.f);
+    const float Padding = Radius * FMath::Max(ObstacleDetectionSettings.ProbePaddingRadiusMultiplier, 0.f);
+    const float VelocityProbeDistance = (ProbeSpeed * LookAheadSeconds) + Padding;
+    const float ShipMass = ShipBase ? FMath::Max(ShipBase->GetMass(), 1.f) : 1.f;
+    const float EffectiveForce = FMath::Max(MaxForwardForce * FMath::Max(CurrentThrottle, MinThrottle), MaxForwardForce * 0.2f);
+    const float MaxDecel = EffectiveForce / ShipMass;
+    const float BrakeDistance = MaxDecel > KINDA_SMALL_NUMBER
+        ? (Speed * Speed) / (2.f * MaxDecel)
+        : 0.f;
+    const float TurnTimeBase = FMath::Max(ObstacleDetectionSettings.AvoidanceTurnHoldSeconds, 0.25f);
+    const float MassTurnFactor = FMath::Clamp(ShipMass / 1000.f, 0.5f, 3.f);
+    const float TurnDistance = Speed * (TurnTimeBase * MassTurnFactor);
+    float DetectDistance = FMath::Max(MinProbeDistance, VelocityProbeDistance);
+    DetectDistance = FMath::Max(DetectDistance, BrakeDistance + Padding);
+    DetectDistance = FMath::Max(DetectDistance, TurnDistance + Padding);
+    DetectDistance *= FMath::Max(ObstacleDetectionSettings.ProbeLengthMultiplier, 0.f);
+    DetectDistance = FMath::Min(DetectDistance, 80000.f);
+    
+    const FVector SteeringTarget = bHasAvoidanceTarget ? CurrentTargetLocation : GoalLocation;
+    FVector ProbeDir = (SteeringTarget - Start).GetSafeNormal();
+
+    if (ProbeDir.IsNearlyZero())
+    {
+        ProbeDir = ForwardDir.GetSafeNormal();
+        if (ProbeDir.IsNearlyZero())
+        {
+            ProbeDir = GetActorForwardVector().GetSafeNormal();
+        }
+    }
+
+    const FVector End = Start + ProbeDir * DetectDistance;
+
+    // Perform a sphere sweep forward to detect obstacles
+    FCollisionObjectQueryParams objectQuery = BuildObjectQueryAllAvoid();
+    FCollisionQueryParams traceParams(SCENE_QUERY_STAT(ObstacleSweep), false);
+    traceParams.bTraceComplex = false;
+    traceParams.AddIgnoredActor(this);  // ignore self
+
+    const bool bOverlappingBigObstacle = IsOverlappingBigObstacle();
+    const bool bPrevStartPenetrating = bLastSweepStartPenetrating;
+
+    if (!CurrentAvoidActor.IsValid())
+    {
+        AvoidActorIgnoreUntilTime = 0.f;
+        AvoidActorLastDistance = 0.f;
+    }
+
+    bool bIgnoreCurrentAvoidActor = CurrentAvoidActor.IsValid()
+        && CurrentTime < AvoidActorIgnoreUntilTime;
+
+    if (bIgnoreCurrentAvoidActor && (bOverlappingBigObstacle || bPrevStartPenetrating))
+    {
+        bIgnoreCurrentAvoidActor = false;
+        AvoidActorIgnoreUntilTime = 0.f;
+    }
+
+    if (bIgnoreCurrentAvoidActor)
+    {
+        if (ObstacleDebugSettings.bLogObstacleEvents && GEngine)
+        {
+            const float Remaining = FMath::Max(AvoidActorIgnoreUntilTime - CurrentTime, 0.f);
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Silver,
+                FString::Printf(TEXT("Ignoring %s (%.2fs left)"),
+                                *GetNameSafe(CurrentAvoidActor.Get()), Remaining));
+        }
+
+        const FVector AvoidActorLocation = CurrentAvoidActor->GetActorLocation();
+        const FVector ToActor = AvoidActorLocation - Start;
+        const float DistanceToActor = ToActor.Size();
+        const FVector DirToActor = DistanceToActor > KINDA_SMALL_NUMBER
+            ? ToActor / DistanceToActor
+            : FVector::ZeroVector;
+        const FVector VelDir = ShipVelocity.IsNearlyZero()
+            ? ForwardDir.GetSafeNormal()
+            : ShipVelocity.GetSafeNormal();
+        const float ApproachDot = VelDir.IsNearlyZero() || DirToActor.IsNearlyZero()
+            ? 0.f
+            : FVector::DotProduct(VelDir, DirToActor);
+
+        const bool bNearContact = DistanceToActor > 0.f && DistanceToActor < (Radius * 1.25f);
+        const bool bApproachingActor = ApproachDot > 0.2f;
+        if (bNearContact || bApproachingActor)
+        {
+            bIgnoreCurrentAvoidActor = false;
+            AvoidActorIgnoreUntilTime = 0.f;
+        }
+    }
+
+    if (bIgnoreCurrentAvoidActor)
+    {
+        traceParams.AddIgnoredActor(CurrentAvoidActor.Get());
+    }
+
+    FHitResult Hit;
+    bool bHitObstacle = GetWorld()->SweepSingleByObjectType(
+        Hit, Start, End, FQuat::Identity, objectQuery,
+        FCollisionShape::MakeSphere(Radius), traceParams
+    );
+
+    bLastSweepStartPenetrating = bHitObstacle && Hit.bStartPenetrating;
+
+    //DebugDrawObstacleProbe(Start, End, bHitObstacle, Hit);
+    // --- STEP 3: handle start penetration explicitly ---
+    if (bHitObstacle && Hit.bStartPenetrating)
+    {
+        // We are already intersecting geometry → force stuck confirmation
+        StuckConfirmTimer = FMath::Max(
+            StuckConfirmTimer,
+            AvoidanceStuckConfirmTime
+        );
+    }
+
+
+    const bool bInNearContact = bOverlappingBigObstacle
+        || (bHitObstacle && Hit.bBlockingHit && Hit.Distance <= Radius * 1.1f);
+
+    const bool bClearTowardSteering =
+        !bHitObstacle || !Hit.bBlockingHit || Hit.Distance > Radius * 2.0f;
+
+    if (bHasAvoidanceTarget && bClearTowardSteering && !bInNearContact && !Hit.bStartPenetrating)
+    {
+        bHasAvoidanceTarget = false;
+        bHasCommit = false;
+        AvoidanceState = EAvoidanceState::None;
+        CachedAvoidPath.Reset();
+        AvoidanceSequence.Reset();
+        CurrentTargetLocation = GoalLocation;
+        PreviousShipLocation = Start;
+        CurrentAvoidActor.Reset();
+        AvoidActorIgnoreUntilTime = 0.f;
+        AvoidActorLastDistance = 0.f;
+        return;
+    }
+
+
+
+    const FVector DesiredDir = (bHasAvoidanceTarget ? CurrentTargetLocation : GoalLocation) - Start;
+    const FVector DesiredDirNorm = DesiredDir.GetSafeNormal();
+    const float DesiredYawDelta = DesiredDirNorm.IsNearlyZero() || ForwardDir.IsNearlyZero()
+        ? 0.f
+        : FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(ForwardDir.GetSafeNormal(), DesiredDirNorm), -1.f, 1.f)));
+    LastDesiredYawDelta = DesiredYawDelta;
+
+    const float TargetDistance = DesiredDir.Size();
+    const bool bDistanceNotClosing = (LastTargetDistance > KINDA_SMALL_NUMBER)
+        && (TargetDistance >= LastTargetDistance - 5.f);
+    LastTargetDistance = TargetDistance;
+
+    const float CurrentYaw = ShipBase ? ShipBase->GetComponentRotation().Yaw : GetActorRotation().Yaw;
+    const float SampleDelta = FMath::Max(EvadeCheckInterval, KINDA_SMALL_NUMBER);
+    const float YawDeltaRate = FMath::Abs(FMath::FindDeltaAngleDegrees(LastYawSample, CurrentYaw)) / SampleDelta;
+    LastYawSample = CurrentYaw;
+
+    const bool bThrusting = CurrentThrottle > MinThrottle * 0.5f;
+    const bool bLowSpeedWhileThrusting = bThrusting && Speed < AvoidanceMinSpeedWhileThrusting;
+    const bool bYawStalled = DesiredYawDelta > AvoidanceYawStuckAngle
+        && YawDeltaRate < AvoidanceYawStuckRate;
+    const bool bStuckSignal = bLowSpeedWhileThrusting || bDistanceNotClosing || bYawStalled || (bInNearContact && Speed < AvoidanceMinSpeedWhileThrusting);
+
+#if !(UE_BUILD_SHIPPING)
+    auto DrawStateDebug = [&](const FVector& SteeringTarget, const FColor& Color)
+    {
+        if (!ObstacleDebugSettings.bDrawAvoidanceTarget && !ObstacleDebugSettings.bDrawProbe)
+        {
+            return;
+        }
+
+        UWorld* DebugWorld = GetWorld();
+        if (!DebugWorld)
+        {
+            return;
+        }
+
+        DrawDebugLine(DebugWorld, Start, SteeringTarget, Color, false, 0.f, 0, 1.5f);
+        DrawDebugSphere(DebugWorld, SteeringTarget, 80.f, 10, Color, false, 0.f, 0, 1.5f);
+
+        const float CommitRemaining = bHasCommit ? FMath::Max(CommitExpireTime - CurrentTime, 0.f) : 0.f;
+        const TCHAR* StateName = TEXT("None");
+        if (AvoidanceState == EAvoidanceState::StuckEscape)
+        {
+            StateName = TEXT("Escape");
+        }
+        else if (AvoidanceState == EAvoidanceState::AvoidCommit)
+        {
+            StateName = TEXT("Commit");
+        }
+
+        DrawDebugString(
+            DebugWorld,
+            Start + FVector(0.f, 0.f, Radius * 1.2f),
+            FString::Printf(TEXT("Avoid:%s Speed:%.1f Stuck:%.2f Commit:%.2f"), StateName, Speed, StuckConfirmTimer, CommitRemaining),
+            nullptr,
+            FColor::White,
+            0.f,
+            true
+        );
+    };
+
+    if (ObstacleDebugSettings.bDrawAvoidanceTarget)
+    {
+        const FVector DebugTarget = bHasAvoidanceTarget ? CurrentTargetLocation : GoalLocation;
+        DrawDebugLine(GetWorld(), Start, DebugTarget, FColor::Cyan, false, 0.f, 0, 1.25f);
+        DrawDebugSphere(GetWorld(), DebugTarget, 70.f, 10, FColor::Cyan, false, 0.f, 0, 1.25f);
+    }
+#endif
+
+    if (bStuckSignal)
+    {
+        StuckConfirmTimer += EvadeCheckInterval;
+    }
+    else
+    {
+        StuckConfirmTimer = 0.f;
+    }
+
+    const bool bIsStuck = StuckConfirmTimer >= FMath::Max(AvoidanceStuckConfirmTime, 0.1f);
+
+    const float BaseCooldown = FMath::Max(AvoidanceTargetUpdateCooldown, 0.f);
+    const float StuckRadius = Radius * FMath::Max(AvoidanceStuckRadiusMultiplier, 0.f);
+    const bool bHasValidAvoidanceTarget = bHasAvoidanceTarget && !CurrentTargetLocation.IsNearlyZero();
+    const bool bAvoidanceTargetVisible = bHasValidAvoidanceTarget && IsLocationVisible(CurrentTargetLocation);
+    const bool bNearAvoidTarget = bHasValidAvoidanceTarget
+        && FVector::DistSquared(Start, CurrentTargetLocation) <= FMath::Square(StuckRadius);
+    const bool bStuckNow = bHasValidAvoidanceTarget && bNearAvoidTarget && Speed < 10.f && !bAvoidanceTargetVisible;
+
+    if (bAvoidanceStuck)
+    {
+        const bool bLeftStuckRadius = !AvoidanceStuckLocation.IsNearlyZero()
+            && FVector::DistSquared(Start, AvoidanceStuckLocation) > FMath::Square(StuckRadius);
+        if (bLeftStuckRadius)
+        {
+            bAvoidanceStuck = false;
+            AvoidanceStuckLocation = FVector::ZeroVector;
+            LastAvoidanceStuckRampTime = -1.f;
+            AvoidanceStuckStartTime = -1.f;
+            CurrentAvoidanceTargetCooldown = BaseCooldown;
+        }
+    }
+
+    if (!bAvoidanceStuck && bStuckNow)
+    {
+        if (AvoidanceStuckStartTime < 0.f)
+        {
+            AvoidanceStuckStartTime = CurrentTime;
+        }
+
+        if (CurrentTime - AvoidanceStuckStartTime >= 1.f)
+        {
+            bAvoidanceStuck = true;
+            AvoidanceStuckLocation = Start;
+            LastAvoidanceStuckRampTime = CurrentTime;
+            CurrentAvoidanceTargetCooldown = FMath::Max(CurrentAvoidanceTargetCooldown, BaseCooldown);
+        }
+    }
+    else if (!bStuckNow)
+    {
+        AvoidanceStuckStartTime = -1.f;
+    }
+
+    if (bAvoidanceStuck)
+    {
+        const float Increment = FMath::Max(AvoidanceStuckCooldownIncrement, 0.f);
+        if (Increment > 0.f && CurrentTime - LastAvoidanceStuckRampTime >= 1.f)
+        {
+            CurrentAvoidanceTargetCooldown = FMath::Max(CurrentAvoidanceTargetCooldown, BaseCooldown) + Increment;
+            LastAvoidanceStuckRampTime = CurrentTime;
+        }
+
+        if (ShipBase)
+        {
+            const FVector ForwardAssist = ForwardDir.IsNearlyZero() ? GetActorForwardVector() : ForwardDir.GetSafeNormal();
+            const FVector AssistForce = (ForwardAssist + FVector::DownVector).GetSafeNormal()
+                * (MaxForwardForce * 0.25f) * ShipBase->GetMass();
+            ShipBase->AddForce(AssistForce, NAME_None, false);
+        }
+    }
+
+    const bool bEscapeActive = AvoidanceState == EAvoidanceState::StuckEscape
+        && EscapeEndTime > 0.f
+        && CurrentTime < EscapeEndTime;
+    if (bEscapeActive)
+    {
+        bHasAvoidanceTarget = true;
+        const FVector EscapeGoal = EscapeTarget.IsNearlyZero() ? Start + ForwardDir * Radius : EscapeTarget;
+        const float EscapeInterp = FMath::Max(AvoidanceTargetInterpSpeed, 0.f);
+        CurrentTargetLocation = FMath::VInterpTo(CurrentTargetLocation, EscapeGoal, EvadeCheckInterval, EscapeInterp);
+        LastAvoidanceTargetLocation = CurrentTargetLocation;
+        LastAvoidanceTargetUpdateTime = CurrentTime;
+
+        if (ShipBase)
+        {
+            const FVector Lateral = RightDir.IsNearlyZero() ? FVector::RightVector : RightDir.GetSafeNormal();
+            const float NudgeStrength = ShipBase->GetMass() * MaxForwardForce * 0.18f;
+            const FVector Nudge = Lateral * (CommitSideSign >= 0.f ? 1.f : -1.f) * NudgeStrength;
+            ShipBase->AddForce(Nudge, NAME_None, false);
+            if (bEscapeReverse)
+            {
+                ShipBase->AddForce(-ForwardDir.GetSafeNormal() * ShipBase->GetMass() * MaxForwardForce * 0.12f, NAME_None, false);
+            }
+        }
+
+        CurrentThrottle = FMath::Min(CurrentThrottle, 0.1f);
+
+        if (!bHitObstacle || (Hit.Distance > Radius * 1.5f))
+        {
+            EscapeEndTime = CurrentTime;
+        }
+
+        DebugDrawAvoidanceTarget(CurrentTargetLocation, FColor::Magenta);
+        UpdateAvoidanceRotationAssist(CurrentTargetLocation, ForwardDir, Start, bHitObstacle);
+#if !(UE_BUILD_SHIPPING)
+        DrawStateDebug(CurrentTargetLocation, FColor::Magenta);
+#endif
+        PreviousShipLocation = Start;
+        return;
+    }
+    else if (AvoidanceState == EAvoidanceState::StuckEscape)
+    {
+        AvoidanceState = EAvoidanceState::AvoidCommit;
+        EscapeEndTime = -1.f;
+        bEscapeReverse = false;
+        EscapeTarget = FVector::ZeroVector;
+    }
+
+    if (!bHitObstacle)
+    {
+        bHasAvoidanceTarget = false;
+        bUsingAvoidanceSequence = false;
+        bAvoidanceStuck = false;
+        AvoidanceState = EAvoidanceState::None;
+        AvoidanceSequence.Reset();
+        AvoidanceSequenceIndex = 0;
+        CachedAvoidPath.Reset();
+        CachedAvoidPathIndex = 0;
+        CurrentTargetLocation = GoalLocation;
+        LastAvoidanceTargetLocation = FVector::ZeroVector;
+        AvoidanceStuckLocation = FVector::ZeroVector;
+        LastAvoidanceStuckRampTime = -1.f;
+        AvoidanceStuckStartTime = -1.f;
+        CurrentAvoidanceTargetCooldown = BaseCooldown;
+        LastAvoidanceTargetUpdateTime = -1.f;
+        SmoothedSteeringTarget = FVector::ZeroVector;
+        bHasCommit = false;
+        CommitExpireTime = -1.f;
+        CommitScore = 0.f;
+        OppositeSideWinCount = 0;
+        CurrentAvoidActor.Reset();
+        AvoidActorIgnoreUntilTime = 0.f;
+        AvoidActorLastDistance = 0.f;
+
+        if (ObstacleDebugSettings.bLogObstacleEvents && GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::White, TEXT("Path clear"));
+        }
+        UpdateAvoidanceRotationAssist(CurrentTargetLocation, ForwardDir, Start, false);
+#if !(UE_BUILD_SHIPPING)
+        DrawStateDebug(CurrentTargetLocation, FColor::Green);
+#endif
+        PreviousShipLocation = Start;
+        return;
+    }
+
+    // **Obstacle detected**: determine type and choose avoidance strategy
+    AActor* ObstacleActor = Hit.GetActor();
+    ECollisionChannel ObstacleType = Hit.Component.IsValid() 
+                                     ? Hit.Component->GetCollisionObjectType()
+                                     : ECC_WorldStatic;
+    FVector HitLocation = Hit.ImpactPoint;
+    FVector HitNormal = Hit.ImpactNormal.GetSafeNormal();
+    if (ObstacleDebugSettings.bLogObstacleEvents && GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red,
+            FString::Printf(TEXT("Obstacle detected: %s (Type=%d)"),
+                            *GetNameSafe(ObstacleActor), (int)ObstacleType));
+    }
+
+
+    // Shift the grid center slightly away from obstacle surface (using hit normal) for pathfinding
+    FVector GridCenter = HitLocation;
+    if (!HitNormal.IsNearlyZero()) {
+        GridCenter += HitNormal * (Radius * 0.75f);
+    }
+
+    const float Clearance = Radius * FMath::Max(ObstacleDetectionSettings.AvoidanceClearanceMultiplier, 1.f);
+    if (bIsStuck && CurrentTime >= EscapeCooldownUntil)
+    {
+        AvoidanceState = EAvoidanceState::StuckEscape;
+        EscapeEndTime = CurrentTime + FMath::Max(AvoidanceEscapeDuration, 0.1f);
+        EscapeCooldownUntil = EscapeEndTime + FMath::Max(AvoidanceEscapeCooldown, 0.f);
+        StuckConfirmTimer = 0.f;
+
+        const bool bHasCommitSide = bHasCommit && CommitSideSign != 0.f;
+        float PreferredSign = bHasCommitSide ? CommitSideSign : 0.f;
+        const FVector Lateral = RightDir.IsNearlyZero() ? FVector::RightVector : RightDir.GetSafeNormal();
+        if (PreferredSign == 0.f)
+        {
+            const FVector LeftTarget = Start + Lateral * -1.f * (Radius * 1.2f) + ForwardDir.GetSafeNormal() * (Radius * 0.5f);
+            const FVector RightTarget = Start + Lateral * 1.f * (Radius * 1.2f) + ForwardDir.GetSafeNormal() * (Radius * 0.5f);
+            const bool bLeftFree = IsAvoidanceTargetReachable(Start, LeftTarget, Radius);
+            const bool bRightFree = IsAvoidanceTargetReachable(Start, RightTarget, Radius);
+            if (bLeftFree != bRightFree)
+            {
+                PreferredSign = bLeftFree ? -1.f : 1.f;
+            }
+            else
+            {
+                PreferredSign = 1.f;
+            }
+        }
+
+        CommitSideSign = PreferredSign == 0.f ? 1.f : PreferredSign;
+        EscapeTarget = Start + Lateral * CommitSideSign * (Radius * 1.2f) + ForwardDir.GetSafeNormal() * (Radius * 0.5f);
+        bEscapeReverse = bInNearContact && Speed < AvoidanceMinSpeedWhileThrusting * 0.5f;
+
+        DebugDrawAvoidanceTarget(EscapeTarget, FColor::Magenta);
+        UpdateAvoidanceRotationAssist(EscapeTarget, ForwardDir, HitLocation, true);
+#if !(UE_BUILD_SHIPPING)
+        DrawStateDebug(EscapeTarget, FColor::Magenta);
+#endif
+        PreviousShipLocation = Start;
+        return;
+    }
+    const bool bCanRefreshSequence = !bUsingAvoidanceSequence
+        || (CurrentTime - LastBigObstacleSequenceTime) >= 2.0f;
+
+    if (bOverlappingBigObstacle && IsStaticObstacleChannel(ObstacleType)
+        && bCanRefreshSequence)
+    {
+        const float MinAvoidDistance = Radius * 3.5f;
+        const FVector Forward = ForwardDir.IsNearlyZero() ? GetActorForwardVector() : ForwardDir.GetSafeNormal();
+        const int32 SequencePoints = FMath::Clamp(bIsStuck || bInNearContact ? 5 : 3, 3, 5);
+        const FVector Lateral = RightDir.IsNearlyZero() ? FVector::RightVector : RightDir.GetSafeNormal();
+        const float SideSign = CommitSideSign == 0.f ? 1.f : CommitSideSign;
+
+        AvoidanceSequence.Reset();
+        FVector SequenceStart = Start;
+        for (int32 i = 0; i < SequencePoints; ++i)
+        {
+            FVector Candidate = ComputeAvoidanceTargetFromStart(
+                SequenceStart,
+                GoalLocation,
+                GridCenter,
+                HitLocation,
+                HitNormal,
+                Clearance,
+                Radius,
+                Forward
+            );
+
+            const float ExtraForward = Radius * (0.6f * i);
+            Candidate += Forward * ExtraForward + Lateral * SideSign * Radius * (0.25f * i);
+            Candidate = EnforceAvoidanceMinDistance(SequenceStart, Candidate, Forward, MinAvoidDistance + (Radius * 0.4f * i));
+
+            AvoidanceSequence.Add(Candidate);
+            SequenceStart = Candidate;
+        }
+        AvoidanceSequenceIndex = 0;
+        bUsingAvoidanceSequence = true;
+        LastBigObstacleSequenceTime = CurrentTime;
+    }
+
+    if (bUsingAvoidanceSequence && AvoidanceSequence.IsValidIndex(AvoidanceSequenceIndex))
+    {
+        const float SequenceRadius = Radius * 1.4f;
+        const FVector SequenceTarget = AvoidanceSequence[AvoidanceSequenceIndex];
+        if (FVector::DistSquared(Start, SequenceTarget) <= FMath::Square(SequenceRadius))
+        {
+            AvoidanceSequenceIndex++;
+        }
+
+        if (!AvoidanceSequence.IsValidIndex(AvoidanceSequenceIndex))
+        {
+            bUsingAvoidanceSequence = false;
+            AvoidanceSequence.Reset();
+            AvoidanceSequenceIndex = 0;
+        }
+        else
+        {
+            bHasAvoidanceTarget = true;
+            const FVector DesiredTarget = AvoidanceSequence[AvoidanceSequenceIndex];
+            const float InterpSpeed = FMath::Max(AvoidanceTargetInterpSpeed, 0.f);
+            CurrentTargetLocation = FMath::VInterpTo(CurrentTargetLocation, DesiredTarget, EvadeCheckInterval, InterpSpeed);
+            LastAvoidanceTargetLocation = CurrentTargetLocation;
+            LastAvoidanceTargetUpdateTime = CurrentTime;
+            DebugDrawAvoidanceTarget(CurrentTargetLocation, FColor::Purple);
+            UpdateAvoidanceRotationAssist(CurrentTargetLocation, ForwardDir, HitLocation, true);
+#if !(UE_BUILD_SHIPPING)
+            DrawStateDebug(CurrentTargetLocation, FColor::Purple);
+#endif
+            PreviousShipLocation = Start;
+            return;
+        }
+    }
+
+    // Decide avoidance strategy based on obstacle collision type
+    const bool bStaticObstacle = IsStaticObstacleChannel(ObstacleType);
+    const bool bDynamicObstacle = IsDynamicObstacleChannel(ObstacleType);
+    if (bStaticObstacle || !bDynamicObstacle) {
+        // **Static/Physics obstacle:** Use 3D A* pathfinding around the obstacle
+        UWorld* World = GetWorld();
+        float currentTime = World ? World->GetTimeSeconds() : 0.f;
+        const float RepathCooldown = ObstacleDetectionSettings.StaticRepathCooldown > 0.f
+            ? ObstacleDetectionSettings.StaticRepathCooldown
+            : AStarRepathCooldown;
+        bool needNewPath = (CachedAvoidPath.Num() == 0) || (currentTime >= NextRepathTime);
+        const int32 AStarCells = FMath::Clamp(AStarGridCells, 5, 11);
+        const int32 MaxExpanded = FMath::Clamp(AStarMaxExpandedNodes, 1, 1500);
+
+        if (needNewPath) {
+            CachedAvoidPath = ShipController->FindPathAStar3D(
+                ShipController,
+                ShipRadius,
+                Start,             // start at current ship location
+                GoalLocation,      // end at actual target goal
+                GridCenter,        // center of grid around obstacle
+                AStarCells,
+                AStarGapMultiplier,
+                MaxExpanded,
+                /*bDrawDebug=*/ false,
+                /*bStaticOnly=*/ true,
+                /*bDynamicOnly=*/ false
+            );
+            CachedAvoidPathIndex = 0;
+            NextRepathTime = currentTime + RepathCooldown;
+        }
+
+        FVector CandidateTarget = FVector::ZeroVector;
+        float CandidateScore = TNumericLimits<float>::Lowest();
+        if (CachedAvoidPath.Num() > 0) {
+            float r = Radius;
+            while (CachedAvoidPathIndex < CachedAvoidPath.Num() - 1 &&
+                   FVector::DistSquared(Start, CachedAvoidPath[CachedAvoidPathIndex]) < FMath::Square(r * 1.25f)) {
+                CachedAvoidPathIndex++;
+            }
+            const FVector waypoint = CachedAvoidPath[CachedAvoidPathIndex];
+            CandidateTarget = AdjustAvoidanceTarget(waypoint, HitLocation, HitNormal, Clearance);
+            CandidateScore = -FVector::DistSquared(CandidateTarget, GoalLocation) * 0.000001f;
+        }
+
+        if (CandidateTarget.IsNearlyZero())
+        {
+            FVector fallbackPoint = ShipController->GetBestGridPointTowardGoal(
+                ShipController,
+                ShipRadius,
+                GridCenter,
+                GoalLocation,
+                DynamicGridCells,
+                DynamicGridGapMultiplier,
+                false,
+                /*bStaticOnly=*/ true,
+                /*bDynamicOnly=*/ false
+            );
+            CandidateTarget = AdjustAvoidanceTarget(fallbackPoint, HitLocation, HitNormal, Clearance);
+            CandidateScore = -FVector::DistSquared(CandidateTarget, GoalLocation) * 0.000001f;
+        }
+
+        if (!IsAvoidanceTargetReachable(Start, CandidateTarget, Radius))
+        {
+            CandidateTarget = GetSideAvoidanceTarget(Start, ForwardDir, HitNormal, Radius);
+        }
+
+        const float OppositeSign = FMath::Sign(FVector::DotProduct(RightDir, CandidateTarget - Start));
+        const bool bOppositeSide = bHasCommit && (OppositeSign != 0.f) && (OppositeSign != CommitSideSign);
+        const float ScoreBoost = bOppositeSide ? AvoidanceSideSwitchScoreBoost : 0.f;
+        float AdjustedScore = CandidateScore + ScoreBoost;
+        const bool bCommitExpired = bHasCommit && CurrentTime >= CommitExpireTime;
+        const bool bCommitInvalid = bHasCommit && !IsAvoidanceTargetReachable(Start, CommittedAvoidLocation, Radius);
+        const bool bCommitLocked = bHasCommit && !bCommitExpired && !bIsStuck;
+        const bool bCandidateBeatsCommit = !bHasCommit
+            || (AdjustedScore - CommitScore) >= AvoidanceCommitScoreThreshold;
+
+        if (bOppositeSide && bCandidateBeatsCommit)
+        {
+            OppositeSideWinCount++;
+        }
+        else if (!bOppositeSide)
+        {
+            OppositeSideWinCount = 0;
+        }
+
+        const bool bShouldSwitchSide = bOppositeSide
+            && OppositeSideWinCount >= AvoidanceSideSwitchWins
+            && (bCommitExpired || bIsStuck || bCandidateBeatsCommit);
+
+        const bool bShouldReplaceCommit = !bHasCommit
+            || bCommitInvalid
+            || bIsStuck
+            || (bCommitExpired && bCandidateBeatsCommit)
+            || bShouldSwitchSide;
+
+        if (bCommitLocked && !bShouldReplaceCommit)
+        {
+            CandidateTarget = CommittedAvoidLocation;
+            AdjustedScore = CommitScore;
+        }
+
+        if (bShouldReplaceCommit)
+        {
+            bHasCommit = true;
+            CommittedAvoidLocation = CandidateTarget;
+            CommitExpireTime = CurrentTime + FMath::Max(AvoidanceCommitSeconds, 0.1f);
+            CommitSideSign = OppositeSign == 0.f ? 1.f : OppositeSign;
+            CommitScore = AdjustedScore;
+            OppositeSideWinCount = 0;
+            CurrentAvoidActor = ObstacleActor;
+            AvoidActorIgnoreUntilTime = CurrentTime + FMath::Max(AvoidActorIgnoreDuration, 0.f);
+            AvoidActorLastDistance = ObstacleActor
+                ? FVector::Dist(Start, ObstacleActor->GetActorLocation())
+                : 0.f;
+        }
+
+        AvoidanceState = EAvoidanceState::AvoidCommit;
+        bHasAvoidanceTarget = true;
+        const FVector DesiredTarget = bHasCommit ? CommittedAvoidLocation : CandidateTarget;
+        const float InterpSpeed = FMath::Max(AvoidanceTargetInterpSpeed, 0.f);
+        CurrentTargetLocation = FMath::VInterpTo(CurrentTargetLocation, DesiredTarget, EvadeCheckInterval, InterpSpeed);
+        LastAvoidanceTargetLocation = CurrentTargetLocation;
+        LastAvoidanceTargetUpdateTime = CurrentTime;
+
+        if (ObstacleDebugSettings.bLogObstacleEvents && GEngine)
+        {
+            const TCHAR* LogMessage = CachedAvoidPath.Num() > 0
+                ? TEXT("Avoiding static obstacle: following path")
+                : TEXT("Avoiding static obstacle: using fallback point");
+            GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Orange, LogMessage);
+        }
+        DebugDrawAvoidanceTarget(CurrentTargetLocation, FColor::Orange);
+        UpdateAvoidanceRotationAssist(CurrentTargetLocation, ForwardDir, HitLocation, true);
+#if !(UE_BUILD_SHIPPING)
+        DrawStateDebug(CurrentTargetLocation, FColor::Orange);
+#endif
+        PreviousShipLocation = Start;
+        return;
+    }
+    else {
+        // **Dynamic obstacle (Pawn or WorldDynamic):** Use fast local grid to dodge
+        FVector avoidPoint = ShipController->GetBestGridPointTowardGoal(
+            ShipController,
+            ShipRadius,
+            GridCenter,
+            GoalLocation,
+            DynamicGridCells,
+            DynamicGridGapMultiplier,
+            false,
+            /*bStaticOnly=*/ false,
+            /*bDynamicOnly=*/ true
+        );
+        FVector CandidateTarget = AdjustAvoidanceTarget(avoidPoint, HitLocation, HitNormal, Clearance);
+        if (!IsAvoidanceTargetReachable(Start, CandidateTarget, Radius))
+        {
+            CandidateTarget = GetSideAvoidanceTarget(Start, ForwardDir, HitNormal, Radius);
+        }
+
+        float CandidateScore = -FVector::DistSquared(CandidateTarget, GoalLocation) * 0.000001f;
+        const float OppositeSign = FMath::Sign(FVector::DotProduct(RightDir, CandidateTarget - Start));
+        const bool bOppositeSide = bHasCommit && (OppositeSign != 0.f) && (OppositeSign != CommitSideSign);
+        float AdjustedScore = CandidateScore + (bOppositeSide ? AvoidanceSideSwitchScoreBoost : 0.f);
+        const bool bCommitExpired = bHasCommit && CurrentTime >= CommitExpireTime;
+        const bool bCommitInvalid = bHasCommit && !IsAvoidanceTargetReachable(Start, CommittedAvoidLocation, Radius);
+        const bool bCommitLocked = bHasCommit && !bCommitExpired && !bIsStuck;
+        const bool bCandidateBeatsCommit = !bHasCommit
+            || (AdjustedScore - CommitScore) >= AvoidanceCommitScoreThreshold;
+
+        if (bOppositeSide && bCandidateBeatsCommit)
+        {
+            OppositeSideWinCount++;
+        }
+        else if (!bOppositeSide)
+        {
+            OppositeSideWinCount = 0;
+        }
+
+        const bool bShouldSwitchSide = bOppositeSide
+            && OppositeSideWinCount >= AvoidanceSideSwitchWins
+            && (bCommitExpired || bIsStuck || bCandidateBeatsCommit);
+        const bool bShouldReplaceCommit = !bHasCommit
+            || bCommitInvalid
+            || bIsStuck
+            || (bCommitExpired && bCandidateBeatsCommit)
+            || bShouldSwitchSide;
+
+        if (bCommitLocked && !bShouldReplaceCommit)
+        {
+            CandidateTarget = CommittedAvoidLocation;
+            AdjustedScore = CommitScore;
+        }
+
+        if (bShouldReplaceCommit)
+        {
+            bHasCommit = true;
+            CommittedAvoidLocation = CandidateTarget;
+            CommitExpireTime = CurrentTime + FMath::Max(AvoidanceCommitSeconds, 0.1f);
+            CommitSideSign = OppositeSign == 0.f ? 1.f : OppositeSign;
+            CommitScore = AdjustedScore;
+            OppositeSideWinCount = 0;
+            CurrentAvoidActor = ObstacleActor;
+            AvoidActorIgnoreUntilTime = CurrentTime + FMath::Max(AvoidActorIgnoreDuration, 0.f);
+            AvoidActorLastDistance = ObstacleActor
+                ? FVector::Dist(Start, ObstacleActor->GetActorLocation())
+                : 0.f;
+        }
+
+        AvoidanceState = EAvoidanceState::AvoidCommit;
+        bHasAvoidanceTarget = true;
+        const FVector DesiredTarget = bHasCommit ? CommittedAvoidLocation : CandidateTarget;
+        const float InterpSpeed = FMath::Max(AvoidanceTargetInterpSpeed, 0.f);
+        CurrentTargetLocation = FMath::VInterpTo(CurrentTargetLocation, DesiredTarget, EvadeCheckInterval, InterpSpeed);
+        LastAvoidanceTargetLocation = CurrentTargetLocation;
+        LastAvoidanceTargetUpdateTime = CurrentTime;
+
+        if (ObstacleDebugSettings.bLogObstacleEvents && GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, TEXT("Avoiding dynamic obstacle: local reroute"));
+        }
+        DebugDrawAvoidanceTarget(CurrentTargetLocation, FColor::Yellow);
+        UpdateAvoidanceRotationAssist(CurrentTargetLocation, ForwardDir, HitLocation, true);
+#if !(UE_BUILD_SHIPPING)
+        DrawStateDebug(CurrentTargetLocation, FColor::Yellow);
+#endif
+        PreviousShipLocation = Start;
+        return;
+    }
+}
+
+void AShip::UpdateAvoidanceRotationAssist(
+    const FVector& AvoidanceTarget,
+    const FVector& ForwardDir,
+    const FVector& HitLocation,
+    bool bHitObstacle
+)
+{
+    const UWorld* World = GetWorld();
+    const float CurrentTime = World ? World->GetTimeSeconds() : 0.f;
+
+    if (bHitObstacle)
+    {
+        LastAvoidanceHitTime = CurrentTime;
+    }
+
+    const float HoldSeconds = FMath::Max(ObstacleDetectionSettings.AvoidanceTurnHoldSeconds, 0.f);
+    const bool bWithinHold = bHitObstacle
+        || (HoldSeconds > 0.f && (CurrentTime - LastAvoidanceHitTime) <= HoldSeconds);
+
+    if (!bWithinHold)
+    {
+        bAvoidanceRotationAssist = false;
+        AvoidanceThrottleScale = 1.f;
+        AvoidanceBrakeScale = 0.f;
+        AvoidanceTorqueScale = 0.f;
+        return;
+    }
+
+    const FVector ToTarget = (AvoidanceTarget - GetActorLocation()).GetSafeNormal();
+    const FVector Forward = ForwardDir.GetSafeNormal();
+
+    if (ToTarget.IsNearlyZero() || Forward.IsNearlyZero())
+    {
+        bAvoidanceRotationAssist = false;
+        AvoidanceThrottleScale = 1.f;
+        AvoidanceBrakeScale = 0.f;
+        AvoidanceTorqueScale = 0.f;
+        return;
+    }
+
+    const float Dot = FMath::Clamp(FVector::DotProduct(Forward, ToTarget), -1.f, 1.f);
+    const float AngleDeg = FMath::RadiansToDegrees(FMath::Acos(Dot));
+    const float SlowdownAngle = FMath::Max(ObstacleDetectionSettings.AvoidanceTurnSlowdownAngle, 0.f);
+
+    if (AngleDeg < SlowdownAngle)
+    {
+        bAvoidanceRotationAssist = false;
+        AvoidanceThrottleScale = 1.f;
+        AvoidanceBrakeScale = 0.f;
+        AvoidanceTorqueScale = 0.f;
+        return;
+    }
+
+    bAvoidanceRotationAssist = true;
+    AvoidanceThrottleScale = FMath::Clamp(ObstacleDetectionSettings.AvoidanceTurnThrottleScale, 0.f, 1.f);
+    AvoidanceBrakeScale = FMath::Clamp(ObstacleDetectionSettings.AvoidanceTurnBrakeStrength, 0.f, 1.f);
+    AvoidanceTorqueScale = FMath::Clamp(ObstacleDetectionSettings.AvoidanceTurnTorqueScale, 0.f, 1.f);
+
+    (void)HitLocation;
+}
+
+FVector AShip::CalculateVelocity() const
+{
+    FVector Velocity = FVector::ZeroVector;
+    if (ShipBase)
+    {
+        Velocity = ShipBase->GetPhysicsLinearVelocity();
+    }
+
+    if (Velocity.IsNearlyZero())
+    {
+        const float SampleDelta = FMath::Max(EvadeCheckInterval, KINDA_SMALL_NUMBER);
+        const FVector CurrentLocation = GetActorLocation();
+        if (!PreviousShipLocation.IsNearlyZero())
+        {
+            Velocity = (CurrentLocation - PreviousShipLocation) / SampleDelta;
+        }
+    }
+
+    return Velocity;
+}
+
+FVector AShip::CalculateProbeDirection(const FVector& ForwardDir, const FVector& Velocity) const
+{
+    const FVector Forward = ForwardDir.GetSafeNormal();
+    const float Speed = Velocity.Size();
+
+    if (Speed < ObstacleDetectionSettings.VelocityBlendMinSpeed)
+    {
+        return Forward;
+    }
+
+    const FVector VelocityDir = Velocity.IsNearlyZero() ? Forward : Velocity.GetSafeNormal();
+    const float Align01 = FMath::Clamp(FVector::DotProduct(Forward, VelocityDir), 0.f, 1.f);
+    const float ForwardBias = FMath::Clamp(ObstacleDetectionSettings.VelocityBlendForwardBias, 0.f, 1.f);
+    const float BlendStrength = FMath::Max(ObstacleDetectionSettings.VelocityBlendStrength, 0.f);
+    const float UseVelAlpha = FMath::Clamp((1.f - Align01) * (1.f - ForwardBias) * BlendStrength, 0.f, 1.f);
+
+    return (Forward * (1.f - UseVelAlpha) + VelocityDir * UseVelAlpha).GetSafeNormal();
+}
+
+FVector AShip::AdjustAvoidanceTarget(
+    const FVector& Candidate,
+    const FVector& ObstacleLocation,
+    const FVector& HitNormal,
+    float Clearance
+) const
+{
+    FVector Direction = Candidate - ObstacleLocation;
+    if (!Direction.Normalize())
+    {
+        Direction = HitNormal.IsNearlyZero()
+            ? (Candidate - GetActorLocation()).GetSafeNormal()
+            : HitNormal;
+    }
+
+    FVector Adjusted = ObstacleLocation + Direction * Clearance;
+
+    if (!HitNormal.IsNearlyZero())
+    {
+        const float NormalAlign = FVector::DotProduct(Adjusted - ObstacleLocation, HitNormal);
+        if (NormalAlign < 0.f)
+        {
+            Adjusted += HitNormal * (-NormalAlign);
+        }
+    }
+
+    if (!IsLocationVisible(Adjusted))
+    {
+        const FVector FallbackDir = (Adjusted - ObstacleLocation).GetSafeNormal();
+        Adjusted = ObstacleLocation + FallbackDir * (Clearance * 1.35f);
+    }
+
+    return Adjusted;
+}
+
+void AShip::DebugDrawObstacleProbe(
+    const FVector& Start,
+    const FVector& End,
+    bool bHit,
+    const FHitResult& Hit
+) const
+{
+#if !(UE_BUILD_SHIPPING)
+    if (!ObstacleDebugSettings.bDrawProbe)
+    {
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    const float Lifetime = 0.f;
+    const FColor LineColor = bHit ? FColor::Red : FColor::Blue;
+
+    DrawDebugLine(World, Start, End, LineColor, false, Lifetime, 0, 2.0f);
+
+    if (bHit)
+    {
+        const float Radius = ShipRadius ? ShipRadius->GetScaledSphereRadius() : 150.f;
+        DrawDebugSphere(World, Hit.ImpactPoint, Radius, 12, FColor::Red, false, Lifetime);
+    }
+#else
+    (void)Start;
+    (void)End;
+    (void)bHit;
+    (void)Hit;
+#endif
+}
+
+void AShip::DebugDrawAvoidanceTarget(const FVector& Target, const FColor& Color) const
+{
+#if !(UE_BUILD_SHIPPING)
+    if (!ObstacleDebugSettings.bDrawAvoidanceTarget)
+    {
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    const float Lifetime = 0.f;
+    DrawDebugSphere(World, Target, 80.f, 8, Color, false, Lifetime);
+#else
+    (void)Target;
+    (void)Color;
+#endif
+}
+
+bool AShip::IsAvoidanceTargetReachable(
+    const FVector& Start,
+    const FVector& Target,
+    float Radius
+) const
+{
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return true;
+    }
+
+    const FVector Dir = (Target - Start).GetSafeNormal();
+    if (Dir.IsNearlyZero())
+    {
+        return true;
+    }
+
+    const float ProbeDistance = FMath::Max(ObstacleDetectionSettings.AvoidanceReachabilityProbeDistance, Radius);
+    const float DistanceToTarget = FVector::Dist(Start, Target);
+    const float SweepDistance = FMath::Min(ProbeDistance, DistanceToTarget);
+    const FVector End = Start + Dir * SweepDistance;
+
+    FCollisionObjectQueryParams objectQuery = BuildObjectQueryAllAvoid();
+
+    FCollisionQueryParams traceParams(SCENE_QUERY_STAT(AvoidanceReachability), false);
+    traceParams.bTraceComplex = false;
+    traceParams.AddIgnoredActor(this);
+
+    FHitResult Hit;
+    const bool bBlocked = World->SweepSingleByObjectType(
+        Hit,
+        Start,
+        End,
+        FQuat::Identity,
+        objectQuery,
+        FCollisionShape::MakeSphere(Radius),
+        traceParams
+    );
+
+    return !bBlocked;
+}
+
+FVector AShip::GetSideAvoidanceTarget(
+    const FVector& Origin,
+    const FVector& ForwardDir,
+    const FVector& HitNormal,
+    float Radius
+) const
+{
+    const FVector Forward = ForwardDir.IsNearlyZero() ? GetActorForwardVector() : ForwardDir.GetSafeNormal();
+    const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward).GetSafeNormal();
+    const FVector SafeRight = Right.IsNearlyZero() ? FVector::RightVector : Right;
+
+    const float SideSign = HitNormal.IsNearlyZero() ? 1.f : FMath::Sign(FVector::DotProduct(SafeRight, HitNormal));
+    const FVector SideDir = SafeRight * (SideSign == 0.f ? 1.f : SideSign);
+    const float SideDistance = Radius * FMath::Max(ObstacleDetectionSettings.AvoidanceBehindOffsetMultiplier, 0.f);
+    const float ForwardBias = Radius * 0.1f;
+
+    return Origin + SideDir * SideDistance + Forward * ForwardBias;
+}
+
+bool AShip::IsOverlappingBigObstacle() const
+{
+    if (!ShipRadius)
+    {
+        return false;
+    }
+
+    TArray<UPrimitiveComponent*> OverlappingComponents;
+    ShipRadius->GetOverlappingComponents(OverlappingComponents);
+    for (UPrimitiveComponent* Component : OverlappingComponents)
+    {
+        if (!Component)
+        {
+            continue;
+        }
+
+        const ECollisionChannel Channel = Component->GetCollisionObjectType();
+        if (Channel == ECC_WorldStatic || Channel == ECC_WorldDynamic)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+FVector AShip::EnforceAvoidanceMinDistance(
+    const FVector& Start,
+    const FVector& Target,
+    const FVector& ForwardDir,
+    float MinDistance
+) const
+{
+    const float Distance = FVector::Dist(Start, Target);
+    if (Distance >= MinDistance)
+    {
+        return Target;
+    }
+
+    FVector Direction = (Target - Start).GetSafeNormal();
+    if (Direction.IsNearlyZero())
+    {
+        Direction = ForwardDir.IsNearlyZero() ? GetActorForwardVector() : ForwardDir.GetSafeNormal();
+    }
+
+    return Start + Direction * MinDistance;
+}
+
+FVector AShip::ComputeAvoidanceTargetFromStart(
+    const FVector& StartLocation,
+    const FVector& GoalLocation,
+    const FVector& GridCenter,
+    const FVector& HitLocation,
+    const FVector& HitNormal,
+    float Clearance,
+    float Radius,
+    const FVector& ForwardDir
+)
+{
+    FVector DesiredTarget = ShipController ? ShipController->GetBestGridPointTowardGoal(
+        ShipController,
+        ShipRadius,
+        GridCenter,
+        GoalLocation,
+        DynamicGridCells,
+        DynamicGridGapMultiplier,
+        false,
+        /*bStaticOnly=*/ true,
+        /*bDynamicOnly=*/ false
+    ) : GoalLocation;
+
+    DesiredTarget = AdjustAvoidanceTarget(DesiredTarget, HitLocation, HitNormal, Clearance);
+    if (!IsAvoidanceTargetReachable(StartLocation, DesiredTarget, Radius))
+    {
+        DesiredTarget = GetSideAvoidanceTarget(StartLocation, ForwardDir, HitNormal, Radius);
+    }
+
+    return DesiredTarget;
+}
+
+void AShip::ApplySteeringForce(FVector TargetLocation, float DeltaTime)
+{
+    if (!ShipBase || !ShipRadius || DeltaTime <= 0.f)
+        return;
+
+    const FVector ActorLocation = GetActorLocation();
+    const FVector Velocity = ShipBase->GetPhysicsLinearVelocity();
+    const FVector Forward = ShipBase->GetForwardVector();
+
+    if (SmoothedSteeringTarget.IsNearlyZero())
+    {
+        SmoothedSteeringTarget = TargetLocation;
+    }
+    SmoothedSteeringTarget = FMath::VInterpTo(
+        SmoothedSteeringTarget,
+        TargetLocation,
+        DeltaTime,
+        SteeringTargetInterpSpeed
+    );
+
+    const FVector ToTarget = (SmoothedSteeringTarget - ActorLocation).GetSafeNormal();
+    if (ToTarget.IsNearlyZero())
+        return;
+
+    // ----------------
+    // Velocity alignment
+    // ----------------
+    float VelocityFacing01 = 1.f;
+    float VelDotToTarget = 1.f;
+
+    if (!Velocity.IsNearlyZero())
+    {
+        const FVector VelDir = Velocity.GetSafeNormal();
+        VelDotToTarget = FVector::DotProduct(VelDir, ToTarget);
+        VelocityFacing01 = FMath::Clamp(VelDotToTarget, 0.f, 1.f);
+    }
+
+    const float Distance = FVector::Dist(ActorLocation, SmoothedSteeringTarget);
+    const float ShipRadiusScaled = ShipRadius->GetScaledSphereRadius();
+
+    // Brake ONLY when close or moving away hard
+    const bool bClose = Distance <= ShipRadiusScaled * 5.f;
+    const bool bMovingAwayHard = VelDotToTarget < -0.2f;
+
+    float TargetBrakeStrength = 0.f;
+    if ((bClose || bMovingAwayHard) && !Velocity.IsNearlyZero())
+    {
+        TargetBrakeStrength = FMath::Clamp(-VelDotToTarget, 0.f, 1.f);
+    }
+
+    if (bHasAvoidanceTarget && bAvoidanceRotationAssist)
+    {
+        TargetBrakeStrength = FMath::Clamp(TargetBrakeStrength + AvoidanceBrakeScale, 0.f, 1.f);
+    }
+
+    CurrentBrakeStrength = FMath::FInterpTo(
+        CurrentBrakeStrength,
+        TargetBrakeStrength,
+        DeltaTime,
+        BrakeInterpSpeed
+    );
+
+    if (CurrentBrakeStrength > KINDA_SMALL_NUMBER && !Velocity.IsNearlyZero())
+    {
+        ShipBase->AddForce(
+            -Velocity.GetSafeNormal() *
+            ShipBase->GetMass() *
+            MaxForwardForce *
+            0.5f *
+            CurrentBrakeStrength,
+            NAME_None,
+            false
+        );
+    }
+
+    // Facing quality (DON'T clamp to 0 when behind)
+    const float FacingDot = FMath::Clamp(FVector::DotProduct(Forward, ToTarget), -1.f, 1.f);
+    const float Facing01 = (FacingDot + 1.f) * 0.5f; // [-1..1] -> [0..1]
+
+    const float SteeringQuality = Facing01 * VelocityFacing01;
+
+    // Throttle: far away keep arcing (never drop to 0)
+    float TargetThrottle = 1.f;
+
+    if (bClose)
+    {
+        TargetThrottle =
+            FMath::Lerp(
+                MinThrottle,
+                1.f,
+                FMath::Pow(SteeringQuality, 2.f)
+            );
+    }
+    else
+    {
+        TargetThrottle = FMath::Lerp(MinThrottle, 1.f, FMath::Pow(Facing01, 1.5f));
+    }
+
+    if (bHasAvoidanceTarget && bAvoidanceRotationAssist)
+    {
+        TargetThrottle = FMath::Clamp(TargetThrottle * AvoidanceThrottleScale, 0.f, 1.f);
+    }
+
+    if (AvoidanceState == EAvoidanceState::StuckEscape)
+    {
+        TargetThrottle = FMath::Min(TargetThrottle, 0.1f);
+    }
+
+    CurrentThrottle =
+        FMath::FInterpTo(
+            CurrentThrottle,
+            TargetThrottle,
+            DeltaTime,
+            ThrottleInterpSpeed
+        );
+
+    // Forward thrust
+    ShipBase->AddForce(
+        Forward *
+        ShipBase->GetMass() *
+        MaxForwardForce *
+        CurrentThrottle,
+        NAME_None,
+        false
+    );
+
+    if (bHasAvoidanceTarget && bAvoidanceRotationAssist && AvoidanceTorqueScale > KINDA_SMALL_NUMBER)
+    {
+        const FVector AssistDir = ToTarget.GetSafeNormal();
+        const FVector TorqueAxis = FVector::CrossProduct(Forward, AssistDir).GetSafeNormal();
+        if (!TorqueAxis.IsNearlyZero())
+        {
+            const float TorqueStrength = ShipBase->GetMass() * MaxForwardForce * AvoidanceTorqueScale;
+            ShipBase->AddTorqueInRadians(TorqueAxis * TorqueStrength, NAME_None, false);
+        }
+    }
+}
+
+void AShip::ApplyAggressiveSeekForce(FVector TargetLocation, float DeltaTime)
+{
+    if (!ShipBase || !ShipRadius || DeltaTime <= 0.f)
+        return;
+
+    const FVector ShipLocation = GetActorLocation();
+    const FVector ToTarget = (TargetLocation - ShipLocation);
+    const float Dist = ToTarget.Size();
+    if (Dist < KINDA_SMALL_NUMBER) return;
+
+    const FVector DesiredDir = ToTarget / Dist;
+
+    const FVector Velocity = ShipBase->GetPhysicsLinearVelocity();
+
+    // Aggressive = velocity tracking toward target direction
+    const float DesiredSpeed = FMath::Clamp(Dist, 600.f, 2500.f);
+    const FVector DesiredVelocity = DesiredDir * DesiredSpeed;
+
+    const FVector VelError = DesiredVelocity - Velocity;
+
+    const float Response = FMath::Max(LateralDamping * 2.5f, 0.2f);
+    FVector Force = VelError * ShipBase->GetMass() * Response;
+
+    const float MaxForce = ShipBase->GetMass() * MaxForwardForce * 1.35f;
+    Force = Force.GetClampedToMaxSize(MaxForce);
+
+    ShipBase->AddForce(Force, NAME_None, false);
+}
+
+
+void AShip::ApplyUnstuckForce(float DeltaTime)
+{
+    if (!ShipBase || !ShipRadius || DeltaTime <= 0.f)
+        return;
+
+    FVector TotalPush = FVector::ZeroVector;
+    const float SphereRadius = ShipRadius->GetScaledSphereRadius() + UnstuckRadius;
+    const float StopDistance = FMath::Max(ShipRadius->GetScaledSphereRadius() * 2.0f, KINDA_SMALL_NUMBER);
+    const FVector Velocity = ShipBase->GetPhysicsLinearVelocity();
+    const float Mass = ShipBase->GetMass();
+
+    TArray<UPrimitiveComponent*> OverlappingComponents;
+    ShipRadius->GetOverlappingComponents(OverlappingComponents);
+
+    for (UPrimitiveComponent* OverComp : OverlappingComponents)
+    {
+        if (!OverComp) continue;
+
+        AActor* OtherActor = OverComp->GetOwner();
+        if (!OtherActor || OtherActor == this) continue;
+
+        const ECollisionChannel Ch = OverComp->GetCollisionObjectType();
+        if (Ch != ECC_Pawn && Ch != ECC_WorldDynamic && Ch != ECC_WorldStatic)
+            continue;
+
+        FVector ClosestPoint;
+        OverComp->GetClosestPointOnCollision(ShipBase->GetComponentLocation(), ClosestPoint);
+
+        FVector DirAway = ShipBase->GetComponentLocation() - ClosestPoint;
+        const float Dist = DirAway.Size();
+
+        if (Dist < KINDA_SMALL_NUMBER) continue;
+
+        DirAway /= Dist;
+
+        const float DistanceAlpha = FMath::Clamp(1.f - (Dist / StopDistance), 0.f, 1.f);
+        if (DistanceAlpha <= KINDA_SMALL_NUMBER)
+        {
+            continue;
+        }
+
+        const float SpeedToward = FMath::Max(0.f, FVector::DotProduct(Velocity, -DirAway));
+        if (SpeedToward <= KINDA_SMALL_NUMBER)
+        {
+            continue;
+        }
+
+        const float Accel = (SpeedToward * SpeedToward) / (2.f * StopDistance);
+        const float Strength = UnstuckForceStrength * (Mass * Accel) * DistanceAlpha;
+
+        TotalPush += DirAway * Strength;
+    }
+
+    if (!TotalPush.IsNearlyZero())
+    {
+        ShipBase->AddForce(TotalPush * ShipBase->GetMass() * DeltaTime, NAME_None, false);
+    }
+}
