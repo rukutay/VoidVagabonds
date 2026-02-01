@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 ### Added
+- **Navigation System Enhancements:**
+  - Periodic global replanning with jitter to avoid synchronization spikes across ships
+  - Low-frequency refresh system for slow-moving static obstacles (planets/suns/stations)
+  - Enhanced temp waypoint system with reason tracking (static vs dynamic) to prevent premature clearing
+  - Static blocked accumulation tracking with force replan to prevent near-surface deadlocks
+  - Jittered replanning intervals with meaningful change detection (ship movement, goal changes)
 - Soft separation "airbag" force system that provides very soft braking on radius overlap and light push only on ShipBase hit events. Force now applies gradual slowdown on overlap and gentle push only when actual collision occurs, eliminating slingshot effects.
 - Blueprint-exposed soft separation parameters: SoftSeparationMarginCm, SoftSeparationStrength, SoftSeparationMaxForce, SoftSeparationDamping, SoftSeparationResponse, SoftSeparationMaxActors
 - Debug visualization for soft separation system (yellow boundary sphere + blue force vector) via bDebugSoftSeparation toggle
@@ -9,26 +15,9 @@
 - Performance optimizations including periodic cleanup, efficient top-N overlap selection, and memory pre-allocation
 
 ### Changed
-- Added a debug-only warning when safety-margin escape targets resolve to the ship location.
-- Prefer the active nav obstacle component/actor when computing safety-margin escape targets.
-- `AAIShipController::GetFocusLocation` now always returns the `TargetActor` location when set, regardless of safety margin state.
-- Added optional debug draws for safety-margin proximity picks and static proximity avoidance checks.
-- Added proximity fallback in `UShipNavComponent` static obstacle checks to trigger avoidance when inside inflated buffers.
-- Added safety-margin proximity queries in `AAIShipController` to select the nearest blocking obstacle component before overlap begins.
-- Added safety margin exit hysteresis to keep `bInsideSafetyMargin` stable and clear nav obstacle refs on exit.
-- Use safety-margin escape targets instead of goal targets when inside the margin.
-- Added `ComputeEscapeTarget` helper for safety-margin escape points.
-- Added a timer-driven safety margin check that updates `bInsideSafetyMargin` from the current obstacle contact.
-- Added safety margin state/config fields to gate goal selection when too close to obstacles.
-- Exit unstuck mode when the timer expires, speed recovers, or obstacle contact is lost.
-- Skip nav target regeneration while `AAIShipController` is in unstuck mode.
-- Apply a small timer-based unstuck force when `bIsUnstucking` is set on `AAIShipController`.
-- Added `AAIShipController::GetCurrentObstacleContactPoint` helper for closest obstacle contact.
-- Added a lightweight stuck detection timer in `AAIShipController` that marks unstuck state after sustained low speed + no progress.
-- Track the current overlapping obstacle component on `AAIShipController` via ship radius overlaps.
-- Added `AAIShipController` unstuck state/detection/config variables (no behavior yet).
-- Added temp waypoint reason tracking in `UShipNavComponent` so static obstacle avoidance waypoints
-  only clear when the static segment is unblocked or the commit expires.
+- Enhanced static obstacle system to support moving obstacles with periodic refresh (tagged `NavStaticMoving`)
+- Improved temp waypoint cleanup logic to preserve static avoidance waypoints until obstacles are clear
+- Added force replan mechanism when static blocking persists for more than 1.0 second
 - Hardened `UShipNavComponent` to avoid returning zero nav targets when a goal is valid and to early-return when already at the goal.
 - Added debug logs/on-screen messaging when a ship has no valid target (goal equals self).
 - Exposed `AShip::TargetActor` for per-instance Blueprint assignment and moved focus sourcing
