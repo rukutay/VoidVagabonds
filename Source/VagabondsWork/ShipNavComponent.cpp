@@ -118,6 +118,35 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	if (GameMode && bStaticCheckDue)
 	{
 		bStaticBlocked = !GameMode->IsSegmentClearOfStaticObstacles(ShipPos, DesiredTarget, &StaticHitIndex);
+		if (!bStaticBlocked)
+		{
+			const TArray<FNavObstacleSphereProxy>& Obstacles = GameMode->GetStaticNavObstacles();
+			float BestDistSq = BIG_NUMBER;
+			int32 BestIndex = INDEX_NONE;
+			float BestAvoidRadius = 0.0f;
+			for (int32 Index = 0; Index < Obstacles.Num(); ++Index)
+			{
+				const FNavObstacleSphereProxy& Obstacle = Obstacles[Index];
+				const float AvoidRadius = Obstacle.InflatedRadius + (ShipRadiusCm * StaticAvoidMarginMultiplier);
+				const float DistSq = FVector::DistSquared(ShipPos, Obstacle.Center);
+				if (DistSq < FMath::Square(AvoidRadius) && DistSq < BestDistSq)
+				{
+					BestDistSq = DistSq;
+					BestIndex = Index;
+					BestAvoidRadius = AvoidRadius;
+				}
+			}
+			if (BestIndex != INDEX_NONE)
+			{
+				bStaticBlocked = true;
+				StaticHitIndex = BestIndex;
+				if (bDrawNavPath)
+				{
+					DrawDebugSphere(GetWorld(), Obstacles[BestIndex].Center, BestAvoidRadius, 16,
+						FColor::Orange, false, 0.0f, 0, 1.2f);
+				}
+			}
+		}
 		NextStaticRecheckTime = CurrentTime + StaticAvoidRecheckInterval;
 	}
 	else if (FocusStaticObstacleIndex != INDEX_NONE)

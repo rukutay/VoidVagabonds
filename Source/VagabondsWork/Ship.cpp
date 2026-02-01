@@ -77,6 +77,12 @@ void AShip::Tick(float DeltaTime)
     if (ShipController && ShipController->IsInsideSafetyMargin())
     {
         SteeringTarget = ShipController->ComputeEscapeTarget(ActorLocation, ShipRadius);
+#if !UE_BUILD_SHIPPING
+        if (SteeringTarget.Equals(ActorLocation, 1.f))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("InsideSafetyMargin but EscapeTarget == Self (ObstacleComp invalid?)"));
+        }
+#endif
     }
     else if (ShipNav && (!ShipController || !ShipController->IsUnstucking()))
     {

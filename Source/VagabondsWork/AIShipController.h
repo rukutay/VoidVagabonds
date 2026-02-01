@@ -58,6 +58,9 @@ private:
     UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance")
     float SafetyMarginCheckInterval = 0.15f;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|Debug")
+    bool bDebugSafetyMargin = false;
+
     FTimerHandle StuckCheckTimerHandle;
 
     FTimerHandle SafetyMarginTimerHandle;

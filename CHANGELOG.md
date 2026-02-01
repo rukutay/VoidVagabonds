@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 ### Changed
+- Added a debug-only warning when safety-margin escape targets resolve to the ship location.
+- Prefer the active nav obstacle component/actor when computing safety-margin escape targets.
+- `AAIShipController::GetFocusLocation` now always returns the `TargetActor` location when set, regardless of safety margin state.
+- Added optional debug draws for safety-margin proximity picks and static proximity avoidance checks.
+- Added proximity fallback in `UShipNavComponent` static obstacle checks to trigger avoidance when inside inflated buffers.
+- Added safety-margin proximity queries in `AAIShipController` to select the nearest blocking obstacle component before overlap begins.
 - Added safety margin exit hysteresis to keep `bInsideSafetyMargin` stable and clear nav obstacle refs on exit.
 - Use safety-margin escape targets instead of goal targets when inside the margin.
 - Added `ComputeEscapeTarget` helper for safety-margin escape points.

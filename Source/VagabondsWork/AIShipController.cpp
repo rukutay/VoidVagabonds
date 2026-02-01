@@ -3,6 +3,9 @@
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/Pawn.h"
 #include "Engine/World.h"
+#include "Components/SphereComponent.h"
+#include "DrawDebugHelpers.h"
+#include "Engine/OverlapResult.h"
 
 void AAIShipController::BeginPlay()
 {
@@ -29,7 +32,7 @@ void AAIShipController::BeginPlay()
 FVector AAIShipController::GetFocusLocation()
 {
     AShip* Ship = Cast<AShip>(GetPawn());
-    if (Ship && Ship->TargetActor && !bInsideSafetyMargin)
+    if (Ship && Ship->TargetActor)
     {
         return Ship->TargetActor->GetActorLocation();
     }
@@ -116,6 +119,78 @@ void AAIShipController::HandleSafetyMarginCheck()
         return;
     }
 
+    UPrimitiveComponent* ObstacleComp = CurrentObstacleComp.Get();
+    FVector ClosestPoint = FVector::ZeroVector;
+    const FVector ShipLocation = Ship->GetActorLocation();
+    const bool bHasCurrentPoint = ObstacleComp
+        && ObstacleComp->GetClosestPointOnCollision(ShipLocation, ClosestPoint);
+    if (!ObstacleComp || !bHasCurrentPoint)
+    {
+        const float ShipRadiusValue = Ship->ShipRadius->GetScaledSphereRadius();
+        const float QueryRadius = ShipRadiusValue + NavSafetyMargin;
+        if (QueryRadius > KINDA_SMALL_NUMBER && GetWorld())
+        {
+            FCollisionObjectQueryParams ObjectParams;
+            ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+            ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+            ObjectParams.AddObjectTypesToQuery(ECC_PhysicsBody);
+            FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(SafetyMarginQuery), false);
+            QueryParams.AddIgnoredActor(Ship);
+
+            TArray<FOverlapResult> Overlaps;
+            GetWorld()->OverlapMultiByObjectType(
+                Overlaps,
+                ShipLocation,
+                FQuat::Identity,
+                ObjectParams,
+                FCollisionShape::MakeSphere(QueryRadius),
+                QueryParams);
+
+            float BestDistance = TNumericLimits<float>::Max();
+            UPrimitiveComponent* BestComp = nullptr;
+            FVector BestPoint = FVector::ZeroVector;
+            for (const FOverlapResult& Overlap : Overlaps)
+            {
+                UPrimitiveComponent* OverlapComp = Overlap.GetComponent();
+                if (!OverlapComp)
+                {
+                    continue;
+                }
+
+                const bool bBlocksStatic = OverlapComp->GetCollisionResponseToChannel(ECC_WorldStatic) == ECR_Block;
+                const bool bBlocksDynamic = OverlapComp->GetCollisionResponseToChannel(ECC_WorldDynamic) == ECR_Block;
+                const bool bBlocksPhysics = OverlapComp->GetCollisionResponseToChannel(ECC_PhysicsBody) == ECR_Block;
+                if (!bBlocksStatic && !bBlocksDynamic && !bBlocksPhysics)
+                {
+                    continue;
+                }
+
+                FVector OverlapClosestPoint = FVector::ZeroVector;
+                if (!OverlapComp->GetClosestPointOnCollision(ShipLocation, OverlapClosestPoint))
+                {
+                    continue;
+                }
+
+                const float Distance = FVector::Dist(ShipLocation, OverlapClosestPoint);
+                if (Distance < BestDistance)
+                {
+                    BestDistance = Distance;
+                    BestComp = OverlapComp;
+                    BestPoint = OverlapClosestPoint;
+                }
+            }
+
+            if (BestComp)
+            {
+                SetCurrentObstacleComp(BestComp);
+                if (bDebugSafetyMargin && GetWorld())
+                {
+                    DrawDebugPoint(GetWorld(), BestPoint, 10.0f, FColor::Red, false, 0.0f, 0);
+                }
+            }
+        }
+    }
+
     UpdateInsideSafetyMargin(Ship->ShipRadius);
 }
 
@@ -128,7 +203,15 @@ bool AAIShipController::UpdateInsideSafetyMargin(USphereComponent* ShipRadius)
         return false;
     }
 
-    UPrimitiveComponent* ObstacleComp = CurrentObstacleComp.Get();
+    UPrimitiveComponent* ObstacleComp = nullptr;
+    if (bInsideSafetyMargin && CurrentNavObstacleComp.IsValid())
+    {
+        ObstacleComp = CurrentNavObstacleComp.Get();
+    }
+    else
+    {
+        ObstacleComp = CurrentObstacleComp.Get();
+    }
     if (!ObstacleComp)
     {
         bInsideSafetyMargin = false;
@@ -157,19 +240,31 @@ bool AAIShipController::UpdateInsideSafetyMargin(USphereComponent* ShipRadius)
 
     const float Distance = FVector::Dist(ControlledPawn->GetActorLocation(), ClosestPoint);
     const float ShipRadiusValue = ShipRadius->GetScaledSphereRadius();
-    const float Margin = NavSafetyMargin + ShipRadiusValue;
-    const float ExitMargin = Margin + (ShipRadiusValue * SafetyExitHysteresisMultiplier);
-    bInsideSafetyMargin = Distance < Margin;
-    if (bInsideSafetyMargin)
+    const float EnterMargin = NavSafetyMargin + ShipRadiusValue;
+    const float ExitMargin = EnterMargin + (ShipRadiusValue * SafetyExitHysteresisMultiplier);
+    if (!bInsideSafetyMargin)
     {
-        CurrentNavObstacleComp = ObstacleComp;
-        CurrentNavObstacleActor = ObstacleComp->GetOwner();
+        bInsideSafetyMargin = Distance < EnterMargin;
+        if (bInsideSafetyMargin)
+        {
+            CurrentNavObstacleComp = ObstacleComp;
+            CurrentNavObstacleActor = ObstacleComp->GetOwner();
+        }
     }
-    else if (Distance > ExitMargin)
+    else
     {
-        bInsideSafetyMargin = false;
-        CurrentNavObstacleComp.Reset();
-        CurrentNavObstacleActor.Reset();
+        if (Distance > ExitMargin)
+        {
+            bInsideSafetyMargin = false;
+            CurrentNavObstacleComp.Reset();
+            CurrentNavObstacleActor.Reset();
+        }
+        else
+        {
+            bInsideSafetyMargin = true;
+            CurrentNavObstacleComp = ObstacleComp;
+            CurrentNavObstacleActor = ObstacleComp->GetOwner();
+        }
     }
 
     return bInsideSafetyMargin;
@@ -182,26 +277,34 @@ FVector AAIShipController::ComputeEscapeTarget(const FVector& ShipLocation, USph
         return ShipLocation;
     }
 
-    const UPrimitiveComponent* ObstacleComp = CurrentObstacleComp.Get();
-    if (!ObstacleComp)
+    const UPrimitiveComponent* ObstacleComp =
+        (bInsideSafetyMargin && CurrentNavObstacleComp.IsValid())
+            ? CurrentNavObstacleComp.Get()
+            : CurrentObstacleComp.Get();
+    const AActor* ObstacleActor = CurrentNavObstacleActor.Get();
+    if (!ObstacleComp && !ObstacleActor)
     {
         return ShipLocation;
     }
 
     FVector ContactPoint = FVector::ZeroVector;
-    const bool bHasPoint = ObstacleComp->GetClosestPointOnCollision(ShipLocation, ContactPoint);
-    if (!bHasPoint)
+    const bool bHasPoint = ObstacleComp
+        && ObstacleComp->GetClosestPointOnCollision(ShipLocation, ContactPoint);
+    if (!bHasPoint && ObstacleComp && !ObstacleActor)
+    {
+        ObstacleActor = ObstacleComp->GetOwner();
+    }
+    if (!bHasPoint && !ObstacleActor)
     {
         return ShipLocation;
     }
 
-    FVector Normal = (ShipLocation - ContactPoint).GetSafeNormal();
-    if (Normal.IsNearlyZero())
+    FVector Normal = bHasPoint
+        ? (ShipLocation - ContactPoint).GetSafeNormal()
+        : FVector::ZeroVector;
+    if (Normal.IsNearlyZero() && ObstacleActor)
     {
-        if (const AActor* ObstacleActor = ObstacleComp->GetOwner())
-        {
-            Normal = (ShipLocation - ObstacleActor->GetActorLocation()).GetSafeNormal();
-        }
+        Normal = (ShipLocation - ObstacleActor->GetActorLocation()).GetSafeNormal();
     }
 
     if (Normal.IsNearlyZero())

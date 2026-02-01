@@ -20,13 +20,16 @@ VagabondsWork is an Unreal Engine project focused on ship AI and movement behavi
   actions (forced replans, avoidance boosts, temp waypoint cleanup) using ship radius-scaled
   tolerances.
 - `UShipNavComponent` performs lightweight static obstacle avoidance using the cached obstacle
-  spheres, generating tangent temp waypoints when the direct segment is blocked and tracking
-  whether temp waypoints come from static vs dynamic avoidance.
+  spheres, generating tangent temp waypoints when the direct segment is blocked or the ship is
+  within the inflated radius buffer, and tracking whether temp waypoints come from static vs
+  dynamic avoidance.
 
 ## Steering Notes
 - `AShip` steers toward the current waypoint from `UShipNavComponent`, which replans from
   `AAIShipController::GetFocusLocation()`.
 - `AAIShipController` provides target focus and rotation (no navigation logic).
+- `AAIShipController` now runs a proximity overlap query when no current obstacle contact is valid,
+  selecting the nearest blocking component within (ShipRadius + NavSafetyMargin).
 - `AShip` exposes an instance-editable `TargetActor` (AI|Navigation) used by the controller
   to supply focus for navigation/rotation.
 - `AShip` retries controller acquisition during `Tick()` if possession occurs after BeginPlay and
