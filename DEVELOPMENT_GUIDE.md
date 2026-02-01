@@ -1,27 +1,38 @@
 # Development Guide
 
-## Ship Avoidance
-- Avoidance probes use explicit obstacle groups: static (WorldStatic | WorldDynamic) and
-  dynamic (Pawn | PhysicsBody), with strategy branching by hit channel.
-- Probe distance now scales with ship speed and mass (braking + turning margins) so heavier
-  ships start avoiding earlier.
-- Commit/hysteresis is hardened to keep left/right choices stable until commit expiry or a
-  candidate clearly wins.
-- Stuck escape now generates 3–5 waypoints with a ~1.4×ShipRadius acceptance radius to walk
-  ships out of near-contact.
-- When a ship commits to an avoidance target, it can temporarily ignore the current obstacle
-  actor (configurable) to prevent infinite avoidance loops. Safety checks disable ignores
-  when overlapping, start-penetrating, near-contact, or still approaching the actor.
-- Debug draws include one-frame probe visualization and the current steering target when
-  debug flags are enabled.
-- `AShip` still smooths steering targets and applies brake interpolation for softer accel/decel.
-- Aggressive seek is opt-in via `bEnableAggressiveSeek` to prevent magnetized pull when a
-  target becomes visible.
+## Navigation Caching (Static Obstacles)
+- `AVagabondsWorkGameMode` gathers actors tagged `NavStaticBig` on BeginPlay and caches them as inflated spheres.
+- Inflation uses `DefaultShipRadiusCm` + `NavSafetyMarginCm` to provide a conservative buffer.
+- Anchor points are precomputed on a shell (`NavAnchorShellMultiplier`) for future nav sampling.
+- Debug drawing can be toggled with `bNavDebugDrawStatic` to visualize cached spheres/anchors.
+- `IsSegmentClearOfStaticObstacles` provides a cheap line-of-sight test agai\nst the inflated spheres, and
+  `DebugTestSegmentAgainstStaticObstacles` can draw the tested segment (green = clear, red = blocked).
+- `FindGlobalPathAnchors` builds a per-query node list from start/goal plus cached anchors, runs A* with
+  on-demand line-of-sight edges (cached per query), and returns up to 8 waypoints (goal included).
+- When the direct segment is clear, the helper returns only the goal; anchor selection is clamped to
+  ~2000 total anchors using a broad corridor prefilter and per-obstacle limits.
+
+## Ship Steering
+- `AAIShipController` only provides target focus and rotation (no navigation logic).
+- `AShip` exposes an instance-editable `TargetActor` (AI|Navigation) used as the navigation focus.
+- `UShipNavComponent` queries `AVagabondsWorkGameMode::FindGlobalPathAnchors` at a replan interval and
+  tracks the current waypoint target, then layers a neighbor-based avoidance pass that predicts
+  close approaches using each ship's radius to pick temporary waypoints.
+- `UShipNavComponent` early-returns when the goal location matches the ship position and treats a
+  zeroed nav target as invalid, falling back to the goal location when it is valid.
+- `UShipNavComponent` monitors progress toward the active nav target and triggers stuck recovery
+  (replan, avoidance boost with decay, temp waypoint cleanup) using ship radius-scaled tolerances.
+- `UShipNavComponent` checks cached static obstacle spheres to detect blocked segments and generates
+  tangent temp waypoints (commit-based) to prevent grazing large objects.
+- `AShip::Tick()` asks the nav component for the current navigation target (dynamic avoidance uses
+  a cached neighbor query interval and capped neighbor count for performance).
+- `AShip` retries controller acquisition during `Tick()` to handle delayed possession and keeps
+  ticking so steering activates as soon as the controller exists.
+- If no `TargetActor` exists, focus falls back to the ship pawn location (no player/world origin fallback).
+- `AShip` applies forward thrust scaled by heading and lateral damping for baseline movement.
 - `AShip` exposes `PitchAccelSpeed`/`YawAccelSpeed`/`RollAccelSpeed` and roll limits under
   `Ship|AI|Rotation` to tune rotation responsiveness and banking behavior.
 - Rotation derives yaw/pitch errors from the target direction in local ship axes (positive Z
   target = pitch up), then transforms the resulting angular velocity to world space before
   applying physics.
 - Roll steering is disabled in `ApplyShipRotation` so AI ships align using yaw/pitch only.
-- `ApplyUnstuckForce` now computes a braking force from current velocity, mass, and a
-  2×ShipRadius stopping distance to softly prevent direct hits.

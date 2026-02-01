@@ -3,27 +3,34 @@
 ## Overview
 VagabondsWork is an Unreal Engine project focused on ship AI and movement behaviors.
 
-## Steering/Avoidance Notes
-- Avoidance probes use explicit obstacle groups: static (WorldStatic | WorldDynamic) and
-  dynamic (Pawn | PhysicsBody), with avoidance logic branching by hit channel.
-- Probe distance now scales with ship speed and mass (braking + turning margins) so heavy
-  ships start avoidance earlier.
-- Commit/hysteresis is hardened so avoidance keeps a stable side until the commit expires
-  or a candidate clearly wins.
-- Stuck escape now generates 3–5 waypoints with a ~1.4×ShipRadius acceptance radius to
-  walk ships out of near-contact.
-- When committing to an avoidance target, the current obstacle actor can be ignored briefly
-  (configurable) to prevent infinite ping-ponging, with safety checks for overlaps, start
-  penetration, near-contact, and approach direction.
-- Debug draws include one-frame probe visualization and current steering target when
-  debug flags are enabled.
-- Steering forces use smoothed targets and brake interpolation for more natural accel/decel.
-- Aggressive seek now requires enabling `bEnableAggressiveSeek` on `AShip` to avoid the
-  magnetized pull when targets become visible.
-- Rotation acceleration is tunable via pitch/yaw/roll accel speeds on `AShip` under `Ship|AI|Rotation`.
-- Rotation derives yaw/pitch errors from the target direction in ship-local space (with
-  positive Z targets pitching up) and applies local-space angular velocity converted to world
-  space so axes match UE5.
-- Ship rotation now disables roll so steering uses only yaw/pitch for alignment.
-- Unstuck force now uses a braking-force calculation (based on velocity, mass, and a
-  2×ShipRadius stopping distance) to gently prevent direct impacts.
+## Navigation Notes
+- `AVagabondsWorkGameMode` caches tagged static obstacles (`NavStaticBig`) as inflated spheres at BeginPlay.
+- Each cached obstacle stores precomputed anchor points on an inflated shell for future navigation use.
+- The game mode exposes a segment-vs-sphere line-of-sight check and a debug helper to draw tested segments.
+- `FindGlobalPathAnchors` builds a temporary node list (start/goal + cached anchors), runs A* with
+  on-demand line-of-sight edges, and returns up to 8 waypoint anchors (goal included) with debug
+  drawing when `bNavDebugDrawStatic` is enabled.
+- `UShipNavComponent` asks the game mode for global waypoints on a replan interval and provides the
+  current navigation target for steering, layering a lightweight neighbor-based avoidance pass that
+  uses ship radius-scaled prediction to generate temporary waypoints.
+- When the goal location matches the ship position, `UShipNavComponent` early-returns with the
+  current nav target set to the ship position; if the nav target is zero and the goal is valid it
+  returns the goal location instead of the origin.
+- `UShipNavComponent` also tracks progress toward the current nav target and triggers stuck recovery
+  actions (forced replans, avoidance boosts, temp waypoint cleanup) using ship radius-scaled
+  tolerances.
+- `UShipNavComponent` performs lightweight static obstacle avoidance using the cached obstacle
+  spheres, generating tangent temp waypoints when the direct segment is blocked.
+
+## Steering Notes
+- `AShip` steers toward the current waypoint from `UShipNavComponent`, which replans from
+  `AAIShipController::GetFocusLocation()`.
+- `AAIShipController` provides target focus and rotation (no navigation logic).
+- `AShip` exposes an instance-editable `TargetActor` (AI|Navigation) used by the controller
+  to supply focus for navigation/rotation.
+- `AShip` retries controller acquisition during `Tick()` if possession occurs after BeginPlay and
+  continues ticking so steering resumes as soon as the controller is available.
+- If no `TargetActor` is set, focus falls back to the controlled pawn (no world origin fallback).
+- Steering forces apply constant forward thrust scaled by heading with lateral damping.
+- Rotation acceleration is tunable via pitch/yaw/roll accel speeds on `AShip` under
+  `Ship|AI|Rotation`, with roll disabled so steering aligns via yaw/pitch.
