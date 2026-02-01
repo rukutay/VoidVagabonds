@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 ### Added
+- **External Ship Module System:**
+  - Generic base class `AExternalModule` for all external ship attachments with standardized component hierarchy
+  - Core component structure: ModuleRoot → BaseYawPivot → BaseMesh, GunPitchPivot → GunMesh, Muzzle
+  - Built-in targeting system with actor and location targets, automatic target switching
+  - Configurable aiming behavior with yaw/pitch speed limits and angle clamping
+  - Optional auto-aim timer system for cheap, timer-driven updates (20Hz default, configurable)
+  - Blueprint API for manual control: SetTargetActor(), SetTargetLocation(), ClearTarget(), AimStep()
+  - Debug visualization system with configurable debug drawing toggle
+  - Performance-optimized with disabled Actor Tick and efficient timer-based updates
+  - Abstract base class design allowing easy extension for specific module types (turrets, scanners, etc.)
+
 - **Navigation System Enhancements:**
   - Periodic global replanning with jitter to avoid synchronization spikes across ships
   - Low-frequency refresh system for slow-moving static obstacles (planets/suns/stations)

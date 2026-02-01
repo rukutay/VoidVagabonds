@@ -53,3 +53,14 @@ The navigation system is designed for scalability (500+ active ships) with physi
   - `bDebugSoftSeparation`: Enable debug visualization (yellow sphere + blue force vector)
 - Uses relative velocity for natural ship-to-ship collision response
 - Performance-optimized with periodic cleanup and efficient top-N overlap selection
+
+## External Ship Modules
+- Generic base class `AExternalModule` for all external ship attachments with standardized component hierarchy
+- Core component structure: ModuleRoot → BaseYawPivot → BaseMesh, GunPitchPivot → GunMesh, Muzzle
+- Built-in targeting system with actor and location targets, automatic target switching
+- Configurable aiming behavior with yaw/pitch speed limits and angle clamping
+- Optional auto-aim timer system for cheap, timer-driven updates (20Hz default, configurable)
+- Blueprint API for manual control: SetTargetActor(), SetTargetLocation(), ClearTarget(), AimStep()
+- Debug visualization system with configurable debug drawing toggle
+- Performance-optimized with disabled Actor Tick and efficient timer-based updates
+- Abstract base class design allowing easy extension for specific module types (turrets, scanners, etc.)

@@ -97,3 +97,62 @@
 - Implements relative velocity calculation for natural ship-to-ship collision response
 - Uses `SmoothStep` interpolation for gentle force ramping based on penetration depth
 - Applies forces through `ShipBase->AddForce()` with proper physics integration
+
+## External Ship Module System
+
+### System Overview
+- Generic base class `AExternalModule` providing standardized component hierarchy for all external ship attachments
+- Abstract base class design allowing easy extension for specific module types (turrets, scanners, etc.)
+- Performance-optimized with disabled Actor Tick and efficient timer-based updates
+- Built-in targeting system with support for both actor and location targets
+
+### Core Component Hierarchy
+- **ModuleRoot**: Root scene component (SetRootComponent)
+- **BaseYawPivot**: Yaw rotation pivot attached to ModuleRoot
+- **BaseMesh**: Static mesh for base attached to BaseYawPivot
+- **GunPitchPivot**: Pitch rotation pivot attached to BaseYawPivot
+- **GunMesh**: Static mesh for gun attached to GunPitchPivot
+- **Muzzle**: Scene component for projectile spawn point attached to GunPitchPivot
+
+### Targeting System
+- **AActor* TargetActor**: Target actor reference with automatic validation
+- **FVector TargetLocation**: Manual target location with fallback support
+- **bool bUseTargetActor**: Flag to switch between actor and location targeting
+- **Automatic target switching**: Seamless transition between actor and location targets
+- **Blueprint API**: SetTargetActor(), SetTargetLocation(), ClearTarget(), GetAimLocation()
+
+### Aiming System
+- **Configurable speeds**: YawSpeedDegPerSec, PitchSpeedDegPerSec for smooth rotation
+- **Angle limits**: Min/Max Yaw and Pitch angles with automatic clamping
+- **Local space calculations**: Efficient world-to-local conversion for accurate aiming
+- **Smooth interpolation**: RInterpConstantTo for natural rotation behavior
+- **Axis isolation**: Pure yaw/pitch rotation with roll disabled for stability
+
+### Auto-Aim Timer System
+- **Optional timer-driven updates**: bAutoAimTick flag to enable/disable automatic updates
+- **Configurable frequency**: AimUpdateHz property for update rate control (default 20Hz)
+- **Performance optimized**: Uses FTimerHandle with proper cleanup in EndPlay()
+- **Manual override**: BlueprintCallable AimStep() for custom update control
+- **Timer management**: Automatic setup in BeginPlay() and cleanup in EndPlay()
+
+### Debug System
+- **Visual debugging**: bDrawAimDebug flag for target visualization
+- **Debug drawing**: Red line from muzzle to target, green sphere at target location
+- **Real-time feedback**: Immediate visualization of aiming behavior and target positions
+
+### Configuration Variables
+- **Aiming Parameters**: All editable via Blueprint with sensible defaults
+- **Performance Settings**: Timer frequency and debug toggles for runtime control
+- **Category Organization**: Logically grouped properties (Aiming, Debug, Targeting, Components)
+
+### Performance Characteristics
+- **Zero Actor Tick**: PrimaryActorTick.bCanEverTick = false for maximum efficiency
+- **Timer-based updates**: Optional auto-aim system uses efficient timer callbacks
+- **Memory efficient**: Minimal overhead with proper resource management
+- **Scalable design**: Base class supports hundreds of modules without performance impact
+
+### Extension Guidelines
+- **Virtual functions**: All Blueprint API functions are virtual for easy overriding
+- **Protected members**: Target storage and helper functions accessible to subclasses
+- **Generic foundation**: Base implementation provides core functionality for all module types
+- **Blueprint integration**: Full support for Blueprint inheritance and customization
