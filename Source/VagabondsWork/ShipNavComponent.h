@@ -37,7 +37,16 @@ public:
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "Navigation")
-	float ReplanInterval = 1.0f;
+	float ReplanIntervalMin = 0.8f;
+
+	UPROPERTY(EditAnywhere, Category = "Navigation")
+	float ReplanIntervalMax = 1.6f;
+
+	UPROPERTY(EditAnywhere, Category = "Navigation")
+	float ReplanMinMovedDistanceMultiplier = 6.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Navigation")
+	float ReplanMinGoalDeltaMultiplier = 4.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Navigation")
 	float WaypointAcceptanceRadiusMultiplier = 2.0f;
@@ -133,4 +142,7 @@ protected:
 	TArray<TWeakObjectPtr<AActor>> CachedNeighbors;
 
 	float NextReplanTime = 0.0f;
+	FVector LastReplanShipPos = FVector::ZeroVector;
+	FVector LastReplanGoal = FVector::ZeroVector;
+	float StaticBlockedAccumTime = 0.0f;
 };

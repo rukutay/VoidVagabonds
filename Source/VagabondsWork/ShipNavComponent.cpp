@@ -33,6 +33,9 @@ void UShipNavComponent::BeginPlay()
 	StuckCounter = 0;
 	NextStaticRecheckTime = 0.0f;
 	FocusStaticObstacleIndex = INDEX_NONE;
+	LastReplanShipPos = FVector::ZeroVector;
+	LastReplanGoal = FVector::ZeroVector;
+	StaticBlockedAccumTime = 0.0f;
 	
 }
 
@@ -69,13 +72,27 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			AvoidWeight = FMath::Lerp(AvoidWeightBoostStartValue, AvoidWeightBaseValue, Alpha);
 		}
 	}
-	if (GlobalWaypoints.Num() == 0 || CurrentTime >= NextReplanTime)
+	
+	const FVector OwnerLocation = GetOwner()->GetActorLocation();
+	const FVector ShipPos = OwnerLocation;
+	
+	const bool bTime = (CurrentTime >= NextReplanTime);
+	const bool bMoved = FVector::DistSquared(ShipPos, LastReplanShipPos) >
+						FMath::Square(ShipRadiusCm * ReplanMinMovedDistanceMultiplier);
+	const bool bGoalChanged = FVector::DistSquared(GoalLocation, LastReplanGoal) >
+							  FMath::Square(ShipRadiusCm * ReplanMinGoalDeltaMultiplier);
+
+	const bool bForce = (StuckCounter >= StuckThreshold);
+
+	if (bTime && (bMoved || bGoalChanged || bForce))
 	{
 		if (AVagabondsWorkGameMode* GameMode = GetWorld()->GetAuthGameMode<AVagabondsWorkGameMode>())
 		{
 			GlobalWaypoints = GameMode->FindGlobalPathAnchors(GetOwner()->GetActorLocation(), GoalLocation);
 			WaypointIndex = 0;
-			NextReplanTime = CurrentTime + ReplanInterval;
+			LastReplanShipPos = ShipPos;
+			LastReplanGoal = GoalLocation;
+			NextReplanTime = CurrentTime + FMath::FRandRange(ReplanIntervalMin, ReplanIntervalMax);
 		}
 	}
 
@@ -84,14 +101,11 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		: GoalLocation;
 
 	const float AcceptanceRadius = ShipRadiusCm * WaypointAcceptanceRadiusMultiplier;
-	const FVector OwnerLocation = GetOwner()->GetActorLocation();
 	if (WaypointIndex < GlobalWaypoints.Num()
 		&& FVector::DistSquared(OwnerLocation, CurrentWaypoint) <= FMath::Square(AcceptanceRadius))
 	{
 		++WaypointIndex;
 	}
-
-	const FVector ShipPos = OwnerLocation;
 	if (GoalLocation.Equals(ShipPos, KINDA_SMALL_NUMBER))
 	{
 		CurrentNavTarget = ShipPos;
@@ -431,6 +445,23 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	}
 
 	CurrentNavTarget = bHasTempWaypoint ? TempWaypoint : CurrentWaypoint;
+
+	// Handle static blocked accumulation and force replan
+	if (bStaticBlocked)
+	{
+		StaticBlockedAccumTime += DeltaTime;
+	}
+	else
+	{
+		StaticBlockedAccumTime = 0.0f;
+	}
+
+	// Force replan if static blocked for too long
+	if (StaticBlockedAccumTime > 1.0f)
+	{
+		NextReplanTime = CurrentTime;   // force immediate replan
+		StaticBlockedAccumTime = 0.0f;
+	}
 	if (CurrentTime >= NextStuckCheckTime)
 	{
 		const float MinProgress = ShipRadiusCm * MinProgressMultiplier;

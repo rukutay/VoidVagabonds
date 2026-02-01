@@ -33,6 +33,9 @@ AVagabondsWorkGameMode::AVagabondsWorkGameMode()
 	{
 		DefaultPawnClass = PlayerPawnBPClass.Class;
 	}
+
+	// Enable tick for refreshing moving static obstacles
+	PrimaryActorTick.bCanEverTick = true;
 }
 
 void AVagabondsWorkGameMode::BeginPlay()
@@ -94,6 +97,53 @@ void AVagabondsWorkGameMode::BeginPlay()
 					DrawDebugPoint(World, Anchor, 12.0f, FColor::Yellow, false, DebugDuration);
 				}
 			}
+		}
+	}
+}
+
+void AVagabondsWorkGameMode::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	const float Now = World->GetTimeSeconds();
+	if (Now < NextStaticObstacleRefreshTime) return;
+
+	NextStaticObstacleRefreshTime = Now + StaticObstacleRefreshInterval;
+
+	constexpr float GoldenAngle = 2.39996322972865332f;
+
+	for (FNavObstacleSphereProxy& Proxy : StaticNavObstacles)
+	{
+		AActor* A = Proxy.Actor.Get();
+		if (!IsValid(A)) continue;
+
+		// only refresh moving ones
+		if (!A->ActorHasTag(MovingStaticTag)) continue;
+
+		USceneComponent* Root = A->GetRootComponent();
+		if (!Root) continue;
+
+		const FBoxSphereBounds Bounds = Root->Bounds;
+		Proxy.Center = Bounds.Origin;
+		Proxy.BaseRadius = Bounds.SphereRadius;
+		Proxy.InflatedRadius = Proxy.BaseRadius + DefaultShipRadiusCm + NavSafetyMarginCm;
+
+		// recompute anchors
+		const int32 AnchorCount = FMath::Max(NavAnchorsPerObstacle, 1);
+		Proxy.Anchors.Reset(AnchorCount);
+		Proxy.Anchors.Reserve(AnchorCount);
+
+		for (int32 Index = 0; Index < AnchorCount; ++Index)
+		{
+			const float T = AnchorCount == 1 ? 0.0f : (float)Index / (AnchorCount - 1);
+			const float Z = 1.0f - (2.0f * T);
+			const float Rxy = FMath::Sqrt(FMath::Max(1.0f - Z * Z, 0.0f));
+			const float Angle = GoldenAngle * Index;
+			const FVector Dir(Rxy * FMath::Cos(Angle), Rxy * FMath::Sin(Angle), Z);
+			Proxy.Anchors.Add(Proxy.Center + Dir * (Proxy.InflatedRadius * NavAnchorShellMultiplier));
 		}
 	}
 }

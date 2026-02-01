@@ -36,6 +36,7 @@ public:
 	AVagabondsWorkGameMode();
 
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
 
 	const TArray<FNavObstacleSphereProxy>& GetStaticNavObstacles() const;
 	bool GetClosestObstacleToSegment(const FVector& A, const FVector& B, int32& OutIndex) const;
@@ -64,8 +65,16 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Navigation")
 	bool bNavDebugDrawStatic = false;
 
+	UPROPERTY(EditDefaultsOnly, Category="Navigation|MovingStatic")
+	float StaticObstacleRefreshInterval = 1.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category="Navigation|MovingStatic")
+	FName MovingStaticTag = "NavStaticMoving";
+
 	UPROPERTY(VisibleAnywhere, Category = "Navigation")
 	TArray<FNavObstacleSphereProxy> StaticNavObstacles;
+
+	float NextStaticObstacleRefreshTime = 0.0f;
 };
 
 
