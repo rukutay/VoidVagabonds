@@ -350,23 +350,54 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		const float TempWaypointDistance = bStaticAvoidanceActive
 			? ShipRadiusCm * StaticAvoidTempDistMultiplier
 			: ShipRadiusCm * TempWaypointDistanceMultiplier;
-		TempWaypoint = bStaticAvoidanceActive ? StaticTempWaypoint : ShipPos + SteerDir * TempWaypointDistance;
+		if (bStaticAvoidanceActive)
+		{
+			TempReason = ETempWaypointReason::Static;
+			TempWaypoint = StaticTempWaypoint;
+		}
+		else if (bHasAvoidance)
+		{
+			TempReason = ETempWaypointReason::Dynamic;
+			TempWaypoint = ShipPos + SteerDir * TempWaypointDistance;
+		}
 		bHasTempWaypoint = true;
 	}
 	else if (bHasTempWaypoint)
 	{
-		bool bClearLineOfSight = true;
-		FCollisionQueryParams Params(SCENE_QUERY_STAT(ShipNavTempLOS), false, GetOwner());
-		FHitResult HitResult;
-		if (GetWorld()->LineTraceSingleByChannel(HitResult, ShipPos, CurrentWaypoint, ECC_Visibility, Params))
-		{
-			bClearLineOfSight = false;
-		}
+		const bool bCommitExpired = (CurrentTime >= CommitUntilTime);
 
-		if (CurrentTime >= CommitUntilTime || !bHasAvoidance || bClearLineOfSight)
+		if (TempReason == ETempWaypointReason::Dynamic)
 		{
-			bHasTempWaypoint = false;
-			FocusActor = nullptr;
+			bool bClearLineOfSight = true;
+			FHitResult HitResult;
+			FCollisionQueryParams Params(SCENE_QUERY_STAT(ShipNavTempLOS), false, GetOwner());
+			if (GetWorld()->LineTraceSingleByChannel(HitResult, ShipPos, CurrentWaypoint, ECC_Visibility, Params))
+			{
+				bClearLineOfSight = false;
+			}
+
+			if (bCommitExpired || !bHasAvoidance || bClearLineOfSight)
+			{
+				bHasTempWaypoint = false;
+				TempReason = ETempWaypointReason::None;
+				FocusActor = nullptr;
+			}
+		}
+		else if (TempReason == ETempWaypointReason::Static)
+		{
+			bool bStillBlocked = false;
+
+			if (AVagabondsWorkGameMode* GM = GetWorld()->GetAuthGameMode<AVagabondsWorkGameMode>())
+			{
+				bStillBlocked = !GM->IsSegmentClearOfStaticObstacles(ShipPos, CurrentWaypoint, nullptr);
+			}
+
+			if (!bStillBlocked || bCommitExpired)
+			{
+				bHasTempWaypoint = false;
+				TempReason = ETempWaypointReason::None;
+				FocusStaticObstacleIndex = INDEX_NONE;
+			}
 		}
 	}
 

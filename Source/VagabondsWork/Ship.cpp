@@ -29,6 +29,9 @@ AShip::AShip()
     ShipRadius->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     ShipRadius->SetCollisionProfileName(TEXT("Pawn"));
     ShipRadius->SetSphereRadius(300.f);
+
+    ShipRadius->OnComponentBeginOverlap.AddDynamic(this, &AShip::HandleShipRadiusBeginOverlap);
+    ShipRadius->OnComponentEndOverlap.AddDynamic(this, &AShip::HandleShipRadiusEndOverlap);
 }
 
 void AShip::BeginPlay()
@@ -71,7 +74,11 @@ void AShip::Tick(float DeltaTime)
 #endif
     const float ShipRadiusCm = ShipRadius ? ShipRadius->GetScaledSphereRadius() : 300.f;
     FVector SteeringTarget = Goal;
-    if (ShipNav)
+    if (ShipController && ShipController->IsInsideSafetyMargin())
+    {
+        SteeringTarget = ShipController->ComputeEscapeTarget(ActorLocation, ShipRadius);
+    }
+    else if (ShipNav && (!ShipController || !ShipController->IsUnstucking()))
     {
         ShipNav->TickNav(DeltaTime, Goal, ShipRadiusCm);
         SteeringTarget = ShipNav->GetNavTarget(Goal);
@@ -97,6 +104,50 @@ void AShip::Tick(float DeltaTime)
 void AShip::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
+}
+
+void AShip::HandleShipRadiusBeginOverlap(
+    UPrimitiveComponent* OverlappedComponent,
+    AActor* OtherActor,
+    UPrimitiveComponent* OtherComp,
+    int32 OtherBodyIndex,
+    bool bFromSweep,
+    const FHitResult& SweepResult)
+{
+    if (!OtherComp)
+    {
+        return;
+    }
+
+    const bool bBlocksStatic = OtherComp->GetCollisionResponseToChannel(ECC_WorldStatic) == ECR_Block;
+    const bool bBlocksDynamic = OtherComp->GetCollisionResponseToChannel(ECC_WorldDynamic) == ECR_Block;
+    const bool bBlocksPhysics = OtherComp->GetCollisionResponseToChannel(ECC_PhysicsBody) == ECR_Block;
+    if (!bBlocksStatic && !bBlocksDynamic && !bBlocksPhysics)
+    {
+        return;
+    }
+
+    if (EnsureShipController())
+    {
+        ShipController->SetCurrentObstacleComp(OtherComp);
+    }
+}
+
+void AShip::HandleShipRadiusEndOverlap(
+    UPrimitiveComponent* OverlappedComponent,
+    AActor* OtherActor,
+    UPrimitiveComponent* OtherComp,
+    int32 OtherBodyIndex)
+{
+    if (!OtherComp || !EnsureShipController())
+    {
+        return;
+    }
+
+    if (ShipController->GetCurrentObstacleComp() == OtherComp)
+    {
+        ShipController->SetCurrentObstacleComp(nullptr);
+    }
 }
 
 UStaticMeshComponent* AShip::GetShipBase() const

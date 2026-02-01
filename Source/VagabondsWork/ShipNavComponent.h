@@ -6,6 +6,14 @@
 #include "Components/ActorComponent.h"
 #include "ShipNavComponent.generated.h"
 
+UENUM()
+enum class ETempWaypointReason : uint8
+{
+	None,
+	Dynamic,
+	Static
+};
+
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class VAGABONDSWORK_API UShipNavComponent : public UActorComponent
@@ -108,6 +116,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Navigation|Avoidance")
 	FVector TempWaypoint = FVector::ZeroVector;
+
+	UPROPERTY(VisibleAnywhere, Category = "Navigation")
+	ETempWaypointReason TempReason = ETempWaypointReason::None;
 
 	float NextStuckCheckTime = 0.0f;
 	float LastDistanceToTarget = 0.0f;

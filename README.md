@@ -20,7 +20,8 @@ VagabondsWork is an Unreal Engine project focused on ship AI and movement behavi
   actions (forced replans, avoidance boosts, temp waypoint cleanup) using ship radius-scaled
   tolerances.
 - `UShipNavComponent` performs lightweight static obstacle avoidance using the cached obstacle
-  spheres, generating tangent temp waypoints when the direct segment is blocked.
+  spheres, generating tangent temp waypoints when the direct segment is blocked and tracking
+  whether temp waypoints come from static vs dynamic avoidance.
 
 ## Steering Notes
 - `AShip` steers toward the current waypoint from `UShipNavComponent`, which replans from

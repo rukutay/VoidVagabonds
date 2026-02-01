@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 ### Changed
+- Added safety margin exit hysteresis to keep `bInsideSafetyMargin` stable and clear nav obstacle refs on exit.
+- Use safety-margin escape targets instead of goal targets when inside the margin.
+- Added `ComputeEscapeTarget` helper for safety-margin escape points.
+- Added a timer-driven safety margin check that updates `bInsideSafetyMargin` from the current obstacle contact.
+- Added safety margin state/config fields to gate goal selection when too close to obstacles.
+- Exit unstuck mode when the timer expires, speed recovers, or obstacle contact is lost.
+- Skip nav target regeneration while `AAIShipController` is in unstuck mode.
+- Apply a small timer-based unstuck force when `bIsUnstucking` is set on `AAIShipController`.
+- Added `AAIShipController::GetCurrentObstacleContactPoint` helper for closest obstacle contact.
+- Added a lightweight stuck detection timer in `AAIShipController` that marks unstuck state after sustained low speed + no progress.
+- Track the current overlapping obstacle component on `AAIShipController` via ship radius overlaps.
+- Added `AAIShipController` unstuck state/detection/config variables (no behavior yet).
+- Added temp waypoint reason tracking in `UShipNavComponent` so static obstacle avoidance waypoints
+  only clear when the static segment is unblocked or the commit expires.
 - Hardened `UShipNavComponent` to avoid returning zero nav targets when a goal is valid and to early-return when already at the goal.
 - Added debug logs/on-screen messaging when a ship has no valid target (goal equals self).
 - Exposed `AShip::TargetActor` for per-instance Blueprint assignment and moved focus sourcing
