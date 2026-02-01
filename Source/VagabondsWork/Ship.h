@@ -4,6 +4,7 @@
 #include "GameFramework/Pawn.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Ship.generated.h"
 
 class AAIShipController;
@@ -23,6 +24,7 @@ protected:
 public:
     virtual void Tick(float DeltaTime) override;
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+    virtual void NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit) override;
 
     UFUNCTION()
     void HandleShipRadiusBeginOverlap(
@@ -115,8 +117,33 @@ public:
     float CurrentThrottle = 0.f;
 
     // NAVIGATION_TODO_REMOVE
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|AI|Movement")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement")
     float LateralDamping = 2.5f;
+
+    // Soft Separation Settings
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    bool bEnableSoftSeparation = true;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    bool bDebugSoftSeparation = false;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    float SoftSeparationMarginCm = 30.0f;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    float SoftSeparationStrength = 40000.0f;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    float SoftSeparationMaxForce = 90000.0f;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    float SoftSeparationDamping = 2.0f;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    float SoftSeparationResponse = 6.0f;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    int32 SoftSeparationMaxActors = 6;
 
     // NAVIGATION_TODO_REMOVE
     UFUNCTION(BlueprintCallable)
@@ -128,4 +155,30 @@ private:
     bool bLoggedMissingController = false;
 
     float DebugMessageAccumulator = 0.f;
+
+    // Soft Separation Bookkeeping
+    TArray<TWeakObjectPtr<UPrimitiveComponent>> SoftOverlapComps;
+    FVector SmoothedSoftSeparationForce = FVector::ZeroVector;
+    int32 SoftSeparationCleanupCounter = 0;
+    
+    // Performance optimization: reuse array to avoid allocations
+    struct FOverlapDistanceInfo
+    {
+        TWeakObjectPtr<UPrimitiveComponent> Component;
+        FVector ClosestPoint;
+        float Distance;
+        
+        FOverlapDistanceInfo() : Component(nullptr), ClosestPoint(FVector::ZeroVector), Distance(0.0f) {}
+        FOverlapDistanceInfo(TWeakObjectPtr<UPrimitiveComponent> InComponent, const FVector& InPoint, float InDistance)
+            : Component(InComponent), ClosestPoint(InPoint), Distance(InDistance) {}
+            
+        bool operator<(const FOverlapDistanceInfo& Other) const
+        {
+            return Distance < Other.Distance; // Sort by closest first
+        }
+    };
+    TArray<FOverlapDistanceInfo> OverlapDistancesCache;
+
+    // Soft Separation Force Application
+    void ApplySoftSeparation(float DeltaTime);
 };

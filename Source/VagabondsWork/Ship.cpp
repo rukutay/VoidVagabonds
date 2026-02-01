@@ -105,11 +105,59 @@ void AShip::Tick(float DeltaTime)
         DrawDebugPoint(GetWorld(), SteeringTarget, 16.0f, FColor::Cyan, false, 0.0f, 0);
     }
 #endif
+
+    // Apply soft separation forces after steering
+    ApplySoftSeparation(DeltaTime);
 }
 
 void AShip::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
+}
+
+void AShip::NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit)
+{
+    Super::NotifyHit(MyComp, Other, OtherComp, bSelfMoved, HitLocation, HitNormal, NormalImpulse, Hit);
+    
+    // Apply tiny corrective push force only on actual collision hits
+    if (bEnableSoftSeparation && ShipBase && OtherComp)
+    {
+        // Only apply push force on direct hits with blocking components
+        const bool bBlocksStatic = OtherComp->GetCollisionResponseToChannel(ECC_WorldStatic) == ECR_Block;
+        const bool bBlocksDynamic = OtherComp->GetCollisionResponseToChannel(ECC_WorldDynamic) == ECR_Block;
+        const bool bBlocksPhysics = OtherComp->GetCollisionResponseToChannel(ECC_PhysicsBody) == ECR_Block;
+        const bool bIsPawn = Other && Other->IsA<APawn>();
+        
+        if (bBlocksStatic || bBlocksDynamic || bBlocksPhysics || bIsPawn)
+        {
+            const float Mass = ShipBase->GetMass();
+            
+            // Calculate impact speed from normal impulse
+            const float ImpactSpeed = NormalImpulse.Size() / FMath::Max(Mass, 1.0f);
+            
+            // Do NOT apply hit push if impact speed is small
+            if (ImpactSpeed > 10.0f) // Only apply for significant impacts
+            {
+                // Tiny corrective push force - VERY LOW (10-20% of SoftSeparationMaxForce)
+                const float MaxHitForce = SoftSeparationMaxForce * 0.2f; // 20% of max separation force
+                const float HitForceStrength = FMath::Min(ImpactSpeed * 50.0f, MaxHitForce); // Scale by impact speed, hard clamp
+                
+                // Direction = HitNormal (outward from collision surface)
+                FVector HitForce = HitNormal * HitForceStrength;
+                
+                // Apply damping to avoid bounce - prefer AddForce over AddImpulse
+                // Apply immediate force on hit (no smoothing for hit response)
+                ShipBase->AddForce(HitForce, NAME_None, true);
+                
+#if !UE_BUILD_SHIPPING
+                if (bDebugSoftSeparation && GetWorld())
+                {
+                    DrawDebugDirectionalArrow(GetWorld(), HitLocation, HitLocation + HitNormal * 100.0f, 5.0f, FColor::Magenta, false, 0.1f, 0, 2.0f);
+                }
+#endif
+            }
+        }
+    }
 }
 
 void AShip::HandleShipRadiusBeginOverlap(
@@ -125,12 +173,35 @@ void AShip::HandleShipRadiusBeginOverlap(
         return;
     }
 
+    // Update overlap filtering logic to also accept Pawns as blockers
     const bool bBlocksStatic = OtherComp->GetCollisionResponseToChannel(ECC_WorldStatic) == ECR_Block;
     const bool bBlocksDynamic = OtherComp->GetCollisionResponseToChannel(ECC_WorldDynamic) == ECR_Block;
     const bool bBlocksPhysics = OtherComp->GetCollisionResponseToChannel(ECC_PhysicsBody) == ECR_Block;
-    if (!bBlocksStatic && !bBlocksDynamic && !bBlocksPhysics)
+    const bool bIsPawn = OtherActor && OtherActor->IsA<APawn>();
+    
+    if (!bBlocksStatic && !bBlocksDynamic && !bBlocksPhysics && !bIsPawn)
     {
         return;
+    }
+
+    // Add to soft separation bookkeeping (avoid duplicates)
+    if (OtherComp != ShipRadius && OtherComp != ShipBase)
+    {
+        // Check if component already exists (avoid duplicates)
+        bool bAlreadyExists = false;
+        for (const auto& WeakComp : SoftOverlapComps)
+        {
+            if (WeakComp.IsValid() && WeakComp.Get() == OtherComp)
+            {
+                bAlreadyExists = true;
+                break;
+            }
+        }
+        
+        if (!bAlreadyExists)
+        {
+            SoftOverlapComps.Add(TWeakObjectPtr<UPrimitiveComponent>(OtherComp));
+        }
     }
 
     if (EnsureShipController())
@@ -148,6 +219,16 @@ void AShip::HandleShipRadiusEndOverlap(
     if (!OtherComp || !EnsureShipController())
     {
         return;
+    }
+
+    // Remove from soft separation bookkeeping
+    for (int32 i = SoftOverlapComps.Num() - 1; i >= 0; --i)
+    {
+        if (SoftOverlapComps[i].IsValid() && SoftOverlapComps[i].Get() == OtherComp)
+        {
+            SoftOverlapComps.RemoveAtSwap(i);
+            break; // Found and removed, no need to continue
+        }
     }
 
     if (ShipController->GetCurrentObstacleComp() == OtherComp)
@@ -242,4 +323,165 @@ bool AShip::EnsureShipController()
         ShipController = Cast<AAIShipController>(GetController());
     }
     return ShipController != nullptr;
+}
+
+void AShip::ApplySoftSeparation(float DeltaTime)
+{
+    // Early-out conditions - avoid computation when disabled or invalid
+    if (!bEnableSoftSeparation || !ShipBase || !ShipRadius || DeltaTime <= 0.0f)
+    {
+        return;
+    }
+
+    // Periodic cleanup of invalid entries to prevent memory leaks
+    SoftSeparationCleanupCounter++;
+    if (SoftSeparationCleanupCounter >= 60)
+    {
+        SoftOverlapComps.RemoveAllSwap([](const TWeakObjectPtr<UPrimitiveComponent>& W) { return !W.IsValid(); }, EAllowShrinking::No);
+        SoftSeparationCleanupCounter = 0;
+    }
+
+    const float ShipRadiusScaled = ShipRadius->GetScaledSphereRadius();
+    const float ActivationRadius = ShipRadiusScaled + SoftSeparationMarginCm;
+    const FVector ShipPos = GetActorLocation();
+    const FVector Velocity = ShipBase->GetPhysicsLinearVelocity();
+    const float Mass = ShipBase->GetMass();
+
+    // Reuse array to avoid allocations per tick - reserve space for efficiency
+    OverlapDistancesCache.Reset();
+    OverlapDistancesCache.Reserve(SoftOverlapComps.Num());
+    
+    // Process overlaps and find closest points
+    for (const auto& WeakComp : SoftOverlapComps)
+    {
+        if (!WeakComp.IsValid())
+        {
+            continue;
+        }
+
+        UPrimitiveComponent* Comp = WeakComp.Get();
+        if (!Comp || Comp == ShipBase || Comp == ShipRadius)
+        {
+            continue;
+        }
+
+        // Find closest point on collision to ShipBase location
+        FVector ClosestPoint;
+        if (Comp->GetClosestPointOnCollision(ShipPos, ClosestPoint))
+        {
+            const float Dist = FVector::Distance(ShipPos, ClosestPoint);
+            // Only process if within activation radius
+            if (Dist < ActivationRadius)
+            {
+                OverlapDistancesCache.Emplace(WeakComp, ClosestPoint, Dist);
+            }
+        }
+    }
+
+    // Sort by distance (closest first) and limit to max actors
+    OverlapDistancesCache.Sort();
+    const int32 NumToProcess = FMath::Min(OverlapDistancesCache.Num(), SoftSeparationMaxActors);
+
+    FVector TotalForce = FVector::ZeroVector;
+
+    // Process each overlap with branch-light force calculation
+    for (int32 i = 0; i < NumToProcess; ++i)
+    {
+        const FOverlapDistanceInfo& Info = OverlapDistancesCache[i];
+        const FVector ClosestPoint = Info.ClosestPoint;
+        const float Dist = Info.Distance;
+
+        // Compute penetration alpha with branchless operations where possible
+        const float PenetrationRatio = (ActivationRadius - Dist) / ActivationRadius;
+        const float PenetrationAlpha = FMath::Clamp(PenetrationRatio, 0.0f, 1.0f);
+        
+        // Apply smoothstep to PenetrationAlpha for smoother force response
+        const float SmoothedAlpha = PenetrationAlpha * PenetrationAlpha * (3.0f - 2.0f * PenetrationAlpha);
+
+        // Compute contact normal - skip if nearly zero
+        const FVector ToClosest = ShipPos - ClosestPoint;
+        const float DistSq = ToClosest.SizeSquared();
+        if (DistSq < KINDA_SMALL_NUMBER)
+        {
+            continue;
+        }
+        
+        const FVector N = ToClosest * FMath::InvSqrt(DistSq); // Faster normalization
+
+        // Compute velocity going INTO the obstacle (branch-light calculation)
+        const float IntoSpeed = (-N.X * Velocity.X) + (-N.Y * Velocity.Y) + (-N.Z * Velocity.Z); // Manual dot product for clarity
+
+        // Apply BRAKING ONLY - remove velocity component going INTO obstacle
+        // NO outward forces to prevent slingshot effects
+        // Branch prediction friendly: likely to be > 0 for overlapping ships
+        if (IntoSpeed > 0.0f)
+        {
+            // Force direction opposes the velocity component going into obstacle
+            // Scale by: penetration depth, damping, and mass
+            const float ForceMagnitude = IntoSpeed * SmoothedAlpha * SoftSeparationDamping * Mass;
+            
+            // Clamp force magnitude to prevent any large forces that could cause instability
+            const float ClampedForceMagnitude = FMath::Min(ForceMagnitude, SoftSeparationMaxForce);
+            
+            // Apply force in the normal direction (braking direction)
+            TotalForce.X += N.X * ClampedForceMagnitude;
+            TotalForce.Y += N.Y * ClampedForceMagnitude;
+            TotalForce.Z += N.Z * ClampedForceMagnitude;
+        }
+    }
+
+    // Smooth the force over time for stable behavior
+    // VInterpTo provides exponential smoothing that helps prevent jitter
+    SmoothedSoftSeparationForce = FMath::VInterpTo(SmoothedSoftSeparationForce, TotalForce, DeltaTime, SoftSeparationResponse);
+
+    // Apply force to physics body
+    // NOTE: AddForce is NOT scaled by DeltaTime because:
+    // 1. Physics force integration already handles time scaling internally
+    // 2. DeltaTime scaling would make force response dependent on frame rate
+    // 3. This ensures consistent force application regardless of frame rate
+    ShipBase->AddForce(SmoothedSoftSeparationForce);
+
+#if !UE_BUILD_SHIPPING
+    if (bDebugSoftSeparation && GetWorld())
+    {
+        // Draw debug sphere showing the soft separation boundary
+        DrawDebugSphere(GetWorld(), ShipPos, ActivationRadius, 12, FColor::Yellow, false, 0.0f, 0, 1.0f);
+        
+        // Draw debug line for the smoothed force vector (scaled for visibility)
+        if (!SmoothedSoftSeparationForce.IsNearlyZero())
+        {
+            const FVector ForceEnd = ShipPos + SmoothedSoftSeparationForce.GetSafeNormal() * FMath::Min(SmoothedSoftSeparationForce.Size() * 0.01f, 100.0f);
+            DrawDebugDirectionalArrow(GetWorld(), ShipPos, ForceEnd, 5.0f, FColor::Blue, false, 0.0f, 0, 2.0f);
+        }
+    }
+    
+    // Find max penetration alpha for logging
+    float MaxPenetrationAlpha = 0.0f;
+    for (int32 i = 0; i < NumToProcess; ++i)
+    {
+        const float Dist = OverlapDistancesCache[i].Distance;
+        const float PenetrationAlpha = FMath::Clamp((ActivationRadius - Dist) / ActivationRadius, 0.0f, 1.0f);
+        MaxPenetrationAlpha = FMath::Max(MaxPenetrationAlpha, PenetrationAlpha);
+    }
+    
+    // Log debug information
+    if (bDebugSoftSeparation)
+    {
+        UE_LOG(LogTemp, Log, TEXT("Ship SoftSeparation - MaxPenetrationAlpha: %.3f, AppliedForce: %.1f"), 
+               MaxPenetrationAlpha, SmoothedSoftSeparationForce.Size());
+               
+#if !UE_BUILD_SHIPPING
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(
+                -1,
+                0.1f,
+                FColor::Cyan,
+                FString::Printf(TEXT("MaxPenetrationAlpha: %.3f, AppliedForce: %.1f"), 
+                               MaxPenetrationAlpha, SmoothedSoftSeparationForce.Size())
+            );
+        }
+#endif
+    }
+#endif
 }

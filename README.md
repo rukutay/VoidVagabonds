@@ -38,3 +38,16 @@ VagabondsWork is an Unreal Engine project focused on ship AI and movement behavi
 - Steering forces apply constant forward thrust scaled by heading with lateral damping.
 - Rotation acceleration is tunable via pitch/yaw/roll accel speeds on `AShip` under
   `Ship|AI|Rotation`, with roll disabled so steering aligns via yaw/pitch.
+
+## Soft Separation (Airbag) System
+- `AShip` includes a gentle overlap separation system that provides very soft braking on radius overlap and light push only on ShipBase hit events. Force now applies gradual slowdown on overlap and gentle push only when actual collision occurs, eliminating slingshot effects while maintaining smooth avoidance.
+- Tunable via Blueprint-exposed parameters under `Ship|SoftSeparation`:
+  - `SoftSeparationMarginCm`: Extra margin beyond ship radius for activation (default: 30cm)
+  - `SoftSeparationStrength`: Base force scale (default: 40000)
+  - `SoftSeparationMaxForce`: Force magnitude clamp (default: 90000)
+  - `SoftSeparationDamping`: Reduces relative velocity into obstacles (default: 2.0)
+  - `SoftSeparationResponse`: Force smoothing interpolation speed (default: 6.0)
+  - `SoftSeparationMaxActors`: Maximum overlapping components processed per tick (default: 6)
+  - `bDebugSoftSeparation`: Enable debug visualization (yellow sphere + blue force vector)
+- Uses relative velocity for ship-to-ship interactions for more natural collision response
+- Performance-optimized with periodic cleanup and efficient top-N overlap selection

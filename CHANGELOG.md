@@ -1,6 +1,13 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+- Soft separation "airbag" force system that provides very soft braking on radius overlap and light push only on ShipBase hit events. Force now applies gradual slowdown on overlap and gentle push only when actual collision occurs, eliminating slingshot effects.
+- Blueprint-exposed soft separation parameters: SoftSeparationMarginCm, SoftSeparationStrength, SoftSeparationMaxForce, SoftSeparationDamping, SoftSeparationResponse, SoftSeparationMaxActors
+- Debug visualization for soft separation system (yellow boundary sphere + blue force vector) via bDebugSoftSeparation toggle
+- Relative velocity calculations for ship-to-ship interactions for more natural collision response
+- Performance optimizations including periodic cleanup, efficient top-N overlap selection, and memory pre-allocation
+
 ### Changed
 - Added a debug-only warning when safety-margin escape targets resolve to the ship location.
 - Prefer the active nav obstacle component/actor when computing safety-margin escape targets.

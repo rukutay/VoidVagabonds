@@ -69,3 +69,37 @@
   target = pitch up), then transforms the resulting angular velocity to world space before
   applying physics.
 - Roll steering is disabled in `ApplyShipRotation` so AI ships align using yaw/pitch only.
+
+## Soft Separation (Airbag) System
+- `AShip` implements a gentle overlap separation system that provides very soft braking on radius overlap and light push only on ShipBase hit events. Force now applies gradual slowdown on overlap and gentle push only when actual collision occurs, eliminating slingshot effects while maintaining smooth avoidance behavior
+
+### Key Components and Tunables:
+- **SoftSeparationMarginCm**: Extra margin beyond ship radius for activation (default: 30cm) - determines when the airbag effect begins
+- **SoftSeparationStrength**: Base force scale (default: 40000) - controls the magnitude of separation forces
+- **SoftSeparationMaxForce**: Force magnitude clamp (default: 90000) - prevents excessive force application
+- **SoftSeparationDamping**: Reduces relative velocity into obstacles (default: 2.0) - smooths collision response
+- **SoftSeparationResponse**: Force smoothing interpolation speed (default: 6.0) - controls how quickly forces ramp up
+- **SoftSeparationMaxActors**: Maximum overlapping components processed per tick (default: 6) - performance limiter
+- **bEnableSoftSeparation**: Toggle to enable/disable the entire system (default: true)
+- **bDebugSoftSeparation**: Enable debug visualization (yellow sphere + blue force vector) for tuning and verification
+
+### Performance Optimizations:
+- **Periodic Cleanup**: Invalid overlap entries are cleaned up every 60 ticks (≈ 1 second) instead of every frame
+- **Efficient Top-N Selection**: Uses O(N*k) insertion sort instead of O(N log N) full sorting for overlap processing
+- **Duplicate Avoidance**: Prevents adding the same component multiple times to the overlap tracking array
+- **Memory Pre-allocation**: Reuses arrays with `Reserve()` to avoid dynamic allocations during tick processing
+- **Early Exits**: Quick returns when system is disabled or required components are missing
+
+### Debug Visualization:
+- **Yellow Sphere**: Drawn at ship location with radius = (ShipRadius + SoftSeparationMarginCm) to show activation boundary
+- **Blue Force Vector**: Directional arrow showing the applied smoothed force vector (scaled down for visibility)
+- **Red Contact Lines**: Existing visualization showing closest points to overlapping components
+- **Penetration Text**: Numeric labels showing penetration depth at contact points
+- All debug visualization is wrapped in `!UE_BUILD_SHIPPING` for performance and only appears when `bDebugSoftSeparation` is enabled
+
+### Implementation Details:
+- Forces are applied in `AShip::ApplySoftSeparation()` after steering forces in `Tick()`
+- Uses `VInterpTo()` for smooth force interpolation over time
+- Implements relative velocity calculation for ship-to-ship interactions for more natural collision response
+- Uses `SmoothStep` interpolation for gentle force ramping based on penetration depth
+- Applies forces through `ShipBase->AddForce()` with proper physics integration
