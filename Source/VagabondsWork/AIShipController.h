@@ -2,10 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "AIController.h"
-#include "Components/SphereComponent.h"
 #include "AIShipController.generated.h"
 
 class AShip;
+class UPrimitiveComponent;
+class AActor;
+class USphereComponent;
 
 UCLASS()
 class VAGABONDSWORK_API AAIShipController : public AAIController
@@ -13,13 +15,7 @@ class VAGABONDSWORK_API AAIShipController : public AAIController
     GENERATED_BODY()
 
 public:
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI")
-    AActor* TargetActor = nullptr;
-
-    // ---------------- Focus / Goal ----------------
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Movement")
-    FVector FocusLocation = FVector::ZeroVector;
+    virtual void BeginPlay() override;
 
     UFUNCTION(BlueprintCallable)
     FVector GetFocusLocation();
@@ -27,64 +23,87 @@ public:
     UFUNCTION(BlueprintCallable, Category="Rotation")
     void ApplyShipRotation(FVector TargetLocation);
 
-    void DrawDebugTargetPoint(
-        const FVector& Point,
-        float Radius = 50.f,
-        FColor Color = FColor::Green
-    ) const;
+    UFUNCTION(BlueprintCallable, Category="Unstuck")
+    void SetCurrentObstacleComp(UPrimitiveComponent* ObstacleComp);
 
-    // ---------------- Avoidance (dynamic obstacles: fast local grid pick) ----------------
-    UFUNCTION(BlueprintCallable, Category="AI|Navigation")
-    FVector GetBestGridPointTowardGoal(
-        AAIShipController* Controller,
-        USphereComponent* ShipRadius,
-        FVector GridCenter,
-        FVector GoalLocation,
-        int32 NumCells = 5,
-        float GapMultiplier = 2.0f,
-        bool bDrawDebug = false,
-        bool bStaticOnly = false,
-        bool bDynamicOnly = false
-    );
+    UFUNCTION(BlueprintCallable, Category="Unstuck")
+    UPrimitiveComponent* GetCurrentObstacleComp() const;
 
-    // ---------------- Avoidance (static/physics: 3D A* in coarse grid) ----------------
-    UFUNCTION(BlueprintCallable, Category="AI|Navigation")
-    TArray<FVector> FindPathAStar3D(
-        AAIShipController* Controller,
-        USphereComponent* ShipRadius,
-        const FVector& StartWorld,
-        const FVector& GoalWorld,
-        const FVector& GridCenter,
-        int32 NumCells = 9,
-        float GapMultiplier = 2.0f,
-        int32 MaxExpandedNodes = 1500,
-        bool bDrawDebug = false,
-        bool bStaticOnly = false,
-        bool bDynamicOnly = false
-    );
+    UFUNCTION(BlueprintCallable, Category="Unstuck")
+    FVector GetCurrentObstacleContactPoint() const;
+
+    UFUNCTION(BlueprintCallable, Category="Unstuck")
+    bool IsUnstucking() const;
+
+    UFUNCTION(BlueprintCallable, Category="Navigation")
+    bool IsInsideSafetyMargin() const { return bInsideSafetyMargin; }
+
+    UFUNCTION(BlueprintCallable, Category="Navigation")
+    FVector ComputeEscapeTarget(const FVector& ShipLocation, USphereComponent* ShipRadius) const;
 
 private:
-    // ---- Helpers ----
-    static bool IsPointFree(
-        UWorld* World,
-        const FVector& Point,
-        float Radius,
-        const AActor* IgnoreActor,
-        bool bStaticOnly = false,
-        bool bDynamicOnly = false
-    );
+    void HandleStuckCheck();
+    void HandleSafetyMarginCheck();
+    bool UpdateInsideSafetyMargin(USphereComponent* ShipRadius);
 
-    static bool HasLineOfSight(
-        UWorld* World,
-        const FVector& From,
-        const FVector& To,
-        const AActor* IgnoreActor
-    );
+    UPROPERTY(EditDefaultsOnly, Category = "Unstuck|Config")
+    float StuckCheckInterval = 0.15f;
 
-    static FVector CellToWorld(
-        const FVector& Center,
-        int32 ix, int32 iy, int32 iz,
-        int32 Half,
-        float Gap
-    );
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance")
+    float NavSafetyMargin = 0.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance")
+    float SafetyExitHysteresisMultiplier = 0.5f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance")
+    float SafetyMarginCheckInterval = 0.15f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|Debug")
+    bool bDebugSafetyMargin = false;
+
+    FTimerHandle StuckCheckTimerHandle;
+
+    FTimerHandle SafetyMarginTimerHandle;
+
+    UPROPERTY(VisibleAnywhere, Category = "Unstuck|State")
+    TWeakObjectPtr<UPrimitiveComponent> CurrentObstacleComp;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Avoidance")
+    TWeakObjectPtr<UPrimitiveComponent> CurrentNavObstacleComp;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Avoidance")
+    TWeakObjectPtr<AActor> CurrentNavObstacleActor;
+
+    UPROPERTY(VisibleAnywhere, Category = "Unstuck|State")
+    bool bIsUnstucking = false;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Avoidance")
+    bool bInsideSafetyMargin = false;
+
+    UPROPERTY(VisibleAnywhere, Category = "Unstuck|State")
+    float UnstuckEndTime = 0.0f;
+
+    UPROPERTY(VisibleAnywhere, Category = "Unstuck|State")
+    float LastUnstuckForceTime = 0.0f;
+
+    UPROPERTY(VisibleAnywhere, Category = "Unstuck|Detection")
+    float PrevDistanceToGoal = 0.0f;
+
+    UPROPERTY(VisibleAnywhere, Category = "Unstuck|Detection")
+    float StuckAccumulatedTime = 0.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Unstuck|Config")
+    float MinStuckSpeed = 50.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Unstuck|Config")
+    float StuckTimeThreshold = 0.5f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Unstuck|Config")
+    float UnstuckForceStrength = 15000.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Unstuck|Config")
+    float UnstuckDuration = 1.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Unstuck|Config")
+    float UnstuckForceInterval = 0.1f;
 };
