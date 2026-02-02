@@ -106,4 +106,47 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category = "Unstuck|Config")
     float UnstuckForceInterval = 0.1f;
+
+private:
+    UPROPERTY(VisibleAnywhere, Category="Rotation|Smoothing")
+    float FilteredPitchRate = 0.f;
+
+    UPROPERTY(VisibleAnywhere, Category="Rotation|Smoothing")
+    float FilteredYawRate = 0.f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|Smoothing")
+    float MaxPitchRateChange = 120.f; // deg/sec^2 (rate slew)
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|Smoothing")
+    float MaxYawRateChange = 180.f;   // deg/sec^2
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|Smoothing")
+    float AimDeadZoneDeg = 0.35f;     // error under this treated as 0
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|Smoothing")
+    bool bUseTorquePD = false;
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|TorquePD")
+    float TorqueKpPitch = 18.f; // (rad -> ang accel)
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|TorquePD")
+    float TorqueKpYaw = 22.f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|TorquePD")
+    float TorqueKdPitch = 6.f;  // (rad/s damping)
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|TorquePD")
+    float TorqueKdYaw = 7.f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|TorquePD")
+    float MaxTorquePitch = 8.0e7f; // N*cm (clamp)
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|TorquePD")
+    float MaxTorqueYaw = 1.0e8f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|TorquePD")
+    float TorqueRollDamping = 4.f; // roll angular velocity damping (rad/s)
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|TorquePD")
+    float MaxTorqueRoll = 3.0e7f;
 };

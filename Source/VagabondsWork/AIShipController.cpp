@@ -6,6 +6,7 @@
 #include "Components/SphereComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/OverlapResult.h"
+#include "Components/PrimitiveComponent.h"
 
 void AAIShipController::BeginPlay()
 {
@@ -62,40 +63,115 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
 
     const FVector ToTargetLocalDir = ToTargetLocal.GetSafeNormal();
 
-    const float PitchErr = -FMath::RadiansToDegrees(
+    // Check if target is behind the ship
+    const bool bTargetBehind = (ToTargetLocalDir.X < 0.f);
+
+    float PitchErr = -FMath::RadiansToDegrees(
         FMath::Atan2(ToTargetLocalDir.Z, ToTargetLocalDir.X)
     );
-    const float YawErr = FMath::RadiansToDegrees(
+    float YawErr = FMath::RadiansToDegrees(
         FMath::Atan2(ToTargetLocalDir.Y, ToTargetLocalDir.X)
     );
 
-    const FRotator CurrentRot = ShipBase->GetComponentRotation();
+    // Handle target behind to prevent 179° ↔ -179° thrash
+    if (bTargetBehind)
+    {
+        // Compute preferred yaw sign to maintain consistent turning direction
+        float PreferredYawSign = 0.f;
+        if (FMath::Abs(FilteredYawRate) > 1.f) 
+            PreferredYawSign = FMath::Sign(FilteredYawRate);
+        else 
+            PreferredYawSign = (YawErr >= 0.f) ? 1.f : -1.f;
 
-    // Proportional controller -> desired angular velocity (deg/sec)
-    const float PitchKp = 0.5f;
-    const float YawKp = 0.55f;
+        // Prevent sudden yaw sign flip near 180 deg
+        YawErr = FMath::Abs(YawErr) * PreferredYawSign;
 
-    const float MaxPitch = Ship->MaxPitchSpeed;
-    const float MaxYaw = Ship->MaxYawSpeed;
-    const float MaxRoll = Ship->MaxRollSpeed;
-    const float MaxRollAngle = Ship->MaxRollAngle;
+        // Reduce pitch when behind to avoid weird pitch flips
+        PitchErr *= 0.5f;
+    }
 
-    const float DesiredPitchRate = FMath::Clamp(PitchErr * PitchKp, -MaxPitch, MaxPitch);
-    const float DesiredYawRate = FMath::Clamp(YawErr * YawKp, -MaxYaw, MaxYaw);
+    // Add deadzone (you already have AimDeadZoneDeg in header)
+    float PitchErrDz = (FMath::Abs(PitchErr) < AimDeadZoneDeg) ? 0.f : PitchErr;
+    float YawErrDz   = (FMath::Abs(YawErr)   < AimDeadZoneDeg) ? 0.f : YawErr;
 
-    const float DesiredRollRate = 0.f;
+    // --- Torque PD branch ---
+    if (bUseTorquePD)
+    {
+        // Current angular velocity in local (deg/s)
+        const FVector CurAngVelWorldDeg = ShipBase->GetPhysicsAngularVelocityInDegrees();
+        const FVector CurAngVelLocalDeg = ShipBase->GetComponentTransform().InverseTransformVectorNoScale(CurAngVelWorldDeg);
+
+        // Convert to rad/s
+        const FVector CurAngVelLocalRad = CurAngVelLocalDeg * (PI / 180.f);
+
+        // Convert error to radians
+        const float PitchErrRad = FMath::DegreesToRadians(PitchErrDz);
+        const float YawErrRad   = FMath::DegreesToRadians(YawErrDz);
+
+        // Safety brake: when errors are basically zero, prevent residual spin
+        const bool bAlmostAimed =
+            (FMath::Abs(PitchErrDz) < (AimDeadZoneDeg * 2.f)) &&
+            (FMath::Abs(YawErrDz)   < (AimDeadZoneDeg * 2.f));
+
+        // Use component inertia tensor (kg*cm^2)
+        // In UE, GetInertiaTensor returns in *component local* principal axes.
+        const FVector Inertia = ShipBase->GetInertiaTensor();
+        const float Ix = FMath::Max(Inertia.X, 1.f);
+        const float Iy = FMath::Max(Inertia.Y, 1.f);
+        const float Iz = FMath::Max(Inertia.Z, 1.f);
+
+        // Desired angular acceleration (rad/s^2) per local axis:
+        // Pitch = local Y, Yaw = local Z
+        float AlphaPitch, AlphaYaw;
+        
+        if (bAlmostAimed)
+        {
+            // Increase damping temporarily near lock
+            AlphaPitch = - (TorqueKdPitch * 1.5f) * CurAngVelLocalRad.Y;
+            AlphaYaw   = - (TorqueKdYaw   * 1.5f) * CurAngVelLocalRad.Z;
+        }
+        else
+        {
+            // Normal PD control
+            AlphaPitch = (TorqueKpPitch * PitchErrRad) - (TorqueKdPitch * CurAngVelLocalRad.Y);
+            AlphaYaw   = (TorqueKpYaw   * YawErrRad)   - (TorqueKdYaw   * CurAngVelLocalRad.Z);
+        }
+
+        // Convert to torque τ = I * α (N*cm)
+        float TorquePitch = Iy * AlphaPitch;
+        float TorqueYaw   = Iz * AlphaYaw;
+
+        // Roll damping only (stabilize roll spin)
+        float TorqueRoll = -Ix * (TorqueRollDamping * CurAngVelLocalRad.X);
+
+        // Clamp torques
+        TorquePitch = FMath::Clamp(TorquePitch, -MaxTorquePitch, MaxTorquePitch);
+        TorqueYaw   = FMath::Clamp(TorqueYaw,   -MaxTorqueYaw,   MaxTorqueYaw);
+        TorqueRoll  = FMath::Clamp(TorqueRoll,  -MaxTorqueRoll,  MaxTorqueRoll);
+
+        // Local torque vector (X=roll, Y=pitch, Z=yaw) in N*cm
+        const FVector TorqueLocal(TorqueRoll, TorquePitch, TorqueYaw);
+
+        // Transform to world and apply in radians
+        const FVector TorqueWorld = ShipBase->GetComponentTransform().TransformVectorNoScale(TorqueLocal);
+        ShipBase->AddTorqueInRadians(TorqueWorld, NAME_None, true);
+
+        return; // IMPORTANT: do not also SetPhysicsAngularVelocity
+    }
+
+    // --- Existing angular-velocity servo branch (unchanged) ---
+    const float DesiredPitchRate = FMath::Clamp(PitchErrDz * 0.5f, -Ship->MaxPitchSpeed, Ship->MaxPitchSpeed);
+    const float DesiredYawRate   = FMath::Clamp(YawErrDz   * 0.55f, -Ship->MaxYawSpeed,  Ship->MaxYawSpeed);
+    const FVector TargetAngVelLocal(0.f, DesiredPitchRate, DesiredYawRate);
+
+    const float PitchResponse = FMath::Max(Ship->PitchAccelSpeed, 0.1f);
+    const float YawResponse   = FMath::Max(Ship->YawAccelSpeed, 0.1f);
+    const float RollResponse  = FMath::Max(Ship->RollAccelSpeed, 0.1f);
 
     // Current angular velocity (deg/sec) in world space. Convert to local for axis control.
     const FVector CurAngVelWorld = ShipBase->GetPhysicsAngularVelocityInDegrees();
     const FVector CurAngVelLocal = ShipBase->GetComponentTransform()
         .InverseTransformVectorNoScale(CurAngVelWorld);
-
-    const FVector TargetAngVelLocal(DesiredRollRate, DesiredPitchRate, DesiredYawRate);
-
-    // Smooth angular velocity change
-    const float PitchResponse = FMath::Max(Ship->PitchAccelSpeed, 0.1f);
-    const float YawResponse = FMath::Max(Ship->YawAccelSpeed, 0.1f);
-    const float RollResponse = FMath::Max(Ship->RollAccelSpeed, 0.1f);
 
     FVector NewAngVelLocal = CurAngVelLocal;
     NewAngVelLocal.X = FMath::FInterpTo(CurAngVelLocal.X, TargetAngVelLocal.X, DeltaTime, RollResponse);
@@ -106,7 +182,6 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
         .TransformVectorNoScale(NewAngVelLocal);
 
     ShipBase->SetPhysicsAngularVelocityInDegrees(NewAngVelWorld, false);
-
 }
 
 void AAIShipController::HandleSafetyMarginCheck()
