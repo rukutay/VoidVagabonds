@@ -68,3 +68,6 @@
   when available, with a safe fallback when radius is missing.
 - Updated `UShipNavComponent` to use physics linear velocity for physics-simulated ship roots
   instead of relying on `GetOwner()->GetVelocity()`.
+
+### Removed
+- **Roll Aim Functionality**: Complete rollback of ship roll aim control system that was previously implemented for ship targeting. Feature was removed to maintain stable ship behavior and simplify navigation controls.
