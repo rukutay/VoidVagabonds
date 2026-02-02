@@ -105,6 +105,7 @@
 - Abstract base class design allowing easy extension for specific module types (turrets, scanners, etc.)
 - Performance-optimized with disabled Actor Tick and efficient timer-based updates
 - Built-in targeting system with support for both actor and location targets
+- Advanced axis configuration system supporting any mesh orientation (X/Y/Z forward axes)
 
 ### Core Component Hierarchy
 - **ModuleRoot**: Root scene component (SetRootComponent)
@@ -125,8 +126,11 @@
 - **Configurable speeds**: YawSpeedDegPerSec, PitchSpeedDegPerSec for smooth rotation
 - **Angle limits**: Min/Max Yaw and Pitch angles with automatic clamping
 - **Local space calculations**: Efficient world-to-local conversion for accurate aiming
-- **Smooth interpolation**: RInterpConstantTo for natural rotation behavior
+- **Smooth interpolation**: FixedTurn for natural rotation behavior with wrap-around safety
 - **Axis isolation**: Pure yaw/pitch rotation with roll disabled for stability
+- **Advanced axis configuration**: Configurable forward/right/up axes for mesh compatibility
+- **Axis inversion support**: Independent yaw/pitch inversion controls
+- **Mathematical precision**: Proper angle normalization and axis-aware calculations
 
 ### Auto-Aim Timer System
 - **Optional timer-driven updates**: bAutoAimTick flag to enable/disable automatic updates
@@ -138,10 +142,16 @@
 ### Debug System
 - **Visual debugging**: bDrawAimDebug flag for target visualization
 - **Debug drawing**: Red line from muzzle to target, green sphere at target location
+- **Forward axis visualization**: Blue arrow for muzzle forward, yellow arrow for pivot forward
+- **Local axes drawing**: Red/Green/Blue arrows showing component local coordinate systems
 - **Real-time feedback**: Immediate visualization of aiming behavior and target positions
+- **Mismatch detection**: Instant identification when mesh/pivot forward axes differ
+- **Throttled logging**: Console output of yaw/pitch values once per second maximum
 
 ### Configuration Variables
 - **Aiming Parameters**: All editable via Blueprint with sensible defaults
+- **Axis Configuration**: AimForwardAxis, AimRightAxis, AimUpAxis for mesh compatibility
+- **Inversion Controls**: bInvertYaw, bInvertPitch for proper mesh orientation handling
 - **Performance Settings**: Timer frequency and debug toggles for runtime control
 - **Category Organization**: Logically grouped properties (Aiming, Debug, Targeting, Components)
 

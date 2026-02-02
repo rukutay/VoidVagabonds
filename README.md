@@ -61,6 +61,8 @@ The navigation system is designed for scalability (500+ active ships) with physi
 - Configurable aiming behavior with yaw/pitch speed limits and angle clamping
 - Optional auto-aim timer system for cheap, timer-driven updates (20Hz default, configurable)
 - Blueprint API for manual control: SetTargetActor(), SetTargetLocation(), ClearTarget(), AimStep()
+- Advanced axis configuration system supporting any mesh orientation (X/Y/Z forward axes)
+- Mesh forward axis mismatch detection with visual debugging
 - Debug visualization system with configurable debug drawing toggle
 - Performance-optimized with disabled Actor Tick and efficient timer-based updates
 - Abstract base class design allowing easy extension for specific module types (turrets, scanners, etc.)

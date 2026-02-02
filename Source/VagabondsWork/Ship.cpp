@@ -102,7 +102,7 @@ void AShip::Tick(float DeltaTime)
 #if !UE_BUILD_SHIPPING
     if (ShipNav)
     {
-        DrawDebugPoint(GetWorld(), SteeringTarget, 16.0f, FColor::Cyan, false, 0.0f, 0);
+        //DrawDebugPoint(GetWorld(), SteeringTarget, 16.0f, FColor::Cyan, false, 0.0f, 0);
     }
 #endif
 
@@ -294,7 +294,7 @@ void AShip::ApplySteeringForce(FVector TargetLocation, float DeltaTime)
     ShipBase->AddForce(-LateralVelocity * LateralDamping * Mass, NAME_None, false);
 
 #if !UE_BUILD_SHIPPING
-    DrawDebugLine(GetWorld(), ActorLocation, TargetLocation, FColor::Green, false, 0.f, 0, 2.f);
+    //DrawDebugLine(GetWorld(), ActorLocation, TargetLocation, FColor::Green, false, 0.f, 0, 2.f);
     DebugMessageAccumulator += DeltaTime;
     if (DebugMessageAccumulator >= 1.f)
     {
