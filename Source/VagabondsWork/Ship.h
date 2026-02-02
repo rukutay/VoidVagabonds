@@ -49,6 +49,28 @@ public:
     UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="AI|Navigation")
     AActor* TargetActor = nullptr;
 
+    // ---------------- Orbit ----------------
+    UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="AI|Orbit")
+    bool bOrbitTarget = false;
+
+    UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="AI|Orbit", meta=(ClampMin="0"))
+    float EffectiveRange = 6000.0f; // cm
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ClampMin="0"))
+    float OrbitAngularSpeedDeg = 18.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit")
+    FVector OrbitAxis = FVector::UpVector;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit")
+    bool bOrbitClockwise = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ClampMin="0.0"))
+    float OrbitEnterToleranceMultiplier = 0.15f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit|Debug")
+    bool bDebugOrbit = false;
+
     UFUNCTION(BlueprintCallable, Category="AI|Navigation")
     AActor* GetTargetActor() const { return TargetActor; }
 
@@ -155,6 +177,16 @@ private:
     bool bLoggedMissingController = false;
 
     float DebugMessageAccumulator = 0.f;
+
+    // Orbit runtime state (not replicated)
+    bool bOrbitInitialized = false;
+    float OrbitAngleRad = 0.0f;
+    FVector OrbitBasisX = FVector::ForwardVector;
+    FVector OrbitBasisY = FVector::RightVector;
+    FVector LastOrbitAxis = FVector::UpVector;
+    TWeakObjectPtr<AActor> LastOrbitTarget;
+
+    FVector ComputeOrbitGoal(const FVector& Center, float DeltaTime);
 
     // Soft Separation Bookkeeping
     TArray<TWeakObjectPtr<UPrimitiveComponent>> SoftOverlapComps;

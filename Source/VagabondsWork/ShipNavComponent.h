@@ -32,7 +32,7 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	void TickNav(float DeltaTime, const FVector& GoalLocation, float ShipRadiusCm);
+	void TickNav(float DeltaTime, const FVector& GoalLocation, float ShipRadiusCm, bool bMovingGoal);
 	FVector GetNavTarget(const FVector& GoalLocation) const;
 
 protected:

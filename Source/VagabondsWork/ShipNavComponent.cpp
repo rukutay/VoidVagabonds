@@ -48,7 +48,7 @@ void UShipNavComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 	// ...
 }
 
-void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, float ShipRadiusCm)
+void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, float ShipRadiusCm, bool bMovingGoal)
 {
 	if (!GetWorld() || !GetOwner())
 	{
@@ -79,8 +79,9 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	const bool bTime = (CurrentTime >= NextReplanTime);
 	const bool bMoved = FVector::DistSquared(ShipPos, LastReplanShipPos) >
 						FMath::Square(ShipRadiusCm * ReplanMinMovedDistanceMultiplier);
-	const bool bGoalChanged = FVector::DistSquared(GoalLocation, LastReplanGoal) >
-							  FMath::Square(ShipRadiusCm * ReplanMinGoalDeltaMultiplier);
+	const bool bGoalChanged = (!bMovingGoal) &&
+							  (FVector::DistSquared(GoalLocation, LastReplanGoal) >
+							   FMath::Square(ShipRadiusCm * ReplanMinGoalDeltaMultiplier));
 
 	const bool bForce = (StuckCounter >= StuckThreshold);
 

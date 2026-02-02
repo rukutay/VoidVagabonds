@@ -47,6 +47,78 @@ void AShip::BeginPlay()
     }
 }
 
+FVector AShip::ComputeOrbitGoal(const FVector& Center, float DeltaTime)
+{
+    const AActor* CurTarget = TargetActor;
+    if (!CurTarget || EffectiveRange <= 0.0f)
+    {
+        bOrbitInitialized = false;
+        return Center;
+    }
+
+    FVector Axis = OrbitAxis.GetSafeNormal();
+    if (Axis.IsNearlyZero()) Axis = FVector::UpVector;
+
+    const bool bTargetChanged = (LastOrbitTarget.Get() != CurTarget);
+    const bool bAxisChanged = !Axis.Equals(LastOrbitAxis, 0.01f);
+    if (bTargetChanged || bAxisChanged)
+    {
+        bOrbitInitialized = false;
+        LastOrbitTarget = const_cast<AActor*>(CurTarget);
+        LastOrbitAxis = Axis;
+    }
+
+    const FVector ShipPos = GetActorLocation();
+    const FVector ToShip = ShipPos - Center;
+
+    FVector PlaneVec = ToShip - Axis * FVector::DotProduct(ToShip, Axis);
+    float PlaneDist = PlaneVec.Size();
+
+    if (PlaneVec.IsNearlyZero())
+    {
+        FVector Fwd = GetActorForwardVector();
+        PlaneVec = Fwd - Axis * FVector::DotProduct(Fwd, Axis);
+        if (PlaneVec.IsNearlyZero()) PlaneVec = FVector::RightVector;
+        PlaneDist = PlaneVec.Size();
+    }
+
+    const FVector RadialDir = PlaneVec.GetSafeNormal();
+    const float DesiredR = EffectiveRange;
+    const float EnterTol = FMath::Max(50.0f, DesiredR * OrbitEnterToleranceMultiplier);
+
+    // Approach ring first
+    if (PlaneDist > (DesiredR + EnterTol))
+    {
+        OrbitBasisX = RadialDir;
+        OrbitBasisY = FVector::CrossProduct(Axis, OrbitBasisX).GetSafeNormal();
+        if (OrbitBasisY.IsNearlyZero()) OrbitBasisY = FVector::RightVector;
+
+        OrbitAngleRad = 0.0f;
+        bOrbitInitialized = true;
+        return Center + RadialDir * DesiredR;
+    }
+
+    if (!bOrbitInitialized)
+    {
+        OrbitBasisX = RadialDir;
+        OrbitBasisY = FVector::CrossProduct(Axis, OrbitBasisX).GetSafeNormal();
+        if (OrbitBasisY.IsNearlyZero()) OrbitBasisY = FVector::RightVector;
+
+        OrbitAngleRad = 0.0f;
+        bOrbitInitialized = true;
+    }
+
+    const float Sign = bOrbitClockwise ? -1.0f : 1.0f;
+    const float Omega = FMath::DegreesToRadians(OrbitAngularSpeedDeg) * Sign;
+    OrbitAngleRad = FMath::UnwindRadians(OrbitAngleRad + Omega * FMath::Max(DeltaTime, 0.0f));
+
+    float S=0.f, C=1.f;
+    FMath::SinCos(&S, &C, OrbitAngleRad);
+
+    const FVector Offset = (OrbitBasisX * C + OrbitBasisY * S) * DesiredR;
+    return Center + Offset;
+}
+
 void AShip::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
@@ -59,7 +131,16 @@ void AShip::Tick(float DeltaTime)
     }
 
     // NAVIGATION_TODO_REMOVE
-    const FVector Goal = GetGoalLocation();
+    const FVector GoalCenter = GetGoalLocation();
+    FVector Goal = GoalCenter;
+    bool bMovingGoal = false;
+
+    if (TargetActor && bOrbitTarget && EffectiveRange > 0.0f)
+    {
+        Goal = ComputeOrbitGoal(GoalCenter, DeltaTime);
+        bMovingGoal = true;
+    }
+
     const FVector ActorLocation = GetActorLocation();
 #if !UE_BUILD_SHIPPING
     if ((Goal - ActorLocation).IsNearlyZero(1.f))
@@ -86,11 +167,19 @@ void AShip::Tick(float DeltaTime)
     }
     else if (ShipNav && (!ShipController || !ShipController->IsUnstucking()))
     {
-        ShipNav->TickNav(DeltaTime, Goal, ShipRadiusCm);
+        ShipNav->TickNav(DeltaTime, Goal, ShipRadiusCm, bMovingGoal);
         SteeringTarget = ShipNav->GetNavTarget(Goal);
     }
 
     ApplySteeringForce(SteeringTarget, DeltaTime);
+
+#if !UE_BUILD_SHIPPING
+    if (bDebugOrbit && GetWorld())
+    {
+        DrawDebugPoint(GetWorld(), Goal, 14.f, FColor::Yellow, false, 0.f, 0);
+        DrawDebugPoint(GetWorld(), SteeringTarget, 14.f, FColor::Cyan, false, 0.f, 0);
+    }
+#endif
 
     // Rotation
     // NAVIGATION_TODO_REMOVE
