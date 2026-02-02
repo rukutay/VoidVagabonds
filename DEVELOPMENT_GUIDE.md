@@ -123,10 +123,13 @@
 ### Aiming System
 - **Configurable interpolation speeds**: YawInterpSpeed, PitchInterpSpeed for smooth rotation using FMath::RInterpTo
 - **Angle limits**: bLimitPitch flag and MaxPitchAbsDeg for pitch clamping
-- **Blueprint-style aiming**: Uses UKismetMathLibrary::FindLookAtRotation for exact Blueprint compatibility
-- **Yaw/Pitch separation**: Yaw applied to PivotBase (world rotation), Pitch to PivotGun (relative rotation)
+- **Improved vector math**: Replaced UKismetMathLibrary::FindLookAtRotation with proper vector math using relative rotations
+- **Enhanced yaw calculation**: Uses parent local space conversion and FMath::Atan2 for improved accuracy
+- **Improved pitch calculation**: Uses PivotBase local space with horizontal magnitude validation
+- **Yaw/Pitch separation**: Yaw applied to PivotBase (relative rotation), Pitch to PivotGun (relative rotation)
 - **Start point selection**: bUseMuzzleAsStart flag to choose between muzzle and gun pivot as aim start point
 - **Mathematical precision**: Proper angle normalization and axis-aware calculations
+- **Flicker fix**: Uses relative instead of world rotations to prevent flickering when attached to moving ships
 
 ### Auto-Aim Timer System
 - **Configurable auto-aim**: bAutoAim flag to enable/disable automatic updates

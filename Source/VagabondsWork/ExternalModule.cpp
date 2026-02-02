@@ -120,30 +120,49 @@ void AExternalModule::AimStep(float Dt)
 	// Determine Start point
 	const FVector Start = bUseMuzzleAsStart ? Muzzle->GetComponentLocation() : PivotGun->GetComponentLocation();
 	
-	// Desired LookAt rotation using BP-style FindLookAtRotation
-	const FRotator LookAt = UKismetMathLibrary::FindLookAtRotation(Start, TargetLoc);
+	// Compute AimDirWorld
+	const FVector AimDirWorld = (TargetLoc - Start).GetSafeNormal();
 	
-	// Apply yaw to PivotBase (ONLY yaw)
-	const FRotator CurrentYawWorld = PivotBase->GetComponentRotation();
-	const FRotator DesiredYawWorld = FRotator(0, LookAt.Yaw, 0);
-	const FRotator NewYawWorld = FMath::RInterpTo(CurrentYawWorld, DesiredYawWorld, Dt, YawInterpSpeed);
-	PivotBase->SetWorldRotation(FRotator(0, NewYawWorld.Yaw, 0));
+	// Get parent transform for PivotBase
+	USceneComponent* BaseParent = PivotBase->GetAttachParent();
+	if (!BaseParent) return;
+	
+	// Convert direction into BaseParent local space
+	const FVector AimDirParent = BaseParent->GetComponentTransform().InverseTransformVectorNoScale(AimDirWorld);
+	
+	// Compute desired yaw (forward +X, right +Y)
+	const float DesiredYaw = FRotator::NormalizeAxis(FMath::RadiansToDegrees(FMath::Atan2(AimDirParent.Y, AimDirParent.X)));
+	
+	// Interp relative yaw only
+	const FRotator CurrentYawRel = PivotBase->GetRelativeRotation();
+	const FRotator DesiredYawRel(0.f, DesiredYaw, 0.f);
+	const FRotator NewYawRel = FMath::RInterpTo(CurrentYawRel, DesiredYawRel, Dt, YawInterpSpeed);
+	
+	// Apply
+	PivotBase->SetRelativeRotation(FRotator(0.f, NewYawRel.Yaw, 0.f));
 	
 	// Recompute pitch after yaw is applied
-	const FVector Start2 = bUseMuzzleAsStart ? Muzzle->GetComponentLocation() : PivotGun->GetComponentLocation();
-	const FRotator LookAt2 = UKismetMathLibrary::FindLookAtRotation(Start2, TargetLoc);
+	// Convert AimDirWorld into PivotBase local space
+	const FVector AimDirBase = PivotBase->GetComponentTransform().InverseTransformVectorNoScale(AimDirWorld);
 	
-	float DesiredPitch = FRotator::NormalizeAxis(LookAt2.Pitch);
+	// Compute horizontal magnitude
+	const float Horizontal = FMath::Sqrt(AimDirBase.X*AimDirBase.X + AimDirBase.Y*AimDirBase.Y);
+	if (Horizontal < 1e-4f) return;
+	
+	// DesiredPitch (degrees)
+	float DesiredPitch = FRotator::NormalizeAxis(FMath::RadiansToDegrees(FMath::Atan2(AimDirBase.Z, Horizontal)));
+	
+	// Apply pitch clamp if enabled
 	if (bLimitPitch)
-	{
-		DesiredPitch = FMath::Clamp(DesiredPitch, -MaxPitchAbsDeg, MaxPitchAbsDeg);
-	}
+		DesiredPitch = FMath::Clamp(DesiredPitch, -MaxPitchAbsDeg, +MaxPitchAbsDeg);
 	
+	// Interp relative pitch only
 	const FRotator CurrentPitchRel = PivotGun->GetRelativeRotation();
-	const FRotator DesiredPitchRel = FRotator(DesiredPitch, 0, 0);
+	const FRotator DesiredPitchRel(DesiredPitch, 0.f, 0.f);
 	const FRotator NewPitchRel = FMath::RInterpTo(CurrentPitchRel, DesiredPitchRel, Dt, PitchInterpSpeed);
-	//ТУТ 
-	PivotGun->SetRelativeRotation(FRotator(NewPitchRel.Pitch, 0, 0));
+	
+	// Apply
+	PivotGun->SetRelativeRotation(FRotator(NewPitchRel.Pitch, 0.f, 0.f));
 	
 	// Debug visualization
 	if (bDebugAim && GetWorld())
@@ -156,28 +175,35 @@ void AExternalModule::AimStep(float Dt)
 			DebugAccumTime = 0.0f;
 		}
 		
+		// Ensure debug draw duration is never negative
+		const float SafeDebugDrawDuration = FMath::Max(0.f, DebugDrawDuration);
+		
 		// Draw line from muzzle to target (red)
-		DrawDebugLine(GetWorld(), Start2, TargetLoc, FColor::Red, false, DebugDrawDuration, 0, 2.0f);
+		DrawDebugLine(GetWorld(), Start, TargetLoc, FColor::Red, false, SafeDebugDrawDuration, 0, 2.0f);
 		
 		// Draw forward vector arrow (blue)
 		const FVector MuzzleForward = Muzzle->GetForwardVector();
-		DrawDebugDirectionalArrow(GetWorld(), Start2, Start2 + MuzzleForward * 200, 20, FColor::Blue, false, DebugDrawDuration, 0, 2.0f);
+		DrawDebugDirectionalArrow(GetWorld(), Start, Start + MuzzleForward * 200, 20, FColor::Blue, false, SafeDebugDrawDuration, 0, 2.0f);
 		
 		// Draw desired aim direction arrow (green)
-		const FVector DesiredAimDir = (TargetLoc - Start2).GetSafeNormal();
-		DrawDebugDirectionalArrow(GetWorld(), Start2, Start2 + DesiredAimDir * 200, 20, FColor::Green, false, DebugDrawDuration, 0, 2.0f);
+		DrawDebugDirectionalArrow(GetWorld(), Start, Start + AimDirWorld * 200, 20, FColor::Green, false, SafeDebugDrawDuration, 0, 2.0f);
+		
+		// Draw PivotBase forward arrow (yellow)
+		const FVector BaseLoc = PivotBase->GetComponentLocation();
+		const FVector BaseForward = PivotBase->GetForwardVector();
+		DrawDebugDirectionalArrow(GetWorld(), BaseLoc, BaseLoc + BaseForward * 150.f, 20, FColor::Yellow, false, SafeDebugDrawDuration, 0, 2.0f);
 		
 		// On-screen print once per 0.25s
 		if (bShouldPrint)
 		{
 			const float CurrentYaw = FRotator::NormalizeAxis(PivotBase->GetComponentRotation().Yaw);
 			const float CurrentPitch = FRotator::NormalizeAxis(PivotGun->GetRelativeRotation().Pitch);
-			const float DesiredYaw = FRotator::NormalizeAxis(LookAt.Yaw);
+			const float DesiredYawFinal = FRotator::NormalizeAxis(DesiredYaw);
 			const float DesiredPitchFinal = FRotator::NormalizeAxis(DesiredPitch);
 			
 			GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, 
 				FString::Printf(TEXT("Yaw: %.1f -> %.1f | Pitch: %.1f -> %.1f"), 
-					CurrentYaw, DesiredYaw, CurrentPitch, DesiredPitchFinal));
+					CurrentYaw, DesiredYawFinal, CurrentPitch, DesiredPitchFinal));
 		}
 	}
 }

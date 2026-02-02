@@ -16,6 +16,14 @@
   - Performance-optimized with disabled Actor Tick and efficient timer-based updates
   - Abstract base class design allowing easy extension for specific module types (turrets, scanners, etc.)
 
+### Improved
+- **External Ship Module Aiming System:**
+  - Replaced `UKismetMathLibrary::FindLookAtRotation` with proper vector math using relative rotations
+  - Enhanced yaw calculation using parent local space conversion and `FMath::Atan2` for improved accuracy
+  - Improved pitch calculation using PivotBase local space with horizontal magnitude validation
+  - Fixed flickering issues when modules are attached to moving ships by using relative instead of world rotations
+  - Enhanced debug visualization with PivotBase forward direction arrow and improved safety checks
+
 - **Navigation System Enhancements:**
   - Periodic global replanning with jitter to avoid synchronization spikes across ships
   - Low-frequency refresh system for slow-moving static obstacles (planets/suns/stations)
