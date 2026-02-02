@@ -63,7 +63,37 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Limits", meta = (ClampMin = "0.0", ClampMax = "89.9", ToolTip = "Maximum absolute pitch angle in degrees"))
 	float MaxPitchAbsDeg;
 
+	// Base yaw limit (0..360 sweep around initial yaw)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|Limits",
+	  meta=(ToolTip="Limit base yaw sweep around initial yaw (0=locked, 360=unlimited)"))
+	bool bLimitBaseYaw;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|Limits",
+	  meta=(ClampMin="0.0", ClampMax="360.0", ToolTip="Base yaw sweep range in degrees (0..360)"))
+	float BaseYawLimitDeg;
+
+	// Gun pitch limit (0..360 sweep around initial pitch)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|Limits",
+	  meta=(ToolTip="Limit gun pitch sweep around initial pitch (0=locked, 360=unlimited)"))
+	bool bLimitGunPitch;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|Limits",
+	  meta=(ClampMin="0.0", ClampMax="360.0", ToolTip="Gun pitch sweep range in degrees (0..360)"))
+	float GunPitchLimitDeg;
+
 	// Speed settings
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|Speed",
+	  meta=(ToolTip="If true, use deg/sec stepping instead of RInterpTo speeds"))
+	bool bUseDegPerSecSpeed;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|Speed",
+	  meta=(ClampMin="0.0", ClampMax="720.0", ToolTip="Base yaw speed in deg/sec"))
+	float YawDegPerSec;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|Speed",
+	  meta=(ClampMin="0.0", ClampMax="720.0", ToolTip="Gun pitch speed in deg/sec"))
+	float PitchDegPerSec;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Speed", meta = (ClampMin = "0.0", ClampMax = "50.0", ToolTip = "Yaw interpolation speed"))
 	float YawInterpSpeed;
 
@@ -84,6 +114,10 @@ protected:
 private:
 	FTimerHandle AimTimerHandle;
 	float DebugAccumTime;
+	
+	// Cached initial angles
+	float InitialBaseYawWorld;
+	float InitialGunPitchRel;
 
 protected:
 	// Called when the game starts or when spawned

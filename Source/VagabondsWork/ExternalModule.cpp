@@ -9,6 +9,20 @@
 #include "Engine/World.h"
 #include "Engine/Engine.h"
 
+static float ClampAngleAroundCenterDeg(float CenterDeg, float DesiredDeg, float LimitDeg)
+{
+    // LimitDeg is total sweep (0..360). Clamp around CenterDeg by half-range.
+    const float C = FRotator::NormalizeAxis(CenterDeg);
+    const float D = FRotator::NormalizeAxis(DesiredDeg);
+
+    if (LimitDeg >= 359.9f) return D;
+
+    const float Half = FMath::Clamp(LimitDeg * 0.5f, 0.f, 179.9f);
+    const float Delta = FMath::FindDeltaAngleDegrees(C, D);
+    const float ClampedDelta = FMath::Clamp(Delta, -Half, +Half);
+    return FRotator::NormalizeAxis(C + ClampedDelta);
+}
+
 // Sets default values
 AExternalModule::AExternalModule()
 {
@@ -41,6 +55,15 @@ AExternalModule::AExternalModule()
 	AimUpdateHz = 30.f;
 	bLimitPitch = true;
 	MaxPitchAbsDeg = 65.f;
+	bLimitBaseYaw = false;
+	BaseYawLimitDeg = 360.f;
+	bLimitGunPitch = true;
+	GunPitchLimitDeg = 130.f; // equals +-65 around center by default
+	InitialBaseYawWorld = 0.f;
+	InitialGunPitchRel = 0.f;
+	bUseDegPerSecSpeed = false;
+	YawDegPerSec = 180.f;
+	PitchDegPerSec = 180.f;
 	YawInterpSpeed = 8.f;
 	PitchInterpSpeed = 8.f;
 	bUseMuzzleAsStart = true;
@@ -53,6 +76,10 @@ AExternalModule::AExternalModule()
 void AExternalModule::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	// Cache initial angles
+	InitialBaseYawWorld = FRotator::NormalizeAxis(PivotBase ? PivotBase->GetComponentRotation().Yaw : 0.f);
+	InitialGunPitchRel  = FRotator::NormalizeAxis(PivotGun ? PivotGun->GetRelativeRotation().Pitch : 0.f);
 	
 	// Only start timer if auto aim is enabled and manual aim step is disabled
 	if (bAutoAim && !bManualAimStep && AimUpdateHz > 0)
@@ -131,15 +158,32 @@ void AExternalModule::AimStep(float Dt)
 	const FVector AimDirParent = BaseParent->GetComponentTransform().InverseTransformVectorNoScale(AimDirWorld);
 	
 	// Compute desired yaw (forward +X, right +Y)
-	const float DesiredYaw = FRotator::NormalizeAxis(FMath::RadiansToDegrees(FMath::Atan2(AimDirParent.Y, AimDirParent.X)));
+	float DesiredYaw = FRotator::NormalizeAxis(FMath::RadiansToDegrees(FMath::Atan2(AimDirParent.Y, AimDirParent.X)));
 	
-	// Interp relative yaw only
-	const FRotator CurrentYawRel = PivotBase->GetRelativeRotation();
-	const FRotator DesiredYawRel(0.f, DesiredYaw, 0.f);
-	const FRotator NewYawRel = FMath::RInterpTo(CurrentYawRel, DesiredYawRel, Dt, YawInterpSpeed);
+	// Apply base yaw limit if enabled
+	if (bLimitBaseYaw)
+	{
+		DesiredYaw = ClampAngleAroundCenterDeg(InitialBaseYawWorld, DesiredYaw, BaseYawLimitDeg);
+	}
 	
-	// Apply
-	PivotBase->SetRelativeRotation(FRotator(0.f, NewYawRel.Yaw, 0.f));
+	// Apply yaw rotation based on speed mode
+	if (!bUseDegPerSecSpeed)
+	{
+		// Use RInterpTo speeds (original behavior)
+		const FRotator CurrentYawRel = PivotBase->GetRelativeRotation();
+		const FRotator DesiredYawRel(0.f, DesiredYaw, 0.f);
+		const FRotator NewYawRel = FMath::RInterpTo(CurrentYawRel, DesiredYawRel, Dt, YawInterpSpeed);
+		PivotBase->SetRelativeRotation(FRotator(0.f, NewYawRel.Yaw, 0.f));
+	}
+	else
+	{
+		// Use deg/sec stepping with relative rotation
+		const float CurrentYaw = FRotator::NormalizeAxis(PivotBase->GetRelativeRotation().Yaw);
+		const float Delta = FMath::FindDeltaAngleDegrees(CurrentYaw, DesiredYaw);
+		const float Step = FMath::Clamp(Delta, -YawDegPerSec * Dt, +YawDegPerSec * Dt);
+		const float NewYaw = FRotator::NormalizeAxis(CurrentYaw + Step);
+		PivotBase->SetRelativeRotation(FRotator(0.f, NewYaw, 0.f));
+	}
 	
 	// Recompute pitch after yaw is applied
 	// Convert AimDirWorld into PivotBase local space
@@ -152,17 +196,34 @@ void AExternalModule::AimStep(float Dt)
 	// DesiredPitch (degrees)
 	float DesiredPitch = FRotator::NormalizeAxis(FMath::RadiansToDegrees(FMath::Atan2(AimDirBase.Z, Horizontal)));
 	
-	// Apply pitch clamp if enabled
-	if (bLimitPitch)
+	// Apply gun pitch limit if enabled, otherwise use old pitch limit behavior
+	if (bLimitGunPitch)
+	{
+		DesiredPitch = ClampAngleAroundCenterDeg(InitialGunPitchRel, DesiredPitch, GunPitchLimitDeg);
+	}
+	else if (bLimitPitch)
+	{
 		DesiredPitch = FMath::Clamp(DesiredPitch, -MaxPitchAbsDeg, +MaxPitchAbsDeg);
+	}
 	
-	// Interp relative pitch only
-	const FRotator CurrentPitchRel = PivotGun->GetRelativeRotation();
-	const FRotator DesiredPitchRel(DesiredPitch, 0.f, 0.f);
-	const FRotator NewPitchRel = FMath::RInterpTo(CurrentPitchRel, DesiredPitchRel, Dt, PitchInterpSpeed);
-	
-	// Apply
-	PivotGun->SetRelativeRotation(FRotator(NewPitchRel.Pitch, 0.f, 0.f));
+	// Apply pitch rotation based on speed mode
+	if (!bUseDegPerSecSpeed)
+	{
+		// Use RInterpTo speeds (original behavior)
+		const FRotator CurrentPitchRel = PivotGun->GetRelativeRotation();
+		const FRotator DesiredPitchRel(DesiredPitch, 0.f, 0.f);
+		const FRotator NewPitchRel = FMath::RInterpTo(CurrentPitchRel, DesiredPitchRel, Dt, PitchInterpSpeed);
+		PivotGun->SetRelativeRotation(FRotator(NewPitchRel.Pitch, 0.f, 0.f));
+	}
+	else
+	{
+		// Use deg/sec stepping
+		const float CurrentPitch = FRotator::NormalizeAxis(PivotGun->GetRelativeRotation().Pitch);
+		const float Delta = FMath::FindDeltaAngleDegrees(CurrentPitch, DesiredPitch);
+		const float Step = FMath::Clamp(Delta, -PitchDegPerSec * Dt, +PitchDegPerSec * Dt);
+		const float NewPitch = FRotator::NormalizeAxis(CurrentPitch + Step);
+		PivotGun->SetRelativeRotation(FRotator(NewPitch, 0.f, 0.f));
+	}
 	
 	// Debug visualization
 	if (bDebugAim && GetWorld())
