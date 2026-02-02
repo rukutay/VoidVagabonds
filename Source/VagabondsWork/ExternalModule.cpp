@@ -43,5 +43,5 @@ void AExternalModule::BeginPlay()
 // Called when the actor is being removed from the game
 void AExternalModule::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	Super::EndPlay(EndPlayReason);
+	Super::EndPlay(EndPlayReason); 
 }
