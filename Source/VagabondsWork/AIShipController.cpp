@@ -63,47 +63,6 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
 
     const FVector ToTargetLocalDir = ToTargetLocal.GetSafeNormal();
 
-    // --- Roll Aim Computation ---
-    // Compute roll error from "Up (or Down) should point to target"
-    const float DistToTarget = FVector::Dist(ActorLocation, TargetLocation);
-    
-    const bool bRollAimActive =
-        (Ship->RollAimMode != ERollAimMode::Disabled) &&
-        (DistToTarget <= Ship->RollAimEffectiveDistance);
-
-    // Compute blend alpha for smooth roll aim transition
-    const float D = DistToTarget;
-    const float R = Ship->RollAimEffectiveDistance;
-    const float BlendStart = R * 1.25f; // start blending before the range
-    const float Alpha = FMath::Clamp((BlendStart - D) / (BlendStart - R), 0.f, 1.f);
-
-    float RollErrRad = 0.f;
-    if (bRollAimActive)
-    {
-        FVector DesiredUpLocal = FVector::UpVector;
-        if (Ship->RollAimMode == ERollAimMode::UpToTarget)
-            DesiredUpLocal = ToTargetLocalDir;
-        else if (Ship->RollAimMode == ERollAimMode::DownToTarget)
-            DesiredUpLocal = -ToTargetLocalDir;
-
-        // Project desired up onto plane perpendicular to forward axis (local X).
-        // Roll only rotates around X, so remove X component:
-        DesiredUpLocal.X = 0.f;
-        if (DesiredUpLocal.IsNearlyZero())
-            DesiredUpLocal = FVector(0.f, 0.f, 1.f); // fallback
-        DesiredUpLocal.Normalize();
-
-        // Compute current up in local space:
-        // In local space, current up is just +Z axis
-        const FVector CurrentUpLocal(0.f, 0.f, 1.f);
-
-        // Roll error sign and magnitude:
-        // Signed angle from CurrentUp to DesiredUp around Forward (local X axis)
-        const float CrossX = FVector::CrossProduct(CurrentUpLocal, DesiredUpLocal).X;
-        const float DotUD  = FVector::DotProduct(CurrentUpLocal, DesiredUpLocal);
-        RollErrRad = FMath::Atan2(CrossX, DotUD) * Alpha; // Apply blend alpha
-    }
-
     // Check if target is behind the ship
     const bool bTargetBehind = (ToTargetLocalDir.X < 0.f);
 
@@ -182,21 +141,13 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
         float TorquePitch = Iy * AlphaPitch;
         float TorqueYaw   = Iz * AlphaYaw;
 
-        float TorqueRoll = 0.f;
+        // Roll damping only (stabilize roll spin)
+        float TorqueRoll = -Ix * (TorqueRollDamping * CurAngVelLocalRad.X);
 
-        if (bRollAimActive)
-        {
-            // roll angular velocity in rad/s is CurAngVelLocalRad.X
-            const float AlphaRoll = (Ship->RollAimKp * RollErrRad) - (Ship->RollAimKd * CurAngVelLocalRad.X);
-            TorqueRoll = Ix * AlphaRoll;
-            TorqueRoll = FMath::Clamp(TorqueRoll, -Ship->MaxTorqueRollAim, Ship->MaxTorqueRollAim);
-        }
-        else
-        {
-            // default roll stabilization (existing)
-            TorqueRoll = -Ix * (TorqueRollDamping * CurAngVelLocalRad.X);
-            TorqueRoll = FMath::Clamp(TorqueRoll, -MaxTorqueRoll, MaxTorqueRoll);
-        }
+        // Clamp torques
+        TorquePitch = FMath::Clamp(TorquePitch, -MaxTorquePitch, MaxTorquePitch);
+        TorqueYaw   = FMath::Clamp(TorqueYaw,   -MaxTorqueYaw,   MaxTorqueYaw);
+        TorqueRoll  = FMath::Clamp(TorqueRoll,  -MaxTorqueRoll,  MaxTorqueRoll);
 
         // Local torque vector (X=roll, Y=pitch, Z=yaw) in N*cm
         const FVector TorqueLocal(TorqueRoll, TorquePitch, TorqueYaw);

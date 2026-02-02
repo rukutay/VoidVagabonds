@@ -7,14 +7,6 @@
 #include "Components/PrimitiveComponent.h"
 #include "Ship.generated.h"
 
-UENUM(BlueprintType)
-enum class ERollAimMode : uint8
-{
-    UpToTarget   UMETA(DisplayName="Up To Target"),
-    DownToTarget UMETA(DisplayName="Down To Target"),
-    Disabled     UMETA(DisplayName="Disabled")
-};
-
 class AAIShipController;
 class UShipNavComponent;
 
@@ -97,21 +89,6 @@ public:
     // NAVIGATION_TODO_REMOVE
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
     float MaxRollAngle = 22.5f; // degrees
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
-    float RollAimEffectiveDistance = 2000.f; // cm
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
-    ERollAimMode RollAimMode = ERollAimMode::UpToTarget;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
-    float RollAimKp = 10.f;  // (rad -> ang accel) used in torque branch
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
-    float RollAimKd = 5.f;   // roll damping in torque branch
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
-    float MaxTorqueRollAim = 3.0e7f;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components")
     UStaticMeshComponent* ShipBase = nullptr;
