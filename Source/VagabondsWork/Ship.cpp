@@ -56,10 +56,48 @@ FVector AShip::ComputeOrbitGoal(const FVector& Center, float DeltaTime)
         return Center;
     }
 
-    FVector Axis = OrbitAxis.GetSafeNormal();
-    if (Axis.IsNearlyZero()) Axis = FVector::UpVector;
+const bool bTargetChanged = (LastOrbitTarget.Get() != CurTarget);
 
-    const bool bTargetChanged = (LastOrbitTarget.Get() != CurTarget);
+FVector Axis = OrbitAxis.GetSafeNormal();
+if (Axis.IsNearlyZero()) Axis = FVector::UpVector;
+
+if (bAutoOrbitAxis)
+{
+    // Pick axis once per ship+target (or when re-entering orbit), then reuse
+    if (bTargetChanged || !bOrbitInitialized)
+    {
+        const uint32 ShipSeed = (OrbitSeed != 0) ? uint32(OrbitSeed) : uint32(GetUniqueID());
+        const uint32 Seed = HashCombine(ShipSeed, uint32(CurTarget->GetUniqueID()));
+        FRandomStream Rng(Seed ^ 0xA31F2D9Bu);
+
+        const float MinTiltRad = FMath::DegreesToRadians(OrbitAxisMinTiltDeg);
+        const float MaxUpDot = FMath::Cos(MinTiltRad);
+
+        FVector Cand = FVector::UpVector;
+        for (int32 i = 0; i < 8; ++i)
+        {
+            Cand = Rng.VRand(); // unit vector
+            const float UpDot = FMath::Abs(FVector::DotProduct(Cand, FVector::UpVector));
+            if (UpDot <= MaxUpDot && !Cand.IsNearlyZero())
+                break;
+        }
+
+        Axis = Cand.GetSafeNormal();
+        if (Axis.IsNearlyZero()) Axis = FVector::UpVector;
+
+        LastOrbitAxis = Axis;
+        LastOrbitTarget = const_cast<AActor*>(CurTarget);
+        bOrbitInitialized = false; // force basis + angle re-init on new plane
+    }
+    else
+    {
+        Axis = LastOrbitAxis.GetSafeNormal();
+        if (Axis.IsNearlyZero()) Axis = FVector::UpVector;
+    }
+}
+else
+{
+    // Manual axis mode: changing OrbitAxis resets orbit
     const bool bAxisChanged = !Axis.Equals(LastOrbitAxis, 0.01f);
     if (bTargetChanged || bAxisChanged)
     {
@@ -67,6 +105,14 @@ FVector AShip::ComputeOrbitGoal(const FVector& Center, float DeltaTime)
         LastOrbitTarget = const_cast<AActor*>(CurTarget);
         LastOrbitAxis = Axis;
     }
+}
+
+#if !UE_BUILD_SHIPPING
+if (bDebugOrbit && GetWorld())
+{
+    DrawDebugLine(GetWorld(), Center, Center + Axis * 800.f, FColor::Green, false, 0.f, 0, 2.f);
+}
+#endif
 
     const FVector ShipPos = GetActorLocation();
     const FVector ToShip = ShipPos - Center;
@@ -93,7 +139,6 @@ FVector AShip::ComputeOrbitGoal(const FVector& Center, float DeltaTime)
         OrbitBasisY = FVector::CrossProduct(Axis, OrbitBasisX).GetSafeNormal();
         if (OrbitBasisY.IsNearlyZero()) OrbitBasisY = FVector::RightVector;
 
-        OrbitAngleRad = 0.0f;
         bOrbitInitialized = true;
         return Center + RadialDir * DesiredR;
     }
@@ -104,7 +149,11 @@ FVector AShip::ComputeOrbitGoal(const FVector& Center, float DeltaTime)
         OrbitBasisY = FVector::CrossProduct(Axis, OrbitBasisX).GetSafeNormal();
         if (OrbitBasisY.IsNearlyZero()) OrbitBasisY = FVector::RightVector;
 
-        OrbitAngleRad = 0.0f;
+        // Deterministic random start angle per ship+target (stable across runs)
+        const uint32 ShipSeed = (OrbitSeed != 0) ? uint32(OrbitSeed) : uint32(GetUniqueID());
+        const uint32 Seed = HashCombine(ShipSeed, uint32(CurTarget->GetUniqueID()));
+        FRandomStream Rng(Seed);
+        OrbitAngleRad = Rng.FRandRange(-PI, PI);
         bOrbitInitialized = true;
     }
 

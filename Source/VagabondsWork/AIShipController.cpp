@@ -63,6 +63,31 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
 
     const FVector ToTargetLocalDir = ToTargetLocal.GetSafeNormal();
 
+    // --- Roll align error (rad) around local X axis ---
+    float RollErrRad = 0.f;
+    if (Ship->RollAlignMode != ERollAlignMode::Default)
+    {
+        FVector DesiredUpLocal = FVector::UpVector;
+
+        if (Ship->RollAlignMode == ERollAlignMode::BackToTarget)
+            DesiredUpLocal = ToTargetLocalDir;       // +Up -> target
+        else if (Ship->RollAlignMode == ERollAlignMode::BellyToTarget)
+            DesiredUpLocal = -ToTargetLocalDir;      // -Up -> target
+
+        // Roll is rotation around local X, so remove X component
+        DesiredUpLocal.X = 0.f;
+        if (DesiredUpLocal.IsNearlyZero())
+            DesiredUpLocal = FVector(0.f, 0.f, 1.f);
+        DesiredUpLocal.Normalize();
+
+        const FVector CurrentUpLocal(0.f, 0.f, 1.f);
+
+        // Signed angle from CurrentUp to DesiredUp around Forward (local X axis)
+        const float CrossX = FVector::CrossProduct(CurrentUpLocal, DesiredUpLocal).X;
+        const float DotUD  = FVector::DotProduct(CurrentUpLocal, DesiredUpLocal);
+        RollErrRad = FMath::Atan2(CrossX, DotUD); // [-pi,pi]
+    }
+
     // Check if target is behind the ship
     const bool bTargetBehind = (ToTargetLocalDir.X < 0.f);
 
@@ -141,8 +166,20 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
         float TorquePitch = Iy * AlphaPitch;
         float TorqueYaw   = Iz * AlphaYaw;
 
-        // Roll damping only (stabilize roll spin)
-        float TorqueRoll = -Ix * (TorqueRollDamping * CurAngVelLocalRad.X);
+        float TorqueRoll = 0.f;
+        if (Ship->RollAlignMode == ERollAlignMode::Default)
+        {
+            // Old behavior: damping only
+            TorqueRoll = -Ix * (TorqueRollDamping * CurAngVelLocalRad.X);
+        }
+        else
+        {
+            // Roll align PD (rad)
+            const float AlphaRoll =
+                (Ship->RollAlignKp * RollErrRad) - (Ship->RollAlignKd * CurAngVelLocalRad.X);
+
+            TorqueRoll = Ix * AlphaRoll;
+        }
 
         // Clamp torques
         TorquePitch = FMath::Clamp(TorquePitch, -MaxTorquePitch, MaxTorquePitch);
@@ -162,7 +199,15 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
     // --- Existing angular-velocity servo branch (unchanged) ---
     const float DesiredPitchRate = FMath::Clamp(PitchErrDz * 0.5f, -Ship->MaxPitchSpeed, Ship->MaxPitchSpeed);
     const float DesiredYawRate   = FMath::Clamp(YawErrDz   * 0.55f, -Ship->MaxYawSpeed,  Ship->MaxYawSpeed);
-    const FVector TargetAngVelLocal(0.f, DesiredPitchRate, DesiredYawRate);
+
+    float DesiredRollRate = 0.f;
+    if (Ship->RollAlignMode != ERollAlignMode::Default)
+    {
+        const float RollErrDeg = FMath::RadiansToDegrees(RollErrRad);
+        DesiredRollRate = FMath::Clamp(RollErrDeg * 0.5f, -Ship->MaxRollSpeed, Ship->MaxRollSpeed);
+    }
+
+    const FVector TargetAngVelLocal(DesiredRollRate, DesiredPitchRate, DesiredYawRate);
 
     const float PitchResponse = FMath::Max(Ship->PitchAccelSpeed, 0.1f);
     const float YawResponse   = FMath::Max(Ship->YawAccelSpeed, 0.1f);

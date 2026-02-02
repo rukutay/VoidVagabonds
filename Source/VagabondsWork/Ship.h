@@ -7,6 +7,14 @@
 #include "Components/PrimitiveComponent.h"
 #include "Ship.generated.h"
 
+UENUM(BlueprintType)
+enum class ERollAlignMode : uint8
+{
+    Default     UMETA(DisplayName="Default"),
+    BackToTarget UMETA(DisplayName="Back"),   // ship +Up aligns to target direction
+    BellyToTarget UMETA(DisplayName="Belly")  // ship -Up aligns to target direction
+};
+
 class AAIShipController;
 class UShipNavComponent;
 
@@ -53,6 +61,13 @@ public:
     UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="AI|Orbit")
     bool bOrbitTarget = false;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit")
+    bool bAutoOrbitAxis = true;
+
+    // Prevent axis being too close to world up/down (avoids "almost horizontal" planes)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ClampMin="0.0", ClampMax="89.0"))
+    float OrbitAxisMinTiltDeg = 15.0f;
+
     UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="AI|Orbit", meta=(ClampMin="0"))
     float EffectiveRange = 6000.0f; // cm
 
@@ -67,6 +82,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ClampMin="0.0"))
     float OrbitEnterToleranceMultiplier = 0.15f;
+
+    UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="AI|Orbit")
+    int32 OrbitSeed = 0; // 0 = auto
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit|Debug")
     bool bDebugOrbit = false;
@@ -111,6 +129,16 @@ public:
     // NAVIGATION_TODO_REMOVE
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
     float MaxRollAngle = 22.5f; // degrees
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation")
+    ERollAlignMode RollAlignMode = ERollAlignMode::Default;
+
+    // Roll alignment gains (only used when RollAlignMode != Default)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation", meta=(ClampMin="0.0"))
+    float RollAlignKp = 2.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation", meta=(ClampMin="0.0"))
+    float RollAlignKd = 1.0f;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components")
     UStaticMeshComponent* ShipBase = nullptr;
