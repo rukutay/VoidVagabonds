@@ -6,12 +6,14 @@
 #include "GameFramework/Actor.h"
 #include "ExternalModule.generated.h"
 
+class USceneComponent;
+class UStaticMeshComponent;
+
 /**
- * Base class for all external ship modules.
- * Provides the core component hierarchy for module attachments.
- * Subclasses should implement specific module functionality.
+ * External module with auto-aiming capability using yaw/pitch rotation system.
+ * Components are arranged as: ModuleRoot -> PivotBase -> MeshBase + PivotGun -> MeshGun + Muzzle
  */
-UCLASS(Abstract)
+UCLASS()
 class VAGABONDSWORK_API AExternalModule : public AActor
 {
 	GENERATED_BODY()
@@ -21,35 +23,101 @@ public:
 	AExternalModule();
 
 protected:
+	// Components
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
+	USceneComponent* ModuleRoot;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
+	USceneComponent* PivotBase;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
+	USceneComponent* PivotGun;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
+	UStaticMeshComponent* MeshBase;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
+	UStaticMeshComponent* MeshGun;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
+	USceneComponent* Muzzle;
+
+	// Targeting - Visible and editable in Details panel and BP defaults
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim", meta = (ToolTip = "Target actor for aiming"))
+	AActor* TargetActor;
+
+	// Auto-aim settings
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim", meta = (ToolTip = "Enable automatic aiming updates"))
+	bool bAutoAim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim", meta = (ClampMin = "1.0", ClampMax = "120.0", ToolTip = "Aim update frequency in Hz"))
+	float AimUpdateHz;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim", meta = (ToolTip = "Enable manual aim stepping instead of automatic timer"))
+	bool bManualAimStep;
+
+	// Limits
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Limits", meta = (ToolTip = "Enable pitch angle limits"))
+	bool bLimitPitch;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Limits", meta = (ClampMin = "0.0", ClampMax = "89.9", ToolTip = "Maximum absolute pitch angle in degrees"))
+	float MaxPitchAbsDeg;
+
+	// Speed settings
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Speed", meta = (ClampMin = "0.0", ClampMax = "50.0", ToolTip = "Yaw interpolation speed"))
+	float YawInterpSpeed;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Speed", meta = (ClampMin = "0.0", ClampMax = "50.0", ToolTip = "Pitch interpolation speed"))
+	float PitchInterpSpeed;
+
+	// Start point selection
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim", meta = (ToolTip = "Use muzzle location as start point for aim calculation"))
+	bool bUseMuzzleAsStart;
+
+	// Debug
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Debug", meta = (ToolTip = "Enable debug visualization"))
+	bool bDebugAim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Debug", meta = (ToolTip = "Duration for debug draw elements"))
+	float DebugDrawDuration;
+
+private:
+	FTimerHandle AimTimerHandle;
+	float DebugAccumTime;
+
+protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
 	// Called when the actor is being removed from the game
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	// Target storage - accessible to subclasses
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Module|Targeting")
-	AActor* TargetActor;
-
-	
-
 public:
-	// Core component hierarchy
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Module|Components")
-	USceneComponent* ModuleRoot;
+	// Targeting functions
+	UFUNCTION(BlueprintCallable, Category = "Aim")
+	void SetTargetActor(AActor* NewTarget);
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Module|Components")
-	USceneComponent* BaseYawPivot;
+	UFUNCTION(BlueprintCallable, Category = "Aim")
+	void ClearTarget();
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Module|Components")
-	UStaticMeshComponent* BaseMesh;
+	// Manual aim control
+	UFUNCTION(BlueprintCallable, Category = "Aim")
+	void AimStepManual(float DeltaSeconds);
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Module|Components")
-	USceneComponent* GunPitchPivot;
+	// BlueprintPure getters
+	UFUNCTION(BlueprintPure, Category = "Aim")
+	FVector GetMuzzleWorldLocation() const;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Module|Components")
-	UStaticMeshComponent* GunMesh;
+	UFUNCTION(BlueprintPure, Category = "Aim")
+	FVector GetMuzzleWorldForward() const;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Module|Components")
-	USceneComponent* Muzzle;
+	UFUNCTION(BlueprintPure, Category = "Aim")
+	float GetCurrentYaw() const;
+
+	UFUNCTION(BlueprintPure, Category = "Aim")
+	float GetCurrentPitch() const;
+
+	// Update functions
+	void UpdateAim();
+	void AimStep(float Dt);
 };

@@ -4,14 +4,15 @@
 ### Added
 - **External Ship Module System:**
   - Generic base class `AExternalModule` for all external ship attachments with standardized component hierarchy
-  - Core component structure: ModuleRoot → BaseYawPivot → BaseMesh, GunPitchPivot → GunMesh, Muzzle
-  - Built-in targeting system with actor and location targets, automatic target switching
-  - Configurable aiming behavior with yaw/pitch speed limits and angle clamping
-  - Optional auto-aim timer system for cheap, timer-driven updates (20Hz default, configurable)
-  - Blueprint API for manual control: SetTargetActor(), SetTargetLocation(), ClearTarget(), AimStep()
-  - Advanced axis configuration system supporting any mesh orientation (X/Y/Z forward axes)
-  - Mesh forward axis mismatch detection with visual debugging
-  - Enhanced debug visualization system with configurable debug drawing toggle
+  - Core component structure: ModuleRoot → PivotBase → MeshBase, PivotGun → MeshGun, Muzzle
+  - Built-in targeting system with actor targets and automatic target switching
+  - Configurable aiming behavior with yaw/pitch speed interpolation and angle clamping
+  - Optional auto-aim timer system for cheap, timer-driven updates (30Hz default, configurable)
+  - Manual aim control system with bManualAimStep flag to disable automatic timer
+  - Blueprint API for control: SetTargetActor(), ClearTarget(), AimStepManual()
+  - BlueprintPure getters for current state: GetMuzzleWorldLocation(), GetMuzzleWorldForward(), GetCurrentYaw(), GetCurrentPitch()
+  - Enhanced Blueprint integration with tooltips and categorized properties
+  - Debug visualization system with configurable debug drawing toggle and on-screen text
   - Performance-optimized with disabled Actor Tick and efficient timer-based updates
   - Abstract base class design allowing easy extension for specific module types (turrets, scanners, etc.)
 

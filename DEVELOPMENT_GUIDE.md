@@ -104,56 +104,53 @@
 - Generic base class `AExternalModule` providing standardized component hierarchy for all external ship attachments
 - Abstract base class design allowing easy extension for specific module types (turrets, scanners, etc.)
 - Performance-optimized with disabled Actor Tick and efficient timer-based updates
-- Built-in targeting system with support for both actor and location targets
-- Advanced axis configuration system supporting any mesh orientation (X/Y/Z forward axes)
+- Built-in targeting system with support for actor targets
+- Enhanced Blueprint integration with tooltips and categorized properties
 
 ### Core Component Hierarchy
 - **ModuleRoot**: Root scene component (SetRootComponent)
-- **BaseYawPivot**: Yaw rotation pivot attached to ModuleRoot
-- **BaseMesh**: Static mesh for base attached to BaseYawPivot
-- **GunPitchPivot**: Pitch rotation pivot attached to BaseYawPivot
-- **GunMesh**: Static mesh for gun attached to GunPitchPivot
-- **Muzzle**: Scene component for projectile spawn point attached to GunPitchPivot
+- **PivotBase**: Yaw rotation pivot attached to ModuleRoot
+- **PivotGun**: Pitch rotation pivot attached to PivotBase
+- **MeshBase**: Static mesh for base attached to PivotBase
+- **MeshGun**: Static mesh for gun attached to PivotGun
+- **Muzzle**: Scene component for projectile spawn point attached to PivotGun
 
 ### Targeting System
-- **AActor* TargetActor**: Target actor reference with automatic validation
-- **FVector TargetLocation**: Manual target location with fallback support
-- **bool bUseTargetActor**: Flag to switch between actor and location targeting
-- **Automatic target switching**: Seamless transition between actor and location targets
-- **Blueprint API**: SetTargetActor(), SetTargetLocation(), ClearTarget(), GetAimLocation()
+- **AActor* TargetActor**: Target actor reference that can be set via Blueprint
+- **Automatic target validation**: Target is automatically validated each frame
+- **Blueprint API**: SetTargetActor(), ClearTarget() for target management
 
 ### Aiming System
-- **Configurable speeds**: YawSpeedDegPerSec, PitchSpeedDegPerSec for smooth rotation
-- **Angle limits**: Min/Max Yaw and Pitch angles with automatic clamping
-- **Local space calculations**: Efficient world-to-local conversion for accurate aiming
-- **Smooth interpolation**: FixedTurn for natural rotation behavior with wrap-around safety
-- **Axis isolation**: Pure yaw/pitch rotation with roll disabled for stability
-- **Advanced axis configuration**: Configurable forward/right/up axes for mesh compatibility
-- **Axis inversion support**: Independent yaw/pitch inversion controls
+- **Configurable interpolation speeds**: YawInterpSpeed, PitchInterpSpeed for smooth rotation using FMath::RInterpTo
+- **Angle limits**: bLimitPitch flag and MaxPitchAbsDeg for pitch clamping
+- **Blueprint-style aiming**: Uses UKismetMathLibrary::FindLookAtRotation for exact Blueprint compatibility
+- **Yaw/Pitch separation**: Yaw applied to PivotBase (world rotation), Pitch to PivotGun (relative rotation)
+- **Start point selection**: bUseMuzzleAsStart flag to choose between muzzle and gun pivot as aim start point
 - **Mathematical precision**: Proper angle normalization and axis-aware calculations
 
 ### Auto-Aim Timer System
-- **Optional timer-driven updates**: bAutoAimTick flag to enable/disable automatic updates
-- **Configurable frequency**: AimUpdateHz property for update rate control (default 20Hz)
+- **Configurable auto-aim**: bAutoAim flag to enable/disable automatic updates
+- **Manual aim control**: bManualAimStep flag to disable timer and enable manual control
+- **Configurable frequency**: AimUpdateHz property for update rate control (default 30Hz)
 - **Performance optimized**: Uses FTimerHandle with proper cleanup in EndPlay()
-- **Manual override**: BlueprintCallable AimStep() for custom update control
+- **Manual override**: BlueprintCallable AimStepManual(float DeltaSeconds) for custom update control
 - **Timer management**: Automatic setup in BeginPlay() and cleanup in EndPlay()
 
 ### Debug System
-- **Visual debugging**: bDrawAimDebug flag for target visualization
-- **Debug drawing**: Red line from muzzle to target, green sphere at target location
-- **Forward axis visualization**: Blue arrow for muzzle forward, yellow arrow for pivot forward
-- **Local axes drawing**: Red/Green/Blue arrows showing component local coordinate systems
-- **Real-time feedback**: Immediate visualization of aiming behavior and target positions
-- **Mismatch detection**: Instant identification when mesh/pivot forward axes differ
-- **Throttled logging**: Console output of yaw/pitch values once per second maximum
+- **Visual debugging**: bDebugAim flag for debug visualization toggle
+- **Debug drawing**: Red line from muzzle to target, blue arrow for muzzle forward, green arrow for desired aim direction
+- **Configurable duration**: DebugDrawDuration property for debug element lifetime
+- **On-screen text**: Real-time display of current yaw/pitch vs desired yaw/pitch values (250ms interval)
+- **Performance optimized**: Debug visualization only active when bDebugAim is true
 
 ### Configuration Variables
-- **Aiming Parameters**: All editable via Blueprint with sensible defaults
-- **Axis Configuration**: AimForwardAxis, AimRightAxis, AimUpAxis for mesh compatibility
-- **Inversion Controls**: bInvertYaw, bInvertPitch for proper mesh orientation handling
-- **Performance Settings**: Timer frequency and debug toggles for runtime control
-- **Category Organization**: Logically grouped properties (Aiming, Debug, Targeting, Components)
+- **Category Organization**: Logically grouped properties with tooltips:
+  - **Aim**: TargetActor, bAutoAim, AimUpdateHz, bManualAimStep, bUseMuzzleAsStart
+  - **Aim|Speed**: YawInterpSpeed, PitchInterpSpeed
+  - **Aim|Limits**: bLimitPitch, MaxPitchAbsDeg
+  - **Aim|Debug**: bDebugAim, DebugDrawDuration
+- **Blueprint Integration**: All properties editable via Blueprint with descriptive tooltips
+- **Runtime Control**: Properties can be modified at runtime for dynamic configuration
 
 ### Performance Characteristics
 - **Zero Actor Tick**: PrimaryActorTick.bCanEverTick = false for maximum efficiency
