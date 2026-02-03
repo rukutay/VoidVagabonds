@@ -17,6 +17,7 @@ enum class ERollAlignMode : uint8
 
 class AAIShipController;
 class UShipNavComponent;
+class UShipVitalityComponent;
 
 UCLASS()
 class VAGABONDSWORK_API AShip : public APawn
@@ -32,7 +33,8 @@ protected:
 public:
     virtual void Tick(float DeltaTime) override;
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-    virtual void NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit) override;
+    
+    //virtual void NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit) override;
 
     UFUNCTION()
     void HandleShipRadiusBeginOverlap(
@@ -101,6 +103,9 @@ public:
     UFUNCTION(BlueprintCallable)
     UStaticMeshComponent* GetShipBase() const;
 
+    UFUNCTION(BlueprintCallable, Category="Ship|Components")
+    UShipVitalityComponent* GetVitality() const { return Vitality; }
+
     // ---------------- AI Controls ----------------
     // NAVIGATION_TODO_REMOVE
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
@@ -148,6 +153,9 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|AI")
     UShipNavComponent* ShipNav = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components")
+    UShipVitalityComponent* Vitality = nullptr;
 
     // ---------------- Movement ----------------
     // NAVIGATION_TODO_REMOVE

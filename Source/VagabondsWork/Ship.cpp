@@ -4,6 +4,7 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "ShipNavComponent.h"
+#include "ShipVitalityComponent.h"
 
 AShip::AShip()
 {
@@ -24,6 +25,8 @@ AShip::AShip()
     ShipRadius->SetupAttachment(ShipBase);
 
     ShipNav = CreateDefaultSubobject<UShipNavComponent>(TEXT("ShipNav"));
+
+    Vitality = CreateDefaultSubobject<UShipVitalityComponent>(TEXT("Vitality"));
 
     // NAVIGATION_TODO_REMOVE
     ShipRadius->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
@@ -252,7 +255,7 @@ void AShip::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
-
+/* 
 void AShip::NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit)
 {
     Super::NotifyHit(MyComp, Other, OtherComp, bSelfMoved, HitLocation, HitNormal, NormalImpulse, Hit);
@@ -297,7 +300,7 @@ void AShip::NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, cl
         }
     }
 }
-
+ */
 void AShip::HandleShipRadiusBeginOverlap(
     UPrimitiveComponent* OverlappedComponent,
     AActor* OtherActor,
