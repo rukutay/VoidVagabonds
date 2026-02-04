@@ -49,7 +49,10 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
     UStaticMeshComponent* ShipBase = Ship->GetShipBase();
     if (!ShipBase) return;
 
-    const float DeltaTime = GetWorld()->GetDeltaSeconds();
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    const float DeltaTime = World->GetDeltaSeconds();
     if (DeltaTime <= 0.f) return;
 
     const FVector ActorLocation = Ship->GetActorLocation();
@@ -57,8 +60,8 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
     if (ToTargetWorld.IsNearlyZero()) return;
     ToTargetWorld.Normalize();
 
-    const FVector ToTargetLocal = ShipBase->GetComponentTransform()
-        .InverseTransformVectorNoScale(ToTargetWorld);
+    const FTransform& ShipBaseTransform = ShipBase->GetComponentTransform();
+    const FVector ToTargetLocal = ShipBaseTransform.InverseTransformVectorNoScale(ToTargetWorld);
     if (ToTargetLocal.IsNearlyZero()) return;
 
     const FVector ToTargetLocalDir = ToTargetLocal.GetSafeNormal();
@@ -124,7 +127,7 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
     {
         // Current angular velocity in local (deg/s)
         const FVector CurAngVelWorldDeg = ShipBase->GetPhysicsAngularVelocityInDegrees();
-        const FVector CurAngVelLocalDeg = ShipBase->GetComponentTransform().InverseTransformVectorNoScale(CurAngVelWorldDeg);
+        const FVector CurAngVelLocalDeg = ShipBaseTransform.InverseTransformVectorNoScale(CurAngVelWorldDeg);
 
         // Convert to rad/s
         const FVector CurAngVelLocalRad = CurAngVelLocalDeg * (PI / 180.f);
@@ -190,7 +193,7 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
         const FVector TorqueLocal(TorqueRoll, TorquePitch, TorqueYaw);
 
         // Transform to world and apply in radians
-        const FVector TorqueWorld = ShipBase->GetComponentTransform().TransformVectorNoScale(TorqueLocal);
+        const FVector TorqueWorld = ShipBaseTransform.TransformVectorNoScale(TorqueLocal);
         ShipBase->AddTorqueInRadians(TorqueWorld, NAME_None, true);
 
         return; // IMPORTANT: do not also SetPhysicsAngularVelocity
@@ -215,16 +218,14 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
 
     // Current angular velocity (deg/sec) in world space. Convert to local for axis control.
     const FVector CurAngVelWorld = ShipBase->GetPhysicsAngularVelocityInDegrees();
-    const FVector CurAngVelLocal = ShipBase->GetComponentTransform()
-        .InverseTransformVectorNoScale(CurAngVelWorld);
+    const FVector CurAngVelLocal = ShipBaseTransform.InverseTransformVectorNoScale(CurAngVelWorld);
 
     FVector NewAngVelLocal = CurAngVelLocal;
     NewAngVelLocal.X = FMath::FInterpTo(CurAngVelLocal.X, TargetAngVelLocal.X, DeltaTime, RollResponse);
     NewAngVelLocal.Y = FMath::FInterpTo(CurAngVelLocal.Y, TargetAngVelLocal.Y, DeltaTime, PitchResponse);
     NewAngVelLocal.Z = FMath::FInterpTo(CurAngVelLocal.Z, TargetAngVelLocal.Z, DeltaTime, YawResponse);
 
-    const FVector NewAngVelWorld = ShipBase->GetComponentTransform()
-        .TransformVectorNoScale(NewAngVelLocal);
+    const FVector NewAngVelWorld = ShipBaseTransform.TransformVectorNoScale(NewAngVelLocal);
 
     ShipBase->SetPhysicsAngularVelocityInDegrees(NewAngVelWorld, false);
 }
@@ -239,6 +240,12 @@ void AAIShipController::HandleSafetyMarginCheck()
         return;
     }
 
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
     UPrimitiveComponent* ObstacleComp = CurrentObstacleComp.Get();
     FVector ClosestPoint = FVector::ZeroVector;
     const FVector ShipLocation = Ship->GetActorLocation();
@@ -248,7 +255,7 @@ void AAIShipController::HandleSafetyMarginCheck()
     {
         const float ShipRadiusValue = Ship->ShipRadius->GetScaledSphereRadius();
         const float QueryRadius = ShipRadiusValue + NavSafetyMargin;
-        if (QueryRadius > KINDA_SMALL_NUMBER && GetWorld())
+        if (QueryRadius > KINDA_SMALL_NUMBER)
         {
             FCollisionObjectQueryParams ObjectParams;
             ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
@@ -258,7 +265,7 @@ void AAIShipController::HandleSafetyMarginCheck()
             QueryParams.AddIgnoredActor(Ship);
 
             TArray<FOverlapResult> Overlaps;
-            GetWorld()->OverlapMultiByObjectType(
+            World->OverlapMultiByObjectType(
                 Overlaps,
                 ShipLocation,
                 FQuat::Identity,
@@ -266,7 +273,7 @@ void AAIShipController::HandleSafetyMarginCheck()
                 FCollisionShape::MakeSphere(QueryRadius),
                 QueryParams);
 
-            float BestDistance = TNumericLimits<float>::Max();
+            float BestDistanceSq = TNumericLimits<float>::Max();
             UPrimitiveComponent* BestComp = nullptr;
             FVector BestPoint = FVector::ZeroVector;
             for (const FOverlapResult& Overlap : Overlaps)
@@ -291,10 +298,10 @@ void AAIShipController::HandleSafetyMarginCheck()
                     continue;
                 }
 
-                const float Distance = FVector::Dist(ShipLocation, OverlapClosestPoint);
-                if (Distance < BestDistance)
+                const float DistanceSq = FVector::DistSquared(ShipLocation, OverlapClosestPoint);
+                if (DistanceSq < BestDistanceSq)
                 {
-                    BestDistance = Distance;
+                    BestDistanceSq = DistanceSq;
                     BestComp = OverlapComp;
                     BestPoint = OverlapClosestPoint;
                 }
@@ -303,9 +310,9 @@ void AAIShipController::HandleSafetyMarginCheck()
             if (BestComp)
             {
                 SetCurrentObstacleComp(BestComp);
-                if (bDebugSafetyMargin && GetWorld())
+                if (bDebugSafetyMargin)
                 {
-                    DrawDebugPoint(GetWorld(), BestPoint, 10.0f, FColor::Red, false, 0.0f, 0);
+                    DrawDebugPoint(World, BestPoint, 10.0f, FColor::Red, false, 0.0f, 0);
                 }
             }
         }
@@ -347,9 +354,11 @@ bool AAIShipController::UpdateInsideSafetyMargin(USphereComponent* ShipRadius)
         return false;
     }
 
+    const FVector PawnLocation = ControlledPawn->GetActorLocation();
+
     FVector ClosestPoint = FVector::ZeroVector;
     const bool bHasPoint = ObstacleComp->GetClosestPointOnCollision(
-        ControlledPawn->GetActorLocation(),
+        PawnLocation,
         ClosestPoint);
     if (!bHasPoint)
     {
@@ -358,13 +367,15 @@ bool AAIShipController::UpdateInsideSafetyMargin(USphereComponent* ShipRadius)
         return false;
     }
 
-    const float Distance = FVector::Dist(ControlledPawn->GetActorLocation(), ClosestPoint);
+    const float DistanceSq = FVector::DistSquared(PawnLocation, ClosestPoint);
     const float ShipRadiusValue = ShipRadius->GetScaledSphereRadius();
     const float EnterMargin = NavSafetyMargin + ShipRadiusValue;
     const float ExitMargin = EnterMargin + (ShipRadiusValue * SafetyExitHysteresisMultiplier);
+    const float EnterMarginSq = FMath::Square(EnterMargin);
+    const float ExitMarginSq = FMath::Square(ExitMargin);
     if (!bInsideSafetyMargin)
     {
-        bInsideSafetyMargin = Distance < EnterMargin;
+        bInsideSafetyMargin = DistanceSq < EnterMarginSq;
         if (bInsideSafetyMargin)
         {
             CurrentNavObstacleComp = ObstacleComp;
@@ -373,7 +384,7 @@ bool AAIShipController::UpdateInsideSafetyMargin(USphereComponent* ShipRadius)
     }
     else
     {
-        if (Distance > ExitMargin)
+        if (DistanceSq > ExitMarginSq)
         {
             bInsideSafetyMargin = false;
             CurrentNavObstacleComp.Reset();
@@ -457,6 +468,12 @@ void AAIShipController::HandleStuckCheck()
         return;
     }
 
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
     UStaticMeshComponent* ShipBase = Ship->GetShipBase();
     if (!ShipBase)
     {
@@ -483,7 +500,7 @@ void AAIShipController::HandleStuckCheck()
         bIsUnstucking = (StuckAccumulatedTime >= StuckTimeThreshold);
         if (bIsUnstucking)
         {
-            const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+            const float CurrentTime = World->GetTimeSeconds();
             UnstuckEndTime = CurrentTime + UnstuckDuration;
             LastUnstuckForceTime = 0.0f;
         }
@@ -494,7 +511,7 @@ void AAIShipController::HandleStuckCheck()
         return;
     }
 
-    const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+    const float CurrentTime = World->GetTimeSeconds();
     if (CurrentTime >= UnstuckEndTime
         || Speed > (MinStuckSpeed * 1.5f)
         || !CurrentObstacleComp.IsValid())

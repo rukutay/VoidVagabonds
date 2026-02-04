@@ -17,6 +17,11 @@
   - Abstract base class design allowing easy extension for specific module types (turrets, scanners, etc.)
 
 ### Improved
+- **AIShipController Performance:**
+  - Cached World/transform access in rotation and safety checks to reduce per-call overhead
+  - Switched safety margin comparisons to squared distance tests to avoid sqrt cost
+- **ShipNavComponent Avoidance:**
+  - Added idle backoff for neighbor overlap queries when ships are slow and no neighbors are found
 - **Sun Lighting Split:**
   - Added per-planet directional light bindings driven by sun-to-planet direction
   - Added option to drive gameplay sun light from view target direction

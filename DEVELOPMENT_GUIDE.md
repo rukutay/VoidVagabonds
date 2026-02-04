@@ -35,6 +35,7 @@
 - Static blocked accumulation tracking with `StaticBlockedAccumTime` prevents near-surface deadlocks
 - Force replan mechanism triggers after 1.0 second of persistent static blocking
 - Neighbor queries use cached intervals (`NeighborQueryInterval`) and capped count (`MaxNeighbors`) for performance
+- Neighbor queries back off when ships are slow and no neighbors are detected
 - Dynamic avoidance uses predictive closest-approach tests with ship radius-scaled prediction
 
 ## Ship Steering System
@@ -54,6 +55,7 @@
 
 ### Steering Implementation
 - `AAIShipController` provides target focus and rotation (no navigation logic)
+- Hot path caches World/transform access in rotation and safety checks to reduce per-call overhead
 - `AShip` exposes instance-editable `TargetActor` (AI|Navigation) for per-ship navigation focus
 - Controller acquisition retry during `Tick()` handles delayed possession scenarios
 - Forward thrust scaled by heading with lateral damping for natural space movement

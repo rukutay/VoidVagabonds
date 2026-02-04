@@ -31,6 +31,7 @@ The navigation system is designed for scalability (500+ active ships) with physi
 ### Ship Navigation Component
 - `UShipNavComponent` asks the game mode for global waypoints on a replan interval and provides the current navigation target for steering
 - Layers lightweight neighbor-based avoidance using ship radius-scaled prediction to generate temporary waypoints
+- Neighbor overlap queries back off when ships are idle and no neighbors are found
 - When the goal location matches the ship position, early-returns with current nav target set to ship position
 - Tracks progress toward current nav target and triggers stuck recovery actions (forced replans, avoidance boosts, temp waypoint cleanup)
 
@@ -43,6 +44,7 @@ The navigation system is designed for scalability (500+ active ships) with physi
 ## Steering System
 - `AShip` steers toward current waypoint from `UShipNavComponent`, which replans from `AAIShipController::GetFocusLocation()`
 - `AAIShipController` provides target focus and rotation (no navigation logic)
+- `AAIShipController` caches World and transform access in hot paths to reduce per-call overhead
 - Proximity overlap query for nearest blocking component within (ShipRadius + NavSafetyMargin)
 - Instance-editable `TargetActor` (AI|Navigation) for per-ship navigation focus
 - Controller acquisition retry during `Tick()` for delayed possession handling
