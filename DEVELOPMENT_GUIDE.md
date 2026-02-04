@@ -121,6 +121,7 @@
 - **AActor* TargetActor**: Target actor reference that can be set via Blueprint
 - **Automatic target validation**: Target is automatically validated each frame
 - **Blueprint API**: SetTargetActor(), ClearTarget() for target management
+- **Shoot readiness check**: ReadyToShoot + bUseReadyToShootCheck expose LOS-gated firing readiness
 
 ### Aiming System
 - **Configurable interpolation speeds**: YawInterpSpeed, PitchInterpSpeed for smooth rotation using FMath::RInterpTo
@@ -154,6 +155,7 @@
   - **Aim|Speed**: YawInterpSpeed, PitchInterpSpeed
   - **Aim|Limits**: bLimitPitch, MaxPitchAbsDeg
   - **Aim|Debug**: bDebugAim, DebugDrawDuration
+  - **Shoot**: ReadyToShoot, bUseReadyToShootCheck
 - **Blueprint Integration**: All properties editable via Blueprint with descriptive tooltips
 - **Runtime Control**: Properties can be modified at runtime for dynamic configuration
 

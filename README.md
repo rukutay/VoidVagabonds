@@ -78,6 +78,7 @@ The navigation system is designed for scalability (500+ active ships) with physi
 - Debug visualization system with configurable debug drawing toggle and on-screen text
 - Performance-optimized with disabled Actor Tick and efficient timer-based updates
 - Abstract base class design allowing easy extension for specific module types (turrets, scanners, etc.)
+- Shoot readiness state with optional line-of-sight validation (ReadyToShoot + bUseReadyToShootCheck)
 
 ### Improved Aiming System
 - Replaced `UKismetMathLibrary::FindLookAtRotation` with proper vector math using relative rotations

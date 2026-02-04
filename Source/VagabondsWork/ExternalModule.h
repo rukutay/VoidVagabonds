@@ -111,6 +111,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim", meta=(ClampMin="1.0", ToolTip="Bullet/projectile initial speed used for lead prediction (cm/s)"))
 	float ProjectileInitialSpeed = 6000.f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot",
+	  meta=(ToolTip="True when muzzle has clear line of sight to target on required channels"))
+	bool ReadyToShoot = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot",
+	  meta=(ToolTip="If false, ReadyToShoot always false"))
+	bool bUseReadyToShootCheck = true;
+
 	// Debug
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Debug", meta = (ToolTip = "Enable debug visualization"))
 	bool bDebugAim;
@@ -125,6 +133,8 @@ private:
 	// Cached initial angles
 	float InitialBaseYawWorld;
 	float InitialGunPitchRel;
+
+	bool HasLineOfSightToTarget() const;
 
 protected:
 	// Called when the game starts or when spawned

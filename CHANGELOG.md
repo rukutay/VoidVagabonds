@@ -15,6 +15,7 @@
   - Debug visualization system with configurable debug drawing toggle and on-screen text
   - Performance-optimized with disabled Actor Tick and efficient timer-based updates
   - Abstract base class design allowing easy extension for specific module types (turrets, scanners, etc.)
+  - Added ReadyToShoot line-of-sight readiness state with optional gating via bUseReadyToShootCheck
 
 ### Improved
 - **AIShipController Performance:**
