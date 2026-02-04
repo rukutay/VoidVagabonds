@@ -17,6 +17,17 @@
   - Abstract base class design allowing easy extension for specific module types (turrets, scanners, etc.)
 
 ### Improved
+- **Sun Lighting Split:**
+  - Added per-planet directional light bindings driven by sun-to-planet direction
+  - Added option to drive gameplay sun light from view target direction
+  - Added optional light channel forcing to separate gameplay vs planet lights
+- **Sun Visuals:**
+  - Removed Sun disk billboard system in favor of a static mesh root
+- **NavStaticBig Planet Setup:**
+  - Added mesh root and dedicated per-planet directional light component
+  - Forced lighting channels to isolate planet lighting
+  - Disabled Tick for NavStaticBig actors
+  - Added optional runtime sync of planet light settings from Sun (timer-driven)
 - **External Ship Module Aiming System:**
   - Replaced `UKismetMathLibrary::FindLookAtRotation` with proper vector math using relative rotations
   - Enhanced yaw calculation using parent local space conversion and `FMath::Atan2` for improved accuracy

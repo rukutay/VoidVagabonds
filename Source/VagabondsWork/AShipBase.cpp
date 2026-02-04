@@ -11,18 +11,6 @@ AAShipBase::AAShipBase()
     /** Ship base mesh — ROOT */
     ShipBase = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ShipBase"));
     SetRootComponent(ShipBase);
-
-    ShipBase->SetSimulatePhysics(false);
-    ShipBase->SetCollisionProfileName(TEXT("Pawn"));
-
-    /** Collision sphere */
-    ShipRadius = CreateDefaultSubobject<USphereComponent>(TEXT("ShipRadius"));
-    ShipRadius->SetupAttachment(ShipBase);
-
-    ShipRadius->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-    ShipRadius->SetCollisionProfileName(TEXT("Pawn"));
-    ShipRadius->SetSphereRadius(300.f);
-
 }
 
 // Called when the game starts or when spawned

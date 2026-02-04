@@ -245,6 +245,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
 		ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
 		ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_PhysicsBody));
+		ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel2));
 
 		TArray<AActor*> IgnoredActors;
 		IgnoredActors.Add(GetOwner());

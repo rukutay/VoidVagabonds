@@ -23,6 +23,56 @@ static float ClampAngleAroundCenterDeg(float CenterDeg, float DesiredDeg, float 
     return FRotator::NormalizeAxis(C + ClampedDelta);
 }
 
+static float ComputeInterceptTime(const FVector& RelPos, const FVector& TargetVel, float ProjectileSpeed)
+{
+    // Solve |RelPos + TargetVel * t| = ProjectileSpeed * t
+    const float s = FMath::Max(ProjectileSpeed, 1.f);
+    const float a = TargetVel.SizeSquared() - (s * s);
+    const float b = 2.f * FVector::DotProduct(RelPos, TargetVel);
+    const float c = RelPos.SizeSquared();
+
+    // If a ~= 0 -> linear solution
+    if (FMath::Abs(a) < 1e-6f)
+    {
+        // b * t + c = 0  (from a t^2 + b t + c = 0)
+        if (FMath::Abs(b) < 1e-6f) return -1.f;
+        const float t = -c / b;
+        return (t > 0.f) ? t : -1.f;
+    }
+
+    const float Disc = (b*b) - 4.f*a*c;
+    if (Disc < 0.f) return -1.f;
+
+    const float SqrtDisc = FMath::Sqrt(Disc);
+    const float t1 = (-b - SqrtDisc) / (2.f*a);
+    const float t2 = (-b + SqrtDisc) / (2.f*a);
+
+    // pick smallest positive time
+    float t = -1.f;
+    if (t1 > 0.f) t = t1;
+    if (t2 > 0.f) t = (t < 0.f) ? t2 : FMath::Min(t, t2);
+    return t;
+}
+
+static FVector ComputePredictedLoc(const FVector& Start, AActor* Target, float ProjectileSpeed)
+{
+    if (!Target) return FVector::ZeroVector;
+    const FVector TargetLoc = Target->GetActorLocation();
+    const FVector TargetVel = Target->GetVelocity();
+    const FVector RelPos = TargetLoc - Start;
+
+    const float t = ComputeInterceptTime(RelPos, TargetVel, ProjectileSpeed);
+    if (t > 0.f)
+    {
+        return TargetLoc + TargetVel * t;
+    }
+
+    // fallback: straight-line travel time
+    const float Dist = RelPos.Size();
+    const float FallbackT = Dist / FMath::Max(ProjectileSpeed, 1.f);
+    return TargetLoc + TargetVel * FallbackT;
+}
+
 // Sets default values
 AExternalModule::AExternalModule()
 {
@@ -142,13 +192,15 @@ void AExternalModule::AimStep(float Dt)
 {
 	if (!PivotBase || !PivotGun || !Muzzle || !TargetActor || Dt <= 0) return;
 
-	const FVector TargetLoc = TargetActor->GetActorLocation();
-	
-	// Determine Start point
 	const FVector Start = bUseMuzzleAsStart ? Muzzle->GetComponentLocation() : PivotGun->GetComponentLocation();
-	
-	// Compute AimDirWorld
-	const FVector AimDirWorld = (TargetLoc - Start).GetSafeNormal();
+
+	FVector AimLoc = TargetActor->GetActorLocation();
+	if (bUseLeadPrediction)
+	{
+		AimLoc = ComputePredictedLoc(Start, TargetActor, ProjectileInitialSpeed);
+	}
+
+	const FVector AimDirWorld = (AimLoc - Start).GetSafeNormal();
 	
 	// Get parent transform for PivotBase
 	USceneComponent* BaseParent = PivotBase->GetAttachParent();
@@ -240,7 +292,8 @@ void AExternalModule::AimStep(float Dt)
 		const float SafeDebugDrawDuration = FMath::Max(0.f, DebugDrawDuration);
 		
 		// Draw line from muzzle to target (red)
-		DrawDebugLine(GetWorld(), Start, TargetLoc, FColor::Red, false, SafeDebugDrawDuration, 0, 2.0f);
+		DrawDebugLine(GetWorld(), Start, AimLoc, FColor::Red, false, SafeDebugDrawDuration, 0, 2.0f);
+		DrawDebugSphere(GetWorld(), AimLoc, 25.f, 8, FColor::Green, false, SafeDebugDrawDuration);
 		
 		// Draw forward vector arrow (blue)
 		const FVector MuzzleForward = Muzzle->GetForwardVector();

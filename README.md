@@ -13,6 +13,15 @@ The navigation system is designed for scalability (500+ active ships) with physi
 - Low-frequency refresh system (default 1.0s interval) only updates obstacles tagged with `NavStaticMoving`
 - Fully static obstacles cost nothing after BeginPlay
 
+### NavStaticBig Planet Actor
+- Uses a static mesh root with a dedicated per-planet directional light component
+- Forces planet-only lighting via channel 1
+- Tick disabled for static planet bodies
+- Optional runtime sync of planet light settings from the Sun (bSyncSunSettingsRuntime + SyncHz)
+
+### Sun Visuals
+- Sun visuals use a static mesh root (no disk billboard system)
+
 ### Global Path Planning
 - `FindGlobalPathAnchors` builds a temporary node list (start/goal + cached anchors), runs A* with on-demand line-of-sight edges
 - Returns up to 8 waypoint anchors (goal included) with debug drawing when `bNavDebugDrawStatic` is enabled

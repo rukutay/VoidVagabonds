@@ -29,8 +29,4 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components")
     UStaticMeshComponent* ShipBase;
 
-    /** Collision radius of the ship */
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components")
-    USphereComponent* ShipRadius;
-
 };

@@ -255,7 +255,7 @@ void AShip::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
-/* 
+
 void AShip::NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit)
 {
     Super::NotifyHit(MyComp, Other, OtherComp, bSelfMoved, HitLocation, HitNormal, NormalImpulse, Hit);
@@ -300,7 +300,7 @@ void AShip::NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, cl
         }
     }
 }
- */
+
 void AShip::HandleShipRadiusBeginOverlap(
     UPrimitiveComponent* OverlappedComponent,
     AActor* OtherActor,
@@ -434,7 +434,7 @@ void AShip::ApplySteeringForce(FVector TargetLocation, float DeltaTime)
     const FVector LateralVelocity = Velocity - Forward * FVector::DotProduct(Velocity, Forward);
     ShipBase->AddForce(-LateralVelocity * LateralDamping * Mass, NAME_None, false);
 
-#if !UE_BUILD_SHIPPING
+/* #if !UE_BUILD_SHIPPING
     //DrawDebugLine(GetWorld(), ActorLocation, TargetLocation, FColor::Green, false, 0.f, 0, 2.f);
     DebugMessageAccumulator += DeltaTime;
     if (DebugMessageAccumulator >= 1.f)
@@ -454,7 +454,7 @@ void AShip::ApplySteeringForce(FVector TargetLocation, float DeltaTime)
             );
         }
     }
-#endif
+#endif */
 }
 
 bool AShip::EnsureShipController()

@@ -166,3 +166,20 @@
 - **Protected members**: Target storage and helper functions accessible to subclasses
 - **Generic foundation**: Base implementation provides core functionality for all module types
 - **Blueprint integration**: Full support for Blueprint inheritance and customization
+
+## Sun Lighting System
+
+### Directional Light Split
+- Sun actor can drive gameplay directional light from the view target direction
+- Per-planet directional lights can be bound to planet actors and updated from sun-to-planet direction
+- Planet light updates can be gated for moving planets to reduce per-tick rotation updates
+- Optional light channel forcing separates gameplay and planet lights
+
+### Sun Visuals
+- Sun visuals use a static mesh root (no disk billboard system)
+
+### NavStaticBig Planet Actor
+- Uses a static mesh root (BodyMesh) with a dedicated per-planet directional light component
+- Forces lighting channels to channel 1 for isolated planet-only lighting
+- Tick disabled for static planet bodies
+- Optional runtime sync of planet light settings from the Sun (bSyncSunSettingsRuntime + SyncHz)

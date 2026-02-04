@@ -104,6 +104,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim", meta = (ToolTip = "Use muzzle location as start point for aim calculation"))
 	bool bUseMuzzleAsStart;
 
+	// Lead prediction settings
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim", meta=(ToolTip="Enable leading prediction for aiming"))
+	bool bUseLeadPrediction = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim", meta=(ClampMin="1.0", ToolTip="Bullet/projectile initial speed used for lead prediction (cm/s)"))
+	float ProjectileInitialSpeed = 6000.f;
+
 	// Debug
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Debug", meta = (ToolTip = "Enable debug visualization"))
 	bool bDebugAim;
