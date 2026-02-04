@@ -23,6 +23,8 @@ ANavStaticBig::ANavStaticBig()
 	PlanetLight->LightingChannels.bChannel0 = false;
 	PlanetLight->LightingChannels.bChannel1 = true;
 	PlanetLight->LightingChannels.bChannel2 = false;
+    PlanetLight->bAtmosphereSunLight = false;
+    PlanetLight->AtmosphereSunLightIndex = 1;
 
 	//PlanetLight->bAffectVolumetricFog = false;
 }
