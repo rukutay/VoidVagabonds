@@ -120,6 +120,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			ShipVelocity = RootPrimitive->GetPhysicsLinearVelocity();
 		}
 	}
+	const float ShipSpeed = ShipVelocity.Size();
 	const float NeighborRadius = ShipRadiusCm * NeighborRadiusMultiplier;
 	const FVector DesiredTarget = CurrentWaypoint;
 	AVagabondsWorkGameMode* GameMode = GetWorld()->GetAuthGameMode<AVagabondsWorkGameMode>();
@@ -270,8 +271,11 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		{
 			CachedNeighbors.Add(OverlapActor);
 		}
-
-		NextNeighborQueryTime = CurrentTime + NeighborQueryInterval;
+		const bool bIdle = Overlaps.Num() == 0 && ShipSpeed <= NeighborQueryIdleSpeedCmS;
+		const float Interval = bIdle
+			? NeighborQueryInterval * NeighborQueryIdleBackoffMultiplier
+			: NeighborQueryInterval;
+		NextNeighborQueryTime = CurrentTime + Interval;
 	}
 
 	FVector AvoidDir = FVector::ZeroVector;

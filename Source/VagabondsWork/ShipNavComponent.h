@@ -55,6 +55,12 @@ protected:
 	float NeighborQueryInterval = 0.15f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance")
+	float NeighborQueryIdleBackoffMultiplier = 2.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance")
+	float NeighborQueryIdleSpeedCmS = 50.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance")
 	float NeighborRadiusMultiplier = 8.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance")

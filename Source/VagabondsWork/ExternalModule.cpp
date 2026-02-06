@@ -8,6 +8,8 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
+#include "CollisionQueryParams.h"
+#include "GameFramework/Actor.h"
 
 static float ClampAngleAroundCenterDeg(float CenterDeg, float DesiredDeg, float LimitDeg)
 {
@@ -136,6 +138,10 @@ void AExternalModule::BeginPlay()
 	{
 		GetWorld()->GetTimerManager().SetTimer(AimTimerHandle, this, &AExternalModule::UpdateAim, 1.0f / AimUpdateHz, true);
 	}
+	else
+	{
+		ReadyToShoot = false;
+	}
 }
 
 // Called when the actor is being removed from the game
@@ -154,6 +160,37 @@ void AExternalModule::SetTargetActor(AActor* NewTarget)
 void AExternalModule::ClearTarget()
 {
 	TargetActor = nullptr;
+}
+
+bool AExternalModule::HasLineOfSightToTarget() const
+{
+	if (!bUseReadyToShootCheck)
+	{
+		return false;
+	}
+
+	if (!TargetActor || !Muzzle)
+	{
+		return false;
+	}
+
+	const FVector Start = Muzzle->GetComponentLocation();
+	const FVector End = Start+(Muzzle->GetForwardVector()*EffectiveRange);
+
+	if ((End - Start).SizeSquared() < KINDA_SMALL_NUMBER)
+	{
+		return true;
+	}
+	
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ExternalModule_LOS), false);
+	Params.AddIgnoredActor(TargetActor);
+	bool bBlocked = false;
+	FHitResult Hit;
+
+	bBlocked |= GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params);
+
+	return !bBlocked;
 }
 
 void AExternalModule::AimStepManual(float DeltaSeconds)
@@ -191,6 +228,8 @@ void AExternalModule::UpdateAim()
 void AExternalModule::AimStep(float Dt)
 {
 	if (!PivotBase || !PivotGun || !Muzzle || !TargetActor || Dt <= 0) return;
+
+	ReadyToShoot = HasLineOfSightToTarget();
 
 	const FVector Start = bUseMuzzleAsStart ? Muzzle->GetComponentLocation() : PivotGun->GetComponentLocation();
 
