@@ -63,6 +63,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Limits", meta = (ClampMin = "0.0", ClampMax = "89.9", ToolTip = "Maximum absolute pitch angle in degrees"))
 	float MaxPitchAbsDeg;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|Orbit", meta=(ClampMin="0"))
+    float EffectiveRange = 6000.0f; // cm
+
 	// Base yaw limit (0..360 sweep around initial yaw)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|Limits",
 	  meta=(ToolTip="Limit base yaw sweep around initial yaw (0=locked, 360=unlimited)"))

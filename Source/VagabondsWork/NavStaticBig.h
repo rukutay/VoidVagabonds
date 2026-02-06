@@ -5,10 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Components/StaticMeshComponent.h"
-#include "Components/DirectionalLightComponent.h"
 #include "NavStaticBig.generated.h"
-
-class ASun;
 
 UCLASS()
 class VAGABONDSWORK_API ANavStaticBig : public AActor
@@ -27,16 +24,5 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Planet")
 	UStaticMeshComponent* BodyMesh = nullptr;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Planet")
-	UDirectionalLightComponent* PlanetLight = nullptr;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Planet|Sun")
-	ASun* SunActorOverride = nullptr;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Planet|Sun")
-	bool bDriveRotationFromSun = true;
-
 private:
-	void ApplySettingsFromSun(const ASun* Sun);
-	void ApplyRotationFromSun(const ASun* Sun);
 };

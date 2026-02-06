@@ -175,13 +175,16 @@ bool AExternalModule::HasLineOfSightToTarget() const
 	}
 
 	const FVector Start = Muzzle->GetComponentLocation();
-	const FVector End = TargetActor->GetActorLocation();
+	const FVector End = Start+(Muzzle->GetForwardVector()*EffectiveRange);
+
 	if ((End - Start).SizeSquared() < KINDA_SMALL_NUMBER)
 	{
 		return true;
 	}
+	
 
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(ExternalModule_LOS), false);
+	Params.AddIgnoredActor(TargetActor);
 	bool bBlocked = false;
 	FHitResult Hit;
 
@@ -224,8 +227,9 @@ void AExternalModule::UpdateAim()
 
 void AExternalModule::AimStep(float Dt)
 {
-	ReadyToShoot = HasLineOfSightToTarget();
 	if (!PivotBase || !PivotGun || !Muzzle || !TargetActor || Dt <= 0) return;
+
+	ReadyToShoot = HasLineOfSightToTarget();
 
 	const FVector Start = bUseMuzzleAsStart ? Muzzle->GetComponentLocation() : PivotGun->GetComponentLocation();
 
