@@ -16,6 +16,7 @@ enum class ERollAlignMode : uint8
 };
 
 class AAIShipController;
+class AController;
 class UShipNavComponent;
 class UShipVitalityComponent;
 
@@ -33,6 +34,8 @@ protected:
 public:
     virtual void Tick(float DeltaTime) override;
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+    virtual void PossessedBy(AController* NewController) override;
+    virtual void UnPossessed() override;
     
     virtual void NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit) override;
 
@@ -207,10 +210,27 @@ public:
     UFUNCTION(BlueprintCallable)
     void ApplySteeringForce(FVector TargetLocation, float DeltaTime);
 
+    UFUNCTION(BlueprintCallable, Category="Ship|ManualControl")
+    void SetManualRotationInput(float Pitch, float Yaw, float Roll);
+
+    UFUNCTION(BlueprintCallable, Category="Ship|ManualControl")
+    void StepThrottleUp();
+
+    UFUNCTION(BlueprintCallable, Category="Ship|ManualControl")
+    void StepThrottleDown();
+
 private:
     bool EnsureShipController();
+    void ApplyManualControl(float DeltaTime);
 
     bool bLoggedMissingController = false;
+
+    bool bManualControl = false;
+    int32 ManualThrottleStep = 0;
+    float ManualPitchInput = 0.f;
+    float ManualYawInput = 0.f;
+    float ManualRollInput = 0.f;
+    TWeakObjectPtr<AAIShipController> StoredAIController;
 
     float DebugMessageAccumulator = 0.f;
 

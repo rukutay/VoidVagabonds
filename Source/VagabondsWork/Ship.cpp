@@ -182,62 +182,69 @@ void AShip::Tick(float DeltaTime)
         bLoggedMissingController = true;
     }
 
-    // NAVIGATION_TODO_REMOVE
-    const FVector GoalCenter = GetGoalLocation();
-    FVector Goal = GoalCenter;
-    bool bMovingGoal = false;
-
-    if (TargetActor && bOrbitTarget && EffectiveRange > 0.0f)
+    if (bManualControl)
     {
-        Goal = ComputeOrbitGoal(GoalCenter, DeltaTime);
-        bMovingGoal = true;
+        ApplyManualControl(DeltaTime);
     }
-
-    const FVector ActorLocation = GetActorLocation();
-#if !UE_BUILD_SHIPPING
-    if ((Goal - ActorLocation).IsNearlyZero(1.f))
+    else
     {
-        DebugMessageAccumulator += DeltaTime;
-        if (DebugMessageAccumulator >= 1.f)
+        // NAVIGATION_TODO_REMOVE
+        const FVector GoalCenter = GetGoalLocation();
+        FVector Goal = GoalCenter;
+        bool bMovingGoal = false;
+
+        if (TargetActor && bOrbitTarget && EffectiveRange > 0.0f)
         {
-            DebugMessageAccumulator = 0.f;
-            UE_LOG(LogTemp, Warning, TEXT("Ship %s has goal equal to self."), *GetName());
+            Goal = ComputeOrbitGoal(GoalCenter, DeltaTime);
+            bMovingGoal = true;
         }
-    }
-#endif
-    const float ShipRadiusCm = ShipRadius ? ShipRadius->GetScaledSphereRadius() : 300.f;
-    FVector SteeringTarget = Goal;
-    if (ShipController && ShipController->IsInsideSafetyMargin())
-    {
-        SteeringTarget = ShipController->ComputeEscapeTarget(ActorLocation, ShipRadius);
+
+        const FVector ActorLocation = GetActorLocation();
 #if !UE_BUILD_SHIPPING
-        if (SteeringTarget.Equals(ActorLocation, 1.f))
+        if ((Goal - ActorLocation).IsNearlyZero(1.f))
         {
-            UE_LOG(LogTemp, Warning, TEXT("InsideSafetyMargin but EscapeTarget == Self (ObstacleComp invalid?)"));
+            DebugMessageAccumulator += DeltaTime;
+            if (DebugMessageAccumulator >= 1.f)
+            {
+                DebugMessageAccumulator = 0.f;
+                UE_LOG(LogTemp, Warning, TEXT("Ship %s has goal equal to self."), *GetName());
+            }
         }
 #endif
-    }
-    else if (ShipNav && (!ShipController || !ShipController->IsUnstucking()))
-    {
-        ShipNav->TickNav(DeltaTime, Goal, ShipRadiusCm, bMovingGoal);
-        SteeringTarget = ShipNav->GetNavTarget(Goal);
-    }
+        const float ShipRadiusCm = ShipRadius ? ShipRadius->GetScaledSphereRadius() : 300.f;
+        FVector SteeringTarget = Goal;
+        if (ShipController && ShipController->IsInsideSafetyMargin())
+        {
+            SteeringTarget = ShipController->ComputeEscapeTarget(ActorLocation, ShipRadius);
+#if !UE_BUILD_SHIPPING
+            if (SteeringTarget.Equals(ActorLocation, 1.f))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("InsideSafetyMargin but EscapeTarget == Self (ObstacleComp invalid?)"));
+            }
+#endif
+        }
+        else if (ShipNav && (!ShipController || !ShipController->IsUnstucking()))
+        {
+            ShipNav->TickNav(DeltaTime, Goal, ShipRadiusCm, bMovingGoal);
+            SteeringTarget = ShipNav->GetNavTarget(Goal);
+        }
 
-    ApplySteeringForce(SteeringTarget, DeltaTime);
+        ApplySteeringForce(SteeringTarget, DeltaTime);
 
 #if !UE_BUILD_SHIPPING
-    if (bDebugOrbit && GetWorld())
-    {
-        DrawDebugPoint(GetWorld(), Goal, 14.f, FColor::Yellow, false, 0.f, 0);
-        DrawDebugPoint(GetWorld(), SteeringTarget, 14.f, FColor::Cyan, false, 0.f, 0);
-    }
+        if (bDebugOrbit && GetWorld())
+        {
+            DrawDebugPoint(GetWorld(), Goal, 14.f, FColor::Yellow, false, 0.f, 0);
+            DrawDebugPoint(GetWorld(), SteeringTarget, 14.f, FColor::Cyan, false, 0.f, 0);
+        }
 #endif
 
-    // Rotation
-    // NAVIGATION_TODO_REMOVE
-    if (ShipController)
-    {
-        ShipController->ApplyShipRotation(SteeringTarget);
+        // Rotation
+        // NAVIGATION_TODO_REMOVE
+        if (ShipController)
+        {
+            ShipController->ApplyShipRotation(SteeringTarget);
+        }
     }
 
 #if !UE_BUILD_SHIPPING
@@ -254,6 +261,39 @@ void AShip::Tick(float DeltaTime)
 void AShip::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
+}
+
+void AShip::PossessedBy(AController* NewController)
+{
+    Super::PossessedBy(NewController);
+
+    if (NewController && NewController->IsPlayerController())
+    {
+        StoredAIController = ShipController;
+        bManualControl = true;
+
+        ManualThrottleStep = FMath::Clamp(FMath::RoundToInt(CurrentThrottle * 3.f), -1, 3);
+    }
+
+    ShipController = Cast<AAIShipController>(GetController());
+}
+
+void AShip::UnPossessed()
+{
+    Super::UnPossessed();
+
+    if (bManualControl)
+    {
+        bManualControl = false;
+        ManualPitchInput = 0.f;
+        ManualYawInput = 0.f;
+        ManualRollInput = 0.f;
+    }
+
+    if (StoredAIController.IsValid() && GetController() != StoredAIController.Get())
+    {
+        StoredAIController->Possess(this);
+    }
 }
 
 void AShip::NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit)
@@ -455,6 +495,64 @@ void AShip::ApplySteeringForce(FVector TargetLocation, float DeltaTime)
         }
     }
 #endif */
+}
+
+void AShip::SetManualRotationInput(float Pitch, float Yaw, float Roll)
+{
+    ManualPitchInput = FMath::Clamp(Pitch, -1.f, 1.f);
+    ManualYawInput = FMath::Clamp(Yaw, -1.f, 1.f);
+    ManualRollInput = FMath::Clamp(Roll, -1.f, 1.f);
+}
+
+void AShip::StepThrottleUp()
+{
+    ManualThrottleStep = FMath::Clamp(ManualThrottleStep + 1, -1, 3);
+}
+
+void AShip::StepThrottleDown()
+{
+    ManualThrottleStep = FMath::Clamp(ManualThrottleStep - 1, -1, 3);
+}
+
+void AShip::ApplyManualControl(float DeltaTime)
+{
+    if (!ShipBase || DeltaTime <= 0.f)
+    {
+        return;
+    }
+
+    const float StepAlpha = FMath::Clamp(static_cast<float>(ManualThrottleStep) / 3.f, -1.f, 1.f);
+    CurrentThrottle = FMath::FInterpTo(CurrentThrottle, StepAlpha, DeltaTime, ThrottleInterpSpeed);
+
+    const FVector Forward = ShipBase->GetForwardVector();
+    const float Mass = ShipBase->GetMass();
+    const FVector Force = Forward * MaxForwardForce * CurrentThrottle * Mass;
+    ShipBase->AddForce(Force, NAME_None, false);
+
+    const FVector Velocity = ShipBase->GetPhysicsLinearVelocity();
+    const FVector LateralVelocity = Velocity - Forward * FVector::DotProduct(Velocity, Forward);
+    ShipBase->AddForce(-LateralVelocity * LateralDamping * Mass, NAME_None, false);
+
+    const FVector TargetAngVelLocal(
+        ManualRollInput * MaxRollSpeed,
+        ManualPitchInput * MaxPitchSpeed,
+        ManualYawInput * MaxYawSpeed);
+
+    const float PitchResponse = FMath::Max(PitchAccelSpeed, 0.1f);
+    const float YawResponse = FMath::Max(YawAccelSpeed, 0.1f);
+    const float RollResponse = FMath::Max(RollAccelSpeed, 0.1f);
+
+    const FTransform& ShipBaseTransform = ShipBase->GetComponentTransform();
+    const FVector CurAngVelWorld = ShipBase->GetPhysicsAngularVelocityInDegrees();
+    const FVector CurAngVelLocal = ShipBaseTransform.InverseTransformVectorNoScale(CurAngVelWorld);
+
+    FVector NewAngVelLocal = CurAngVelLocal;
+    NewAngVelLocal.X = FMath::FInterpTo(CurAngVelLocal.X, TargetAngVelLocal.X, DeltaTime, RollResponse);
+    NewAngVelLocal.Y = FMath::FInterpTo(CurAngVelLocal.Y, TargetAngVelLocal.Y, DeltaTime, PitchResponse);
+    NewAngVelLocal.Z = FMath::FInterpTo(CurAngVelLocal.Z, TargetAngVelLocal.Z, DeltaTime, YawResponse);
+
+    const FVector NewAngVelWorld = ShipBaseTransform.TransformVectorNoScale(NewAngVelLocal);
+    ShipBase->SetPhysicsAngularVelocityInDegrees(NewAngVelWorld, false);
 }
 
 bool AShip::EnsureShipController()

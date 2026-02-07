@@ -10,21 +10,6 @@
 
 class UStaticMeshComponent;
 
-USTRUCT(BlueprintType)
-struct FSunPlanetLightBinding
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	AActor* PlanetActor = nullptr;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	ADirectionalLight* PlanetLight = nullptr;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool bPlanetMoves = false;
-};
-
 UCLASS()
 class VAGABONDSWORK_API ASun : public AActor
 {
@@ -33,6 +18,8 @@ class VAGABONDSWORK_API ASun : public AActor
 public:	
 	// Sets default values for this actor's properties
 	ASun();
+
+	virtual void Tick(float DeltaTime) override;
 
 protected:
 	// Called when the game starts or when spawned
@@ -60,9 +47,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sun|Lighting")
 	bool bDriveGameplayLightDirectionFromViewTarget = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sun|Lighting")
-	TArray<FSunPlanetLightBinding> PlanetLights;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sun|Lighting")
 	bool bForceLightChannels = true;
@@ -94,8 +78,6 @@ public:
 private:
 	FTimerHandle LightingTimer;
 	FVector LastLightDir = FVector::ZeroVector;
-	TArray<FVector> PlanetLastDirs;
-
 	// Private caches for light settings
 	float LastAppliedIntensity = -1.f;
 	float LastAppliedTemp = -1.f;
@@ -104,7 +86,4 @@ private:
 
 	UFUNCTION()
 	void UpdateSunLighting();
-
-	UFUNCTION()
-	void UpdateAllPlanetLights_Force();
 };

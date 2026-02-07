@@ -3,18 +3,12 @@
 - Latest commit: `d7dcd9b` (small fix)
 
 # Last Completed Task
-- TASK 7: Added definition-of-done checklist to `docs/CLINE_PROMPT_TEMPLATE.md`.
+- TASK 12: Updated sun light tick to honor ViewTargetActor every frame.
 
 # Recently Touched Files (last 5–15)
-- docs/CLINE_PROMPT_TEMPLATE.md (updated)
+- Source/VagabondsWork/Sun.cpp (updated)
+- docs/CHANGELOG.md (updated)
 - docs/AI_STATE.md (updated)
-- docs/AI_CONTEXT.md
-- docs/AI_FILEMAP.md
-- Source/VagabondsWork/ExternalModule.cpp
-- Source/VagabondsWork/ExternalModule.h
-- Source/VagabondsWork/NavStaticBig.cpp
-- Source/VagabondsWork/NavStaticBig.h
-- docs/README.md
 
 # Known Issues / TODO
 - None tracked in this file yet.

@@ -11,8 +11,8 @@ ANavStaticBig::ANavStaticBig()
 	BodyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyMesh"));
 	SetRootComponent(BodyMesh);
 
-	BodyMesh->LightingChannels.bChannel0 = false;
-	BodyMesh->LightingChannels.bChannel1 = true;
+	BodyMesh->LightingChannels.bChannel0 = true;
+	BodyMesh->LightingChannels.bChannel1 = false;
 	BodyMesh->LightingChannels.bChannel2 = false;
 }
 

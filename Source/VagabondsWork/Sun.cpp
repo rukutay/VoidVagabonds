@@ -24,7 +24,9 @@ static bool ComputeDir(const FVector& From, const FVector& To, FVector& OutDir)
 ASun::ASun()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = true;
+	PrimaryActorTick.TickInterval = 0.0f;
 
 	SunMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SunMesh"));
 	SetRootComponent(SunMesh);
@@ -33,10 +35,17 @@ ASun::ASun()
 	SunMesh->SetCastShadow(false);
 }
 
+void ASun::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	UpdateSunLighting();
+}
+
 // Called when the game starts or when spawned
 void ASun::BeginPlay()
 {
 	Super::BeginPlay();
+	SetActorTickEnabled(true);
 	
 	// Auto-find SunDirectionalLight by Actor Tag
 	if (bAutoFindSunLight && SunDirectionalLight == nullptr)
@@ -51,10 +60,13 @@ void ASun::BeginPlay()
 		}
 	}
 	
-	// If ViewTargetActor == nullptr, set it to UGameplayStatics::GetPlayerPawn(GetWorld(), 0).
-	if (ViewTargetActor == nullptr)
+	if (SunDirectionalLight != nullptr)
 	{
-		ViewTargetActor = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		ULightComponent* LightComponent = SunDirectionalLight->GetLightComponent();
+		if (LightComponent != nullptr && LightComponent->Mobility != EComponentMobility::Movable)
+		{
+			LightComponent->SetMobility(EComponentMobility::Movable);
+		}
 	}
 	
 	if (bForceLightChannels)
@@ -67,18 +79,6 @@ void ASun::BeginPlay()
 			LightComponent->LightingChannels.bChannel2 = false;
 		}
 
-		for (const FSunPlanetLightBinding& Binding : PlanetLights)
-		{
-			if (Binding.PlanetLight == nullptr)
-			{
-				continue;
-			}
-			ULightComponent* PlanetLightComponent = Binding.PlanetLight->GetLightComponent();
-			PlanetLightComponent->LightingChannels.bChannel0 = false;
-			PlanetLightComponent->LightingChannels.bChannel1 = true;
-			PlanetLightComponent->LightingChannels.bChannel2 = false;
-			//PlanetLightComponent->bAffectVolumetricFog = false;  // must stay commented !
-		}
 	}
 	
 	// Start timer: Interval = 1/UpdateHz (clamp UpdateHz >= 1). Timer calls UpdateSunLighting.
@@ -87,40 +87,75 @@ void ASun::BeginPlay()
 		UpdateHz = 1.0f;
 	}
 	
-	GetWorld()->GetTimerManager().SetTimer(LightingTimer, this, &ASun::UpdateSunLighting, 1.0f / UpdateHz, true);
+	if (!PrimaryActorTick.bCanEverTick)
+	{
+		GetWorld()->GetTimerManager().SetTimer(LightingTimer, this, &ASun::UpdateSunLighting, 1.0f / UpdateHz, true);
+	}
 
-	UpdateAllPlanetLights_Force();
+	//UpdateAllPlanetLights_Force();
 }
 
 void ASun::UpdateSunLighting()
 {
 	const FVector SunLoc = GetActorLocation();
 
-	if (SunDirectionalLight != nullptr && bDriveGameplayLightDirectionFromViewTarget && ViewTargetActor != nullptr)
+	if (SunDirectionalLight != nullptr && bDriveGameplayLightDirectionFromViewTarget)
 	{
-		const FVector ViewLoc = ViewTargetActor->GetActorLocation();
-		FVector LightDir = FVector::ZeroVector;
-		if (ComputeDir(SunLoc, ViewLoc, LightDir))
+		if (!SunDirectionalLight->IsValidLowLevel())
 		{
-			if (bInvertLightDirection)
+			SunDirectionalLight = nullptr;
+		}
+		if (SunDirectionalLight == nullptr && bAutoFindSunLight)
+		{
+			for (TActorIterator<ADirectionalLight> It(GetWorld()); It; ++It)
 			{
-				LightDir *= -1;
+				if (It->ActorHasTag(SunLightTag))
+				{
+					SunDirectionalLight = *It;
+					break;
+				}
 			}
+		}
 
-			bool bApplyRotation = true;
-			if (!LastLightDir.IsZero())
-			{
-				float DotProduct = FVector::DotProduct(LastLightDir, LightDir);
-				DotProduct = FMath::Clamp(DotProduct, -1.0f, 1.0f);
-				float AngleRad = FMath::Acos(DotProduct);
-				float AngleDeg = FMath::RadiansToDegrees(AngleRad);
-				bApplyRotation = AngleDeg >= MinAngleDeltaDeg;
-			}
+		if (SunDirectionalLight == nullptr)
+		{
+			return;
+		}
 
-			if (bApplyRotation)
+		AActor* CurrentViewTarget = ViewTargetActor;
+		if (CurrentViewTarget == nullptr)
+		{
+			CurrentViewTarget = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		}
+
+		if (CurrentViewTarget != nullptr)
+		{
+			const FVector ViewLoc = CurrentViewTarget->GetActorLocation();
+			FVector SunToTargetDir = FVector::ZeroVector;
+			if (ComputeDir(SunLoc, ViewLoc, SunToTargetDir))
 			{
-				SunDirectionalLight->SetActorRotation(LightDir.Rotation());
-				LastLightDir = LightDir;
+				// Rays should travel from Sun -> Target by default.
+				FVector RaysDir = SunToTargetDir;
+
+				if (bInvertLightDirection)
+				{
+					RaysDir *= -1.0f;
+				}
+
+				// UE directional light rays travel along -X axis.
+				const FVector LightX = -RaysDir;
+				const FRotator NewRot = LightX.Rotation();
+
+				if (ULightComponent* LightComponent = SunDirectionalLight->GetLightComponent())
+				{
+					LightComponent->SetWorldRotation(NewRot);
+				}
+				else
+				{
+					SunDirectionalLight->SetActorRotation(NewRot);
+				}
+
+				LastLightDir = RaysDir;
 			}
 		}
 	}
@@ -158,69 +193,6 @@ void ASun::UpdateSunLighting()
 		}
 	}
 	
-	if (PlanetLastDirs.Num() != PlanetLights.Num())
-	{
-		PlanetLastDirs.SetNum(PlanetLights.Num());
-	}
-
-	for (int32 Index = 0; Index < PlanetLights.Num(); ++Index)
-	{
-		const FSunPlanetLightBinding& Binding = PlanetLights[Index];
-		if (Binding.PlanetActor == nullptr || Binding.PlanetLight == nullptr)
-		{
-			continue;
-		}
-
-		if (!Binding.bPlanetMoves)
-		{
-			continue;
-		}
-
-		FVector PlanetDir = FVector::ZeroVector;
-		if (!ComputeDir(SunLoc, Binding.PlanetActor->GetActorLocation(), PlanetDir))
-		{
-			continue;
-		}
-
-		bool bApplyRotation = true;
-		if (!PlanetLastDirs[Index].IsZero())
-		{
-			float DotProduct = FVector::DotProduct(PlanetLastDirs[Index], PlanetDir);
-			DotProduct = FMath::Clamp(DotProduct, -1.0f, 1.0f);
-			float AngleRad = FMath::Acos(DotProduct);
-			float AngleDeg = FMath::RadiansToDegrees(AngleRad);
-			bApplyRotation = AngleDeg >= MinAngleDeltaDeg;
-		}
-
-		if (bApplyRotation)
-		{
-			Binding.PlanetLight->SetActorRotation(PlanetDir.Rotation());
-			PlanetLastDirs[Index] = PlanetDir;
-		}
-	}
-}
-
-void ASun::UpdateAllPlanetLights_Force()
-{
-	const FVector SunLoc = GetActorLocation();
-	PlanetLastDirs.SetNum(PlanetLights.Num());
-	for (int32 Index = 0; Index < PlanetLights.Num(); ++Index)
-	{
-		const FSunPlanetLightBinding& Binding = PlanetLights[Index];
-		if (Binding.PlanetActor == nullptr || Binding.PlanetLight == nullptr)
-		{
-			continue;
-		}
-
-		FVector PlanetDir = FVector::ZeroVector;
-		if (!ComputeDir(SunLoc, Binding.PlanetActor->GetActorLocation(), PlanetDir))
-		{
-			continue;
-		}
-
-		Binding.PlanetLight->SetActorRotation(PlanetDir.Rotation());
-		PlanetLastDirs[Index] = PlanetDir;
-	}
 }
 
 

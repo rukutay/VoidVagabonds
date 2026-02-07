@@ -23,6 +23,17 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Naming**: Use Unreal prefixes (A/U/F/E), `b` prefix for booleans, `Cm` suffix for distances.
 - **Properties**: Use `UPROPERTY` with scoped categories (e.g., `Ship|Navigation`, `Aim|Speed`).
 - **Debug**: Wrap debug drawing in `#if !UE_BUILD_SHIPPING` and gate with toggles.
+- **Lighting**: The sun directional light should aim from the sun toward the current player pawn.
+
+## Player Ship Manual Controls
+- **Bindings (Enhanced Input)**:
+  - Throttle step up: **R**
+  - Throttle step down: **F**
+  - Pitch: **W/S**
+  - Yaw: **A/D**
+  - Roll: **Q/E**
+- **Setup**: Create Input Actions + Mapping Context assets in Blueprint and assign them to `APlayerMainController` fields.
+- **Behavior**: On player possess, current throttle is preserved; on unpossess, the previous AI controller resumes control.
 
 ## Debugging / Profiling
 > TODO: Add Unreal Insights capture steps and standard `stat` command workflow once adopted for this project.

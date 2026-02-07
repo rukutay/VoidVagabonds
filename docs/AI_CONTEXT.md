@@ -25,12 +25,11 @@
   - Navigation target used for thrust must be the same target used for rotation.
   - Static obstacle avoidance must keep stable temp waypoints (no flip‑flop).
   - Safety margins and stuck recovery must remain conservative and stable.
-
 ## Coding Conventions
 - **Naming**: Unreal prefixes (A/U/F/E), `b` for booleans, `Cm` suffix for distances.
 - **Properties**: Use `UPROPERTY` with clear categories (`Ship|Navigation`, `Aim|Speed`, etc.).
 - **Logging/Debug**: Wrap debug drawing in `#if !UE_BUILD_SHIPPING`; prefer toggles (e.g., `bDebug...`).
-- **Timers**: Use `FTimerHandle` for navigation/aim updates; avoid per‑tick logic unless strictly necessary.
+- **Timers**: Use `FTimerHandle` for navigation/aim updates; avoid per‑tick logic unless strictly necessary.,
 - **No‑Per‑Tick Rule**: Navigation queries and avoidance decisions must be timer‑driven and staggered.
 
 ## AI Workflow Rules (Cost Control)
