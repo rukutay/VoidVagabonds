@@ -255,6 +255,17 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 	const float HalfWidth = FieldWidth * 0.5f;
 	const float HalfHeight = FieldHeight * 0.5f;
 	const float ClampedStreamingJitter = FMath::Clamp(StreamingStepJitter, 0.0f, 1.0f);
+	const float ClampedDropoutMin = FMath::Clamp(StreamingDropoutMin, 0.0f, 1.0f);
+	const float ClampedDropoutMax = FMath::Clamp(StreamingDropoutMax, 0.0f, 1.0f);
+	const float DropoutMean = (ClampedDropoutMin + ClampedDropoutMax) * 0.5f;
+	const float ClampedFrameRoll = FMath::Clamp(StreamingFrameRollStrength, 0.0f, 1.0f);
+	const float ClampedDistanceWarp = FMath::Max(StreamingDistanceWarp, 0.0f);
+	const float ClampedNoiseFrequency = FMath::Max(StreamingNoiseFrequency, 0.0f);
+	const float ClampedRadialNoiseAmplitude = FMath::Clamp(StreamingRadialNoiseAmplitude, 0.0f, 1.0f);
+	const float ClampedRadialNoiseFrequency = FMath::Max(StreamingRadialNoiseFrequency, 0.0f);
+	const float ClampedClusterChance = FMath::Clamp(StreamingClusterChance, 0.0f, 1.0f);
+	const int32 ClampedClusterMaxExtra = FMath::Max(StreamingClusterMaxExtra, 0);
+	const float ClampedClusterRadius = FMath::Max(StreamingClusterRadius, 0.0f);
 	int32 InstanceLimit = FMath::Max(MaxAsteroidInstances, 0);
 	int32 UpdateLimit = InstanceLimit;
 	int32 NearLimit = FMath::Max(MaxNearInstances, 0);
@@ -279,6 +290,9 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 	NearLimit = FMath::Min(NearLimit, InstanceLimit);
 	MidLimit = FMath::Min(MidLimit, InstanceLimit);
 	FarLimit = FMath::Min(FarLimit, InstanceLimit);
+	const int32 EffectiveNearLimit = FMath::FloorToInt(static_cast<float>(NearLimit) * (1.0f - DropoutMean));
+	const int32 EffectiveMidLimit = FMath::FloorToInt(static_cast<float>(MidLimit) * (1.0f - DropoutMean));
+	const int32 EffectiveFarLimit = FMath::FloorToInt(static_cast<float>(FarLimit) * (1.0f - DropoutMean));
 
 	if (InstanceLimit == 0 || UpdateLimit == 0)
 	{
@@ -490,44 +504,64 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 				Chunk->Far->ClearInstances();
 			}
 
-			const float CellStep = 1000.0f / NearDensity;
-			const int32 StartCell = FMath::FloorToInt(ChunkStart / CellStep);
-			const int32 EndCell = FMath::CeilToInt(ChunkEnd / CellStep);
+			const float ChunkLengthLocal = FMath::Max(ChunkEnd - ChunkStart, 1.0f);
+			const float EffectiveDensityScale = FMath::Clamp(1.0f - DropoutMean, 0.1f, 1.0f);
+			const int32 CandidateCount = FMath::Max(1, FMath::CeilToInt((ChunkLengthLocal / 1000.0f) * NearDensity * EffectiveDensityScale));
+			const float SegmentLength = ChunkLengthLocal / static_cast<float>(CandidateCount);
 
-			for (int32 CellIndex = StartCell; CellIndex <= EndCell; ++CellIndex)
+			for (int32 CandidateIndex = 0; CandidateIndex < CandidateCount; ++CandidateIndex)
 			{
 				if (NearCount >= NearLimit && MidCount >= MidLimit && FarCount >= FarLimit)
 				{
 					break;
 				}
-				const float CellBaseDistance = CellIndex * CellStep;
-				FRandomStream DistanceStream(Seed + CellIndex * 17 + 13);
-				const float CellJitter = DistanceStream.FRandRange(-CellStep * ClampedStreamingJitter, CellStep * ClampedStreamingJitter);
-				const float Distance = FMath::Clamp(CellBaseDistance + CellJitter, ChunkStart, ChunkEnd);
+				FRandomStream CandidateStream(Seed + ChunkIndex * 4099 + CandidateIndex * 53);
+				const float RandomAlpha = CandidateStream.FRand();
+				const float SegmentAlpha = FMath::Lerp(0.5f, RandomAlpha, ClampedStreamingJitter);
+				const float BaseDistance = ChunkStart + (static_cast<float>(CandidateIndex) + SegmentAlpha) * SegmentLength;
+				const float NoisePhase = BaseDistance * ClampedNoiseFrequency;
+				const float NoiseWarp = FMath::Sin(NoisePhase) * ClampedDistanceWarp;
+				const float Distance = FMath::Clamp(BaseDistance + NoiseWarp, ChunkStart, ChunkEnd);
 				const FVector Location = FieldSpline->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 				const FVector Tangent = FieldSpline->GetTangentAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 				const FVector Forward = Tangent.GetSafeNormal();
 				const FMatrix Frame = FRotationMatrix::MakeFromX(Forward);
-				const FVector Right = Frame.GetScaledAxis(EAxis::Y);
-				const FVector Up = Frame.GetScaledAxis(EAxis::Z);
-				FRandomStream OffsetStream(Seed + CellIndex * 31 + 7);
-				const float OffsetRight = OffsetStream.FRandRange(-HalfWidth, HalfWidth);
-				const float OffsetUp = OffsetStream.FRandRange(-HalfHeight, HalfHeight);
+				FVector Right = Frame.GetScaledAxis(EAxis::Y);
+				FVector Up = Frame.GetScaledAxis(EAxis::Z);
+				if (ClampedFrameRoll > 0.0f)
+				{
+					const float RollRadians = CandidateStream.FRandRange(0.0f, 2.0f * PI) * ClampedFrameRoll;
+					Right = Right.RotateAngleAxis(FMath::RadiansToDegrees(RollRadians), Forward);
+					Up = Up.RotateAngleAxis(FMath::RadiansToDegrees(RollRadians), Forward);
+				}
+				const float DropoutPhase = (static_cast<float>(ChunkIndex) / FMath::Max(ChunkCount, 1)) * 2.0f * PI;
+				const float DropoutWave = (FMath::Sin(DropoutPhase) + 1.0f) * 0.5f;
+				const float DropoutChance = FMath::Lerp(ClampedDropoutMin, ClampedDropoutMax, DropoutWave);
+				if (CandidateStream.FRand() < DropoutChance)
+				{
+					continue;
+				}
+				const float RadialPhase = Distance * ClampedRadialNoiseFrequency;
+				const float RadialWarp = 1.0f + (FMath::Sin(RadialPhase) * ClampedRadialNoiseAmplitude);
+				const float Angle = CandidateStream.FRandRange(0.0f, 2.0f * PI);
+				const float Radius = FMath::Sqrt(CandidateStream.FRand()) * RadialWarp;
+				const float OffsetRight = FMath::Cos(Angle) * HalfWidth * Radius;
+				const float OffsetUp = FMath::Sin(Angle) * HalfHeight * Radius;
 				const FVector InstanceLocation = Location + (Right * OffsetRight) + (Up * OffsetUp);
 				const float DistanceToView = FVector::Dist(InstanceLocation, ViewLocation);
 				UHierarchicalInstancedStaticMeshComponent* TargetHISM = nullptr;
 				float SpawnChance = 0.0f;
-				if (DistanceToView <= AdjustedMidStart && NearCount < NearLimit)
+				if (DistanceToView <= AdjustedMidStart && NearCount < EffectiveNearLimit)
 				{
 					TargetHISM = Chunk->Near;
 					SpawnChance = ClampedNearSpawn;
 				}
-				else if (DistanceToView <= AdjustedMidEnd && MidCount < MidLimit)
+				else if (DistanceToView <= AdjustedMidEnd && MidCount < EffectiveMidLimit)
 				{
 					TargetHISM = Chunk->Mid;
 					SpawnChance = ClampedMidSpawn;
 				}
-				else if (DistanceToView <= AdjustedFarEnd && FarCount < FarLimit)
+				else if (DistanceToView <= AdjustedFarEnd && FarCount < EffectiveFarLimit)
 				{
 					TargetHISM = Chunk->Far;
 					SpawnChance = ClampedFarSpawn;
@@ -538,30 +572,70 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 					continue;
 				}
 
-				FRandomStream LocalStream(Seed + CellIndex * 31);
-				if (LocalStream.FRand() > SpawnChance)
+				if (CandidateStream.FRand() > SpawnChance)
 				{
 					continue;
 				}
-				const FRotator InstanceRotation(
-					LocalStream.FRandRange(0.0f, 360.0f),
-					LocalStream.FRandRange(0.0f, 360.0f),
-					LocalStream.FRandRange(0.0f, 360.0f));
-				const float InstanceScale = LocalStream.FRandRange(MinAsteroidScale, MaxAsteroidScale);
-				const FTransform InstanceTransform(InstanceRotation, InstanceLocation, FVector(InstanceScale));
-				TargetHISM->AddInstance(InstanceTransform, true);
-				if (TargetHISM == Chunk->Near)
+				auto AddInstanceWithOptionalCluster = [&](const FVector& BaseLocation)
 				{
-					++NearCount;
-				}
-				else if (TargetHISM == Chunk->Mid)
-				{
-					++MidCount;
-				}
-				else
-				{
-					++FarCount;
-				}
+					const FRotator InstanceRotation(
+						CandidateStream.FRandRange(0.0f, 360.0f),
+						CandidateStream.FRandRange(0.0f, 360.0f),
+						CandidateStream.FRandRange(0.0f, 360.0f));
+					const float InstanceScale = CandidateStream.FRandRange(MinAsteroidScale, MaxAsteroidScale);
+					const FTransform InstanceTransform(InstanceRotation, BaseLocation, FVector(InstanceScale));
+					TargetHISM->AddInstance(InstanceTransform, true);
+					if (TargetHISM == Chunk->Near)
+					{
+						++NearCount;
+					}
+					else if (TargetHISM == Chunk->Mid)
+					{
+						++MidCount;
+					}
+					else
+					{
+						++FarCount;
+					}
+
+					if (ClampedClusterMaxExtra <= 0 || CandidateStream.FRand() > ClampedClusterChance)
+					{
+						return;
+					}
+					const int32 ExtraCount = CandidateStream.RandRange(1, ClampedClusterMaxExtra);
+					for (int32 ExtraIndex = 0; ExtraIndex < ExtraCount; ++ExtraIndex)
+					{
+						if (NearCount >= EffectiveNearLimit && MidCount >= EffectiveMidLimit && FarCount >= EffectiveFarLimit)
+						{
+							break;
+						}
+						const float ClusterAngle = CandidateStream.FRandRange(0.0f, 2.0f * PI);
+						const float ClusterRadius = CandidateStream.FRandRange(0.0f, ClampedClusterRadius);
+						const FVector ClusterOffset = (Right * FMath::Cos(ClusterAngle) + Up * FMath::Sin(ClusterAngle)) * ClusterRadius;
+						const FVector ClusterLocation = BaseLocation + ClusterOffset;
+						const FRotator ClusterRotation(
+							CandidateStream.FRandRange(0.0f, 360.0f),
+							CandidateStream.FRandRange(0.0f, 360.0f),
+							CandidateStream.FRandRange(0.0f, 360.0f));
+						const float ClusterScale = CandidateStream.FRandRange(MinAsteroidScale, MaxAsteroidScale);
+						const FTransform ClusterTransform(ClusterRotation, ClusterLocation, FVector(ClusterScale));
+						TargetHISM->AddInstance(ClusterTransform, true);
+						if (TargetHISM == Chunk->Near)
+						{
+							++NearCount;
+						}
+						else if (TargetHISM == Chunk->Mid)
+						{
+							++MidCount;
+						}
+						else
+						{
+							++FarCount;
+						}
+					}
+				};
+
+				AddInstanceWithOptionalCluster(InstanceLocation);
 			}
 		}
 
@@ -591,23 +665,35 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 	int32 FarAdded = 0;
 	auto SpawnRange = [&](float StartDistance, float EndDistance)
 	{
-		const float CellStep = 1000.0f / NearDensity;
-		const int32 StartCell = FMath::Max(0, FMath::FloorToInt(StartDistance / CellStep));
-		const int32 EndCell = FMath::Max(StartCell, FMath::CeilToInt(EndDistance / CellStep));
-		for (int32 CellIndex = StartCell; CellIndex <= EndCell && InstancesAdded < InstanceLimit && InstancesAdded < UpdateLimit; ++CellIndex)
+		const float RangeLength = FMath::Max(EndDistance - StartDistance, 1.0f);
+		const float EffectiveDensityScale = FMath::Clamp(1.0f - DropoutMean, 0.1f, 1.0f);
+		const int32 CandidateCount = FMath::Max(1, FMath::CeilToInt((RangeLength / 1000.0f) * NearDensity * EffectiveDensityScale));
+		const float SegmentLength = RangeLength / static_cast<float>(CandidateCount);
+		const int32 RangeSeed = Seed + FMath::FloorToInt(StartDistance);
+		for (int32 CandidateIndex = 0; CandidateIndex < CandidateCount && InstancesAdded < InstanceLimit && InstancesAdded < UpdateLimit; ++CandidateIndex)
 		{
-			const float CellBaseDistance = CellIndex * CellStep;
-			FRandomStream DistanceStream(Seed + CellIndex * 17 + 13);
-			const float CellJitter = DistanceStream.FRandRange(-CellStep * ClampedStreamingJitter, CellStep * ClampedStreamingJitter);
-			const float Distance = FMath::Clamp(CellBaseDistance + CellJitter, StartDistance, EndDistance);
+			FRandomStream CandidateStream(RangeSeed + CandidateIndex * 53);
+			const float RandomAlpha = CandidateStream.FRand();
+			const float SegmentAlpha = FMath::Lerp(0.5f, RandomAlpha, ClampedStreamingJitter);
+			const float BaseDistance = StartDistance + (static_cast<float>(CandidateIndex) + SegmentAlpha) * SegmentLength;
+			const float NoisePhase = BaseDistance * ClampedNoiseFrequency;
+			const float NoiseWarp = FMath::Sin(NoisePhase) * ClampedDistanceWarp;
+			const float Distance = FMath::Clamp(BaseDistance + NoiseWarp, StartDistance, EndDistance);
 			const FVector Location = FieldSpline->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 			const float DistanceToView = FVector::Dist(Location, ViewLocation);
+			const float DropoutPhase = (Distance / FMath::Max(SplineLength, 1.0f)) * 2.0f * PI;
+			const float DropoutWave = (FMath::Sin(DropoutPhase) + 1.0f) * 0.5f;
+			const float DropoutChance = FMath::Lerp(ClampedDropoutMin, ClampedDropoutMax, DropoutWave);
+			if (CandidateStream.FRand() < DropoutChance)
+			{
+				continue;
+			}
 			float Density = 0.0f;
 			UHierarchicalInstancedStaticMeshComponent* TargetHISM = nullptr;
 			float SpawnChance = 0.0f;
 			if (DistanceToView <= ClampedMidStart)
 			{
-				if (NearAdded < NearLimit)
+				if (NearAdded < EffectiveNearLimit)
 				{
 					Density = NearDensity;
 					TargetHISM = NearTarget;
@@ -616,7 +702,7 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 			}
 			else if (DistanceToView <= ClampedMidEnd)
 			{
-				if (MidAdded < MidLimit)
+				if (MidAdded < EffectiveMidLimit)
 				{
 					Density = MidDensity;
 					TargetHISM = MidTarget;
@@ -625,7 +711,7 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 			}
 			else if (DistanceToView <= ClampedFarEnd)
 			{
-				if (FarAdded < FarLimit)
+				if (FarAdded < EffectiveFarLimit)
 				{
 					Density = FarDensity;
 					TargetHISM = FarTarget;
@@ -637,40 +723,91 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 			const FVector Tangent = FieldSpline->GetTangentAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 			const FVector Forward = Tangent.GetSafeNormal();
 			const FMatrix Frame = FRotationMatrix::MakeFromX(Forward);
-			const FVector Right = Frame.GetScaledAxis(EAxis::Y);
-			const FVector Up = Frame.GetScaledAxis(EAxis::Z);
+			FVector Right = Frame.GetScaledAxis(EAxis::Y);
+			FVector Up = Frame.GetScaledAxis(EAxis::Z);
+			if (ClampedFrameRoll > 0.0f)
+			{
+				const float RollRadians = CandidateStream.FRandRange(0.0f, 2.0f * PI) * ClampedFrameRoll;
+				Right = Right.RotateAngleAxis(FMath::RadiansToDegrees(RollRadians), Forward);
+				Up = Up.RotateAngleAxis(FMath::RadiansToDegrees(RollRadians), Forward);
+			}
 
 			if (Density > 0.0f && TargetHISM)
 			{
-				FRandomStream LocalStream(Seed + CellIndex * 31);
-				if (LocalStream.FRand() > SpawnChance)
+				if (CandidateStream.FRand() > SpawnChance)
 				{
 					continue;
 				}
-				const float OffsetRight = LocalStream.FRandRange(-HalfWidth, HalfWidth);
-				const float OffsetUp = LocalStream.FRandRange(-HalfHeight, HalfHeight);
+				const float RadialPhase = Distance * ClampedRadialNoiseFrequency;
+				const float RadialWarp = 1.0f + (FMath::Sin(RadialPhase) * ClampedRadialNoiseAmplitude);
+				const float Angle = CandidateStream.FRandRange(0.0f, 2.0f * PI);
+				const float Radius = FMath::Sqrt(CandidateStream.FRand()) * RadialWarp;
+				const float OffsetRight = FMath::Cos(Angle) * HalfWidth * Radius;
+				const float OffsetUp = FMath::Sin(Angle) * HalfHeight * Radius;
 				const FVector InstanceLocation = Location + (Right * OffsetRight) + (Up * OffsetUp);
-				const FRotator InstanceRotation(
-					LocalStream.FRandRange(0.0f, 360.0f),
-					LocalStream.FRandRange(0.0f, 360.0f),
-					LocalStream.FRandRange(0.0f, 360.0f));
-				const float InstanceScale = LocalStream.FRandRange(MinAsteroidScale, MaxAsteroidScale);
-				const FTransform InstanceTransform(InstanceRotation, InstanceLocation, FVector(InstanceScale));
 
-				TargetHISM->AddInstance(InstanceTransform, true);
-				++InstancesAdded;
-				if (TargetHISM == NearTarget)
+				auto AddInstanceWithOptionalCluster = [&](const FVector& BaseLocation)
 				{
-					++NearAdded;
-				}
-				else if (TargetHISM == MidTarget)
-				{
-					++MidAdded;
-				}
-				else if (TargetHISM == FarTarget)
-				{
-					++FarAdded;
-				}
+					const FRotator InstanceRotation(
+						CandidateStream.FRandRange(0.0f, 360.0f),
+						CandidateStream.FRandRange(0.0f, 360.0f),
+						CandidateStream.FRandRange(0.0f, 360.0f));
+					const float InstanceScale = CandidateStream.FRandRange(MinAsteroidScale, MaxAsteroidScale);
+					const FTransform InstanceTransform(InstanceRotation, BaseLocation, FVector(InstanceScale));
+					TargetHISM->AddInstance(InstanceTransform, true);
+					++InstancesAdded;
+					if (TargetHISM == NearTarget)
+					{
+						++NearAdded;
+					}
+					else if (TargetHISM == MidTarget)
+					{
+						++MidAdded;
+					}
+					else if (TargetHISM == FarTarget)
+					{
+						++FarAdded;
+					}
+
+					if (ClampedClusterMaxExtra <= 0 || CandidateStream.FRand() > ClampedClusterChance)
+					{
+						return;
+					}
+					const int32 ExtraCount = CandidateStream.RandRange(1, ClampedClusterMaxExtra);
+					for (int32 ExtraIndex = 0; ExtraIndex < ExtraCount; ++ExtraIndex)
+					{
+						if (NearAdded >= EffectiveNearLimit && MidAdded >= EffectiveMidLimit && FarAdded >= EffectiveFarLimit)
+						{
+							break;
+						}
+						const float ClusterAngle = CandidateStream.FRandRange(0.0f, 2.0f * PI);
+						const float ClusterRadius = CandidateStream.FRandRange(0.0f, ClampedClusterRadius);
+						const FVector ClusterOffset = (Right * FMath::Cos(ClusterAngle) + Up * FMath::Sin(ClusterAngle)) * ClusterRadius;
+						const FVector ClusterLocation = BaseLocation + ClusterOffset;
+						const FRotator ClusterRotation(
+							CandidateStream.FRandRange(0.0f, 360.0f),
+							CandidateStream.FRandRange(0.0f, 360.0f),
+							CandidateStream.FRandRange(0.0f, 360.0f));
+						const float ClusterScale = CandidateStream.FRandRange(MinAsteroidScale, MaxAsteroidScale);
+						const FTransform ClusterTransform(ClusterRotation, ClusterLocation, FVector(ClusterScale));
+						TargetHISM->AddInstance(ClusterTransform, true);
+						++InstancesAdded;
+						if (TargetHISM == NearTarget)
+						{
+							++NearAdded;
+						}
+						else if (TargetHISM == MidTarget)
+						{
+							++MidAdded;
+						}
+						else if (TargetHISM == FarTarget)
+						{
+							++FarAdded;
+						}
+					}
+				};
+
+				AddInstanceWithOptionalCluster(InstanceLocation);
 			}
 		}
 	};

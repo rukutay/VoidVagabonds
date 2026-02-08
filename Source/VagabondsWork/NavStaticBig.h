@@ -106,6 +106,36 @@ public:
 	float StreamingStepJitter = 0.4f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StreamingDropoutMin = 0.1f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StreamingDropoutMax = 0.3f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StreamingFrameRollStrength = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StreamingDistanceWarp = 500.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StreamingNoiseFrequency = 0.0005f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StreamingRadialNoiseAmplitude = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StreamingRadialNoiseFrequency = 0.0007f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StreamingClusterChance = 0.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	int32 StreamingClusterMaxExtra = 2;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StreamingClusterRadius = 250.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
 	float StreamingRebuildThreshold = 1000.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")

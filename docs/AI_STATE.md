@@ -3,7 +3,7 @@
 - Latest commit: `d7dcd9b` (small fix)
 
 # Last Completed Task
-- TASK 29: Added deterministic along-spline jitter for streaming to reduce grid-aligned asteroid placement.
+- TASK 33: Added frame roll, distance/radial noise, and micro-cluster streaming for stronger randomness.
 
 # Recently Touched Files (last 5–15)
 - Source/VagabondsWork/NavStaticBig.h (updated)

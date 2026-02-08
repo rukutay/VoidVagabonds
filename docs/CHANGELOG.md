@@ -23,6 +23,10 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Ship steering uses physics-driven thrust with yaw/pitch rotation (roll disabled).
 - NavStaticBig chunk streaming now rebuilds only dirty chunks using band hysteresis to reduce visible blinking.
 - NavStaticBig streaming now adds deterministic along-spline jitter to remove grid-aligned asteroid placement.
+- NavStaticBig streaming now uses stratified random candidates and radial offsets to further reduce plane-aligned placement.
+- NavStaticBig streaming now supports per-candidate dropout with low-frequency modulation for more organic density variation.
+- NavStaticBig streaming dropout now reduces effective per-tier budgets to ensure visible thinning.
+- NavStaticBig streaming adds frame-roll, distance/radial noise, and micro-clusters for more organic asteroid breakup.
 - Sun/planet visuals and lighting channel handling (static mesh roots, tick disabled).
 - Sun directional light now aligns to the Sun-to-player direction (light passes through the Sun toward the pawn).
 - Sun directional light rotation now updates every frame and forces Movable mobility for runtime updates.
