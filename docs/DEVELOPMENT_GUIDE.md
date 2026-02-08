@@ -31,6 +31,8 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **NavStaticBig**: Circular spline helper defaults to plane radius * 1.5 unless an override is provided.
 - **NavStaticBig**: Asteroid generation is spline-driven, seeded, and uses width/height bounds with scale ranges.
 - **NavStaticBig**: View-based asteroid streaming with near/mid/far HISM tiers, per-tier density/instance budgets, and editor preview caps.
+- **NavStaticBig**: Organic spawn jitter/probability controls plus near-tier hit-to-dynamic-actor conversion.
+- **NavStaticBig**: Incremental chunk-based streaming with hysteresis bands plus stable cell-based sampling (double-buffer fallback) to avoid visible blinking during movement. Chunk rebuilds only trigger when a chunk changes band.
 
 ## Player Ship Manual Controls
 - **Bindings (Enhanced Input)**:

@@ -3,7 +3,7 @@
 - Latest commit: `d7dcd9b` (small fix)
 
 # Last Completed Task
-- TASK 23: Added near/mid/far HISM tiers for NavStaticBig streaming (impostor-ready).
+- TASK 28: Reduced asteroid streaming blinking by rebuilding only dirty chunks using per-chunk band hysteresis.
 
 # Recently Touched Files (last 5–15)
 - Source/VagabondsWork/NavStaticBig.h (updated)
@@ -14,7 +14,7 @@
 - docs/AI_STATE.md (updated)
 
 # Known Issues / TODO
-- None tracked in this file yet.
+- Validate chunk streaming behavior while moving pawn; tune hysteresis if popping persists.
 
 # Assumptions Confirmed (important!)
 - Navigation is timer‑driven; avoid per‑tick heavy traces/pathfinding.

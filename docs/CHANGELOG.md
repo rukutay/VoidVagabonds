@@ -12,6 +12,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - NavStaticBig circular spline build helper with radius override or plane radius scaling.
 - NavStaticBig asteroid field generation along spline with seeded offsets and scale variation.
 - NavStaticBig view-based asteroid streaming with near/mid/far HISM tiers, per-tier density/budgets, and editor preview caps.
+- NavStaticBig organic jitter/probability spawning, hit-to-dynamic-actor conversion, stable cell sampling, and incremental chunk streaming with hysteresis (double-buffer fallback) to avoid blinking.
 - Global navigation replanning with cached static obstacles.
 - Player manual ship controls (R/F throttle steps, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess.
 
@@ -20,6 +21,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Ship navigation now forces replans on stuck/static-blocked states and always honors temp avoidance targets to prevent long stalls.
 - Dynamic ship avoidance now uses repulsion on predicted closest approach with relative-speed prediction to reduce high-speed head-on collisions.
 - Ship steering uses physics-driven thrust with yaw/pitch rotation (roll disabled).
+- NavStaticBig chunk streaming now rebuilds only dirty chunks using band hysteresis to reduce visible blinking.
 - Sun/planet visuals and lighting channel handling (static mesh roots, tick disabled).
 - Sun directional light now aligns to the Sun-to-player direction (light passes through the Sun toward the pawn).
 - Sun directional light rotation now updates every frame and forces Movable mobility for runtime updates.

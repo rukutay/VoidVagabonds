@@ -40,10 +40,19 @@ public:
 	UHierarchicalInstancedStaticMeshComponent* AsteroidHISM = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AsteroidField")
+	UHierarchicalInstancedStaticMeshComponent* AsteroidHISMAlt = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AsteroidField")
 	UHierarchicalInstancedStaticMeshComponent* AsteroidMidHISM = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AsteroidField")
+	UHierarchicalInstancedStaticMeshComponent* AsteroidMidHISMAlt = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AsteroidField")
 	UHierarchicalInstancedStaticMeshComponent* AsteroidFarHISM = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AsteroidField")
+	UHierarchicalInstancedStaticMeshComponent* AsteroidFarHISMAlt = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Config")
 	float FieldWidth = 2000.0f;
@@ -79,6 +88,30 @@ public:
 	float FarDensityPer1000uu = 1.5f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float NearSpawnProbability = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float MidSpawnProbability = 0.8f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float FarSpawnProbability = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StepJitterMin = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StepJitterMax = 1.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StreamingRebuildThreshold = 1000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StreamingChunkLength = 5000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StreamingBandHysteresis = 500.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
 	float StreamingUpdateInterval = 0.5f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
@@ -98,6 +131,21 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
 	int32 PreviewMaxInstancesEditor = 2000;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Collision")
+	bool bEnableNearCollision = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Collision")
+	bool bSpawnDynamicOnHit = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Collision")
+	TSubclassOf<AActor> DynamicAsteroidClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Collision")
+	int32 MaxDynamicAsteroids = 40;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Collision")
+	float HitImpulseStrength = 50000.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Config")
 	float MinAsteroidScale = 0.8f;
@@ -127,8 +175,28 @@ public:
 	void BuildCircularSpline(float Radius = 0.0f, int32 NumPoints = 16);
 
 private:
+	struct FStreamingChunk
+	{
+		UHierarchicalInstancedStaticMeshComponent* Near = nullptr;
+		UHierarchicalInstancedStaticMeshComponent* Mid = nullptr;
+		UHierarchicalInstancedStaticMeshComponent* Far = nullptr;
+		int32 LastBand = INDEX_NONE;
+	};
+
 	void UpdateAsteroidStreaming();
 	FVector GetStreamingViewLocation() const;
 
+	UFUNCTION()
+	void OnAsteroidHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
+		UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+
+	UFUNCTION()
+	void OnDynamicAsteroidDestroyed(AActor* DestroyedActor);
+
 	FTimerHandle StreamingTimerHandle;
+	int32 ActiveDynamicAsteroids = 0;
+	bool bUseAltStreamBuffer = false;
+	float LastStreamingCenterDistance = -1.0f;
+	TMap<int32, FStreamingChunk> ActiveStreamingChunks;
+	TSet<UHierarchicalInstancedStaticMeshComponent*> StreamingChunkComponents;
 };
