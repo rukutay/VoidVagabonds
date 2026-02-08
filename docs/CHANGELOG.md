@@ -13,6 +13,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - NavStaticBig asteroid field generation along spline with seeded offsets and scale variation.
 - NavStaticBig view-based asteroid streaming with near/mid/far HISM tiers, per-tier density/budgets, and editor preview caps.
 - NavStaticBig organic jitter/probability spawning, hit-to-dynamic-actor conversion, stable cell sampling, and incremental chunk streaming with hysteresis (double-buffer fallback) to avoid blinking.
+- NavStaticBig Blueprint helper to replace a HISM instance with a spawned actor using the same transform and mesh.
 - Global navigation replanning with cached static obstacles.
 - Player manual ship controls (R/F throttle steps, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess.
 

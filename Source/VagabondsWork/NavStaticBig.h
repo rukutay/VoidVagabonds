@@ -207,6 +207,9 @@ public:
 	UFUNCTION(BlueprintCallable, CallInEditor, Category="AsteroidField|Spline")
 	void BuildCircularSpline(float Radius = 0.0f, int32 NumPoints = 16);
 
+	UFUNCTION(BlueprintCallable, Category="AsteroidField|Collision")
+	bool ReplaceHISMInstanceWithActor(UHierarchicalInstancedStaticMeshComponent* SourceHISM, int32 InstanceIndex);
+
 private:
 	struct FStreamingChunk
 	{
@@ -218,6 +221,8 @@ private:
 
 	void UpdateAsteroidStreaming();
 	FVector GetStreamingViewLocation() const;
+	bool SpawnDynamicAsteroidFromInstance(UHierarchicalInstancedStaticMeshComponent* SourceHISM, int32 InstanceIndex,
+		const FVector& NormalImpulse, bool bApplyImpulse);
 
 	UFUNCTION()
 	void OnAsteroidHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,

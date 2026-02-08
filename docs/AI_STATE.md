@@ -3,7 +3,7 @@
 - Latest commit: `d7dcd9b` (small fix)
 
 # Last Completed Task
-- TASK 33: Added frame roll, distance/radial noise, and micro-cluster streaming for stronger randomness.
+- TASK 34: Added a HISM-to-actor replacement helper for NavStaticBig (same transform/mesh, instance removed).
 
 # Recently Touched Files (last 5–15)
 - Source/VagabondsWork/NavStaticBig.h (updated)

@@ -880,13 +880,41 @@ void ANavStaticBig::OnAsteroidHit(UPrimitiveComponent* HitComponent, AActor* Oth
 		return;
 	}
 
-	FTransform InstanceTransform;
-	if (!HitHISM->GetInstanceTransform(InstanceIndex, InstanceTransform, true))
+	SpawnDynamicAsteroidFromInstance(HitHISM, InstanceIndex, NormalImpulse, true);
+}
+
+bool ANavStaticBig::ReplaceHISMInstanceWithActor(UHierarchicalInstancedStaticMeshComponent* SourceHISM, int32 InstanceIndex)
+{
+	const FVector EmptyImpulse = FVector::ZeroVector;
+	return SpawnDynamicAsteroidFromInstance(SourceHISM, InstanceIndex, EmptyImpulse, false);
+}
+
+bool ANavStaticBig::SpawnDynamicAsteroidFromInstance(UHierarchicalInstancedStaticMeshComponent* SourceHISM, int32 InstanceIndex,
+	const FVector& NormalImpulse, bool bApplyImpulse)
+{
+	if (!SourceHISM || InstanceIndex < 0 || !DynamicAsteroidClass)
 	{
-		return;
+		return false;
 	}
 
-	HitHISM->RemoveInstance(InstanceIndex);
+	if (ActiveDynamicAsteroids >= MaxDynamicAsteroids)
+	{
+		return false;
+	}
+
+	FTransform InstanceTransform;
+	if (!SourceHISM->GetInstanceTransform(InstanceIndex, InstanceTransform, true))
+	{
+		return false;
+	}
+
+	UStaticMesh* SourceMesh = SourceHISM->GetStaticMesh();
+	if (!SourceMesh)
+	{
+		return false;
+	}
+
+	SourceHISM->RemoveInstance(InstanceIndex);
 	const FVector SpawnLocation = InstanceTransform.GetLocation();
 	const FRotator SpawnRotation = InstanceTransform.Rotator();
 	const FVector SpawnScale = InstanceTransform.GetScale3D();
@@ -896,18 +924,27 @@ void ANavStaticBig::OnAsteroidHit(UPrimitiveComponent* HitComponent, AActor* Oth
 	AActor* SpawnedAsteroid = GetWorld()->SpawnActor<AActor>(DynamicAsteroidClass, SpawnLocation, SpawnRotation, SpawnParams);
 	if (!SpawnedAsteroid)
 	{
-		return;
+		return false;
 	}
 
 	SpawnedAsteroid->SetActorScale3D(SpawnScale);
+	if (UStaticMeshComponent* MeshComponent = SpawnedAsteroid->FindComponentByClass<UStaticMeshComponent>())
+	{
+		MeshComponent->SetStaticMesh(SourceMesh);
+	}
 	SpawnedAsteroid->OnDestroyed.AddDynamic(this, &ANavStaticBig::OnDynamicAsteroidDestroyed);
 	++ActiveDynamicAsteroids;
 
-	if (UPrimitiveComponent* RootPrimitive = Cast<UPrimitiveComponent>(SpawnedAsteroid->GetRootComponent()))
+	if (bApplyImpulse)
 	{
-		RootPrimitive->SetSimulatePhysics(true);
-		RootPrimitive->AddImpulseAtLocation(NormalImpulse.GetSafeNormal() * HitImpulseStrength, SpawnLocation);
+		if (UPrimitiveComponent* RootPrimitive = Cast<UPrimitiveComponent>(SpawnedAsteroid->GetRootComponent()))
+		{
+			RootPrimitive->SetSimulatePhysics(true);
+			RootPrimitive->AddImpulseAtLocation(NormalImpulse.GetSafeNormal() * HitImpulseStrength, SpawnLocation);
+		}
 	}
+
+	return true;
 }
 
 void ANavStaticBig::OnDynamicAsteroidDestroyed(AActor* DestroyedActor)
