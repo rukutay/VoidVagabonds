@@ -3,11 +3,11 @@
 - Latest commit: `d7dcd9b` (small fix)
 
 # Last Completed Task
-- TASK 16: Added ShootDelay property + Shoot delay param for spacing single shots and post-burst delay after SemiAutoShootsNumber.
+- TASK 23: Added near/mid/far HISM tiers for NavStaticBig streaming (impostor-ready).
 
 # Recently Touched Files (last 5–15)
-- Source/VagabondsWork/ExternalModule.h (updated)
-- Source/VagabondsWork/ExternalModule.cpp (updated)
+- Source/VagabondsWork/NavStaticBig.h (updated)
+- Source/VagabondsWork/NavStaticBig.cpp (updated)
 - docs/CHANGELOG.md (updated)
 - docs/README.md (updated)
 - docs/DEVELOPMENT_GUIDE.md (updated)

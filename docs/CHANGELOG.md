@@ -8,6 +8,10 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 ### Added
 - External ship module system (timer-driven aiming, tick disabled).
 - External module firing params (FireRate, SemiAutoShootsNumber, FireMode, ShootDelay) and Shoot API with safe muzzle spawn + semi-auto burst timing + damage override.
+- NavStaticBig asteroid field scaffolding (plane radius, spline, HISM, generation config hooks).
+- NavStaticBig circular spline build helper with radius override or plane radius scaling.
+- NavStaticBig asteroid field generation along spline with seeded offsets and scale variation.
+- NavStaticBig view-based asteroid streaming with near/mid/far HISM tiers, per-tier density/budgets, and editor preview caps.
 - Global navigation replanning with cached static obstacles.
 - Player manual ship controls (R/F throttle steps, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess.
 
