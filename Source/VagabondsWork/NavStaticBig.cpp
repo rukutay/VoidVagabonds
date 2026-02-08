@@ -254,6 +254,7 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 	const float SeedStep = 1000.0f / FMath::Max3(NearDensity, MidDensity, FarDensity);
 	const float HalfWidth = FieldWidth * 0.5f;
 	const float HalfHeight = FieldHeight * 0.5f;
+	const float ClampedStreamingJitter = FMath::Clamp(StreamingStepJitter, 0.0f, 1.0f);
 	int32 InstanceLimit = FMath::Max(MaxAsteroidInstances, 0);
 	int32 UpdateLimit = InstanceLimit;
 	int32 NearLimit = FMath::Max(MaxNearInstances, 0);
@@ -499,7 +500,10 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 				{
 					break;
 				}
-				const float Distance = FMath::Clamp(CellIndex * CellStep, ChunkStart, ChunkEnd);
+				const float CellBaseDistance = CellIndex * CellStep;
+				FRandomStream DistanceStream(Seed + CellIndex * 17 + 13);
+				const float CellJitter = DistanceStream.FRandRange(-CellStep * ClampedStreamingJitter, CellStep * ClampedStreamingJitter);
+				const float Distance = FMath::Clamp(CellBaseDistance + CellJitter, ChunkStart, ChunkEnd);
 				const FVector Location = FieldSpline->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 				const FVector Tangent = FieldSpline->GetTangentAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 				const FVector Forward = Tangent.GetSafeNormal();
@@ -592,7 +596,10 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 		const int32 EndCell = FMath::Max(StartCell, FMath::CeilToInt(EndDistance / CellStep));
 		for (int32 CellIndex = StartCell; CellIndex <= EndCell && InstancesAdded < InstanceLimit && InstancesAdded < UpdateLimit; ++CellIndex)
 		{
-			const float Distance = FMath::Clamp(CellIndex * CellStep, StartDistance, EndDistance);
+			const float CellBaseDistance = CellIndex * CellStep;
+			FRandomStream DistanceStream(Seed + CellIndex * 17 + 13);
+			const float CellJitter = DistanceStream.FRandRange(-CellStep * ClampedStreamingJitter, CellStep * ClampedStreamingJitter);
+			const float Distance = FMath::Clamp(CellBaseDistance + CellJitter, StartDistance, EndDistance);
 			const FVector Location = FieldSpline->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 			const float DistanceToView = FVector::Dist(Location, ViewLocation);
 			float Density = 0.0f;

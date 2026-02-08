@@ -22,6 +22,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Dynamic ship avoidance now uses repulsion on predicted closest approach with relative-speed prediction to reduce high-speed head-on collisions.
 - Ship steering uses physics-driven thrust with yaw/pitch rotation (roll disabled).
 - NavStaticBig chunk streaming now rebuilds only dirty chunks using band hysteresis to reduce visible blinking.
+- NavStaticBig streaming now adds deterministic along-spline jitter to remove grid-aligned asteroid placement.
 - Sun/planet visuals and lighting channel handling (static mesh roots, tick disabled).
 - Sun directional light now aligns to the Sun-to-player direction (light passes through the Sun toward the pawn).
 - Sun directional light rotation now updates every frame and forces Movable mobility for runtime updates.

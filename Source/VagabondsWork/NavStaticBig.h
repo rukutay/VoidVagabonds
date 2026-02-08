@@ -103,6 +103,9 @@ public:
 	float StepJitterMax = 1.4f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
+	float StreamingStepJitter = 0.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
 	float StreamingRebuildThreshold = 1000.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")

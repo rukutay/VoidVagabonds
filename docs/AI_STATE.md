@@ -3,7 +3,7 @@
 - Latest commit: `d7dcd9b` (small fix)
 
 # Last Completed Task
-- TASK 28: Reduced asteroid streaming blinking by rebuilding only dirty chunks using per-chunk band hysteresis.
+- TASK 29: Added deterministic along-spline jitter for streaming to reduce grid-aligned asteroid placement.
 
 # Recently Touched Files (last 5–15)
 - Source/VagabondsWork/NavStaticBig.h (updated)
