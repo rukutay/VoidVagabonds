@@ -56,6 +56,7 @@ void AProjectile::BeginPlay()
 	{
 		Collision->IgnoreActorWhenMoving(Owner, true);
 		Collision->MoveIgnoreActors.AddUnique(Owner);
+		SetActorScale3D(Owner->GetActorScale3D());
 	}
 }
 

@@ -4,10 +4,20 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Components/SphereComponent.h"
 #include "ExternalModule.generated.h"
 
 class USceneComponent;
 class UStaticMeshComponent;
+class AProjectile;
+
+UENUM(BlueprintType)
+enum class EExternalModuleFireMode : uint8
+{
+	Single = 0 UMETA(DisplayName = "Single"),
+	Auto UMETA(DisplayName = "Auto"),
+	SemiAuto UMETA(DisplayName = "SemiAuto")
+};
 
 /**
  * External module with auto-aiming capability using yaw/pitch rotation system.
@@ -41,6 +51,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
 	USceneComponent* Muzzle;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
+	USphereComponent* ProjectileSphere;
 
 	// Targeting - Visible and editable in Details panel and BP defaults
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim", meta = (ToolTip = "Target actor for aiming"))
@@ -122,6 +135,18 @@ protected:
 	  meta=(ToolTip="If false, ReadyToShoot always false"))
 	bool bUseReadyToShootCheck = true;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot",
+	  meta=(ClampMin="0.1", ToolTip="Shots per second"))
+	float FireRate = 6.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot",
+	  meta=(ClampMin="1", ToolTip="Semi-auto burst shot count"))
+	int32 SemiAutoShootsNumber = 3;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot",
+	  meta=(ToolTip="Fire mode: single, auto, semi-auto"))
+	EExternalModuleFireMode FireMode = EExternalModuleFireMode::Single;
+
 	// Debug
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Debug", meta = (ToolTip = "Enable debug visualization"))
 	bool bDebugAim;
@@ -131,13 +156,26 @@ protected:
 
 private:
 	FTimerHandle AimTimerHandle;
+	FTimerHandle BurstTimerHandle;
 	float DebugAccumTime;
 	
 	// Cached initial angles
 	float InitialBaseYawWorld;
 	float InitialGunPitchRel;
+	float NextAllowedShotTime = 0.0f;
+	int32 BurstShotsLeft = 0;
+	float BurstInterval = 0.0f;
+	TSubclassOf<AProjectile> BurstProjectileClass;
+	float BurstProjectileSpeed = 0.0f;
+	float BurstLifeSpan = 0.0f;
+	float BurstDamageAmount = 0.0f;
 
 	bool HasLineOfSightToTarget() const;
+	float GetProjectileCollisionRadius(TSubclassOf<AProjectile> ProjectileClass) const;
+	float GetShotInterval(TSubclassOf<AProjectile> ProjectileClass, float ProjectileSpeed) const;
+	bool IsSpawnLocationClear(const FVector& Location, float Radius) const;
+	bool TrySpawnProjectile(TSubclassOf<AProjectile> ProjectileClass, float ProjectileSpeed, float LifeSpan, float DamageAmount);
+	void HandleSemiAutoShot();
 
 protected:
 	// Called when the game starts or when spawned
@@ -174,4 +212,7 @@ public:
 	// Update functions
 	void UpdateAim();
 	void AimStep(float Dt);
+
+	UFUNCTION(BlueprintCallable, Category = "Shoot")
+	void Shoot(TSubclassOf<AProjectile> ProjectileClass, float ProjectileSpeed, float LifeSpan, float DamageAmount);
 };

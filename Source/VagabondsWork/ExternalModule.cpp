@@ -9,6 +9,8 @@
 #include "Engine/World.h"
 #include "Engine/Engine.h"
 #include "CollisionQueryParams.h"
+#include "CollisionShape.h"
+#include "Projectile.h"
 #include "GameFramework/Actor.h"
 
 static float ClampAngleAroundCenterDeg(float CenterDeg, float DesiredDeg, float LimitDeg)
@@ -100,6 +102,11 @@ AExternalModule::AExternalModule()
 	Muzzle = CreateDefaultSubobject<USceneComponent>(TEXT("Muzzle"));
 	Muzzle->SetupAttachment(PivotGun);
 
+	ProjectileSphere = CreateDefaultSubobject<USphereComponent>(TEXT("ProjectileSphere"));
+	ProjectileSphere->SetupAttachment(PivotGun);
+	ProjectileSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ProjectileSphere->SetHiddenInGame(true);
+
 	// Set default config values
 	TargetActor = nullptr;
 	bAutoAim = true;
@@ -150,6 +157,7 @@ void AExternalModule::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 	
 	GetWorld()->GetTimerManager().ClearTimer(AimTimerHandle);
+	GetWorld()->GetTimerManager().ClearTimer(BurstTimerHandle);
 }
 
 void AExternalModule::SetTargetActor(AActor* NewTarget)
@@ -164,34 +172,197 @@ void AExternalModule::ClearTarget()
 
 bool AExternalModule::HasLineOfSightToTarget() const
 {
-	if (!bUseReadyToShootCheck)
-	{
-		return false;
-	}
+    if (!bUseReadyToShootCheck) return false;
+    if (!GetWorld() || !TargetActor || !PivotGun || !Muzzle) return false;
 
-	if (!TargetActor || !Muzzle)
-	{
-		return false;
-	}
+    const FVector GunLoc = PivotGun->GetComponentLocation();
+    const FVector MuzzleLoc = Muzzle->GetComponentLocation();
 
-	const FVector Start = Muzzle->GetComponentLocation();
-	const FVector End = Start+(Muzzle->GetForwardVector()*EffectiveRange);
+    // --- AimLoc (prediction) ---
+    FVector AimLoc = TargetActor->GetActorLocation();
+    if (bUseLeadPrediction && ProjectileInitialSpeed > 1.f)
+    {
+        const FVector TargetVel = TargetActor->GetVelocity(); // works for moving actors; fallback is 0
+        const float Dist = FVector::Dist(MuzzleLoc, AimLoc);
+        const float Time = Dist / ProjectileInitialSpeed;
+        AimLoc += TargetVel * Time;
+    }
 
-	if ((End - Start).SizeSquared() < KINDA_SMALL_NUMBER)
-	{
-		return true;
-	}
-	
+    // Optional range gate (cheap)
+    if (EffectiveRange > 0.f && FVector::DistSquared(MuzzleLoc, AimLoc) > FMath::Square(EffectiveRange))
+    {
+        return false;
+    }
 
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(ExternalModule_LOS), false);
-	Params.AddIgnoredActor(TargetActor);
-	bool bBlocked = false;
-	FHitResult Hit;
+    const FVector ToAim = (AimLoc - GunLoc);
+    const float ToAimLenSq = ToAim.SizeSquared();
+    if (ToAimLenSq < 1.f) return true;
 
-	bBlocked |= GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params);
+    // --- Ensure trace goes "through muzzle" (gun forward check) ---
+    // Muzzle must lie close to the segment GunLoc -> AimLoc and in front of GunLoc.
+    const FVector ToMuzzle = (MuzzleLoc - GunLoc);
+    const float ToMuzzleLenSq = ToMuzzle.SizeSquared();
+    if (ToMuzzleLenSq < 1.f) return false;
 
-	return !bBlocked;
+    const FVector Dir = ToAim.GetSafeNormal();
+    const float MuzzleProj = FVector::DotProduct(ToMuzzle, Dir);
+    if (MuzzleProj <= 0.f) return false; // muzzle behind start relative to firing dir
+
+    // Perpendicular distance from muzzle to firing line
+    const FVector ClosestPointOnLine = GunLoc + Dir * MuzzleProj;
+    const float MuzzleLineDistSq = FVector::DistSquared(MuzzleLoc, ClosestPointOnLine);
+
+    // Tolerance: small fraction of projectile radius (or a small constant if sphere missing)
+    const float Radius = ProjectileSphere->GetScaledSphereRadius();
+    const float ThroughTol = FMath::Max(2.f, Radius * 0.25f);
+    if (MuzzleLineDistSq > FMath::Square(ThroughTol))
+    {
+        return false; // not aimed "through" muzzle yet
+    }
+
+    // --- Sphere sweep LOS ---
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(ExternalModule_LOS_Sweep), false);
+    Params.AddIgnoredActor(this);
+    if (AActor* OwnerActor = GetOwner())
+    {
+        Params.AddIgnoredActor(OwnerActor);
+    }
+
+    const FCollisionShape Sphere = FCollisionShape::MakeSphere(Radius);
+
+    auto SweepBlocked = [&](ECollisionChannel Channel) -> bool
+    {
+        FHitResult Hit;
+        const bool bHit = GetWorld()->SweepSingleByChannel(Hit, GunLoc, AimLoc, FQuat::Identity, Channel, Sphere, Params);
+        if (!bHit) return false; // clear on this channel
+        return Hit.GetActor() != TargetActor; // only target is allowed
+    };
+
+    if (SweepBlocked(ECC_GameTraceChannel2)) return false;
+    if (SweepBlocked(ECC_Pawn))              return false;
+    if (SweepBlocked(ECC_PhysicsBody))       return false;
+
+    return true;
 }
+
+float AExternalModule::GetProjectileCollisionRadius(TSubclassOf<AProjectile> ProjectileClass) const
+{
+	if (ProjectileClass)
+	{
+		const AProjectile* DefaultProjectile = ProjectileClass->GetDefaultObject<AProjectile>();
+		if (DefaultProjectile && DefaultProjectile->Collision)
+		{
+			return DefaultProjectile->Collision->GetScaledSphereRadius();
+		}
+	}
+
+	return ProjectileSphere ? ProjectileSphere->GetScaledSphereRadius() : 8.0f;
+}
+
+float AExternalModule::GetShotInterval(TSubclassOf<AProjectile> ProjectileClass, float ProjectileSpeed) const
+{
+	const float FireInterval = 1.0f / FMath::Max(FireRate, 0.1f);
+	const float Radius = GetProjectileCollisionRadius(ProjectileClass);
+	const float Speed = FMath::Max(ProjectileSpeed, 1.0f);
+	const float SeparationTime = (Radius * 2.5f) / Speed;
+	return FMath::Max(FireInterval, SeparationTime);
+}
+
+bool AExternalModule::IsSpawnLocationClear(const FVector& Location, float Radius) const
+{
+	if (!GetWorld()) return false;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ExternalModule_SpawnCheck), false);
+	Params.AddIgnoredActor(this);
+	if (AActor* OwnerActor = GetOwner())
+	{
+		Params.AddIgnoredActor(OwnerActor);
+	}
+
+	const FCollisionShape Shape = FCollisionShape::MakeSphere(Radius);
+	if (GetWorld()->OverlapAnyTestByChannel(Location, FQuat::Identity, ECC_WorldStatic, Shape, Params)) return false;
+	if (GetWorld()->OverlapAnyTestByChannel(Location, FQuat::Identity, ECC_WorldDynamic, Shape, Params)) return false;
+	if (GetWorld()->OverlapAnyTestByChannel(Location, FQuat::Identity, ECC_Pawn, Shape, Params)) return false;
+	if (GetWorld()->OverlapAnyTestByChannel(Location, FQuat::Identity, ECC_PhysicsBody, Shape, Params)) return false;
+	if (GetWorld()->OverlapAnyTestByChannel(Location, FQuat::Identity, ECC_GameTraceChannel2, Shape, Params)) return false;
+
+	return true;
+}
+
+bool AExternalModule::TrySpawnProjectile(TSubclassOf<AProjectile> ProjectileClass, float ProjectileSpeed, float LifeSpan, float DamageAmount)
+{
+	if (!GetWorld() || !ProjectileClass || !Muzzle) return false;
+
+	const float Radius = GetProjectileCollisionRadius(ProjectileClass);
+	const FVector MuzzleLoc = Muzzle->GetComponentLocation();
+	const FVector Forward = Muzzle->GetForwardVector();
+	const FQuat MuzzleRot = Muzzle->GetComponentQuat();
+	const int32 MaxAttempts = 4;
+	const float Step = FMath::Max(Radius * 1.5f, 4.0f);
+
+	FVector SpawnLoc = MuzzleLoc;
+	bool bFoundClear = false;
+	for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
+	{
+		if (IsSpawnLocationClear(SpawnLoc, Radius))
+		{
+			bFoundClear = true;
+			break;
+		}
+		SpawnLoc += Forward * Step;
+	}
+
+	if (!bFoundClear) return false;
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = GetOwner();
+	SpawnParams.Instigator = GetInstigator();
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	AProjectile* Projectile = GetWorld()->SpawnActor<AProjectile>(ProjectileClass, SpawnLoc, MuzzleRot.Rotator(), SpawnParams);
+	if (!Projectile) return false;
+
+	Projectile->SetOwner(GetOwner());
+	if (Projectile->Movement)
+	{
+		Projectile->Movement->InitialSpeed = ProjectileSpeed;
+		Projectile->Movement->MaxSpeed = ProjectileSpeed;
+	}
+	Projectile->DamageAmount = DamageAmount;
+	if (LifeSpan > 0.0f)
+	{
+		Projectile->SetLifeSpan(LifeSpan);
+	}
+
+	return true;
+}
+
+void AExternalModule::HandleSemiAutoShot()
+{
+	if (BurstShotsLeft <= 0)
+	{
+		GetWorld()->GetTimerManager().ClearTimer(BurstTimerHandle);
+		return;
+	}
+
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (Now < NextAllowedShotTime) return;
+
+	if (!TrySpawnProjectile(BurstProjectileClass, BurstProjectileSpeed, BurstLifeSpan, BurstDamageAmount))
+	{
+		GetWorld()->GetTimerManager().ClearTimer(BurstTimerHandle);
+		BurstShotsLeft = 0;
+		return;
+	}
+
+	BurstShotsLeft--;
+	NextAllowedShotTime = Now + BurstInterval;
+	if (BurstShotsLeft <= 0)
+	{
+		GetWorld()->GetTimerManager().ClearTimer(BurstTimerHandle);
+	}
+}
+
+
 
 void AExternalModule::AimStepManual(float DeltaSeconds)
 {
@@ -359,4 +530,34 @@ void AExternalModule::AimStep(float Dt)
 					CurrentYaw, DesiredYawFinal, CurrentPitch, DesiredPitchFinal));
 		}
 	}
+}
+
+void AExternalModule::Shoot(TSubclassOf<AProjectile> ProjectileClass, float ProjectileSpeed, float LifeSpan, float DamageAmount)
+{
+	if (!ProjectileClass || !GetWorld()) return;
+	if (bUseReadyToShootCheck && !ReadyToShoot) return;
+
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (Now < NextAllowedShotTime) return;
+
+	const float Interval = GetShotInterval(ProjectileClass, ProjectileSpeed);
+	if (FireMode == EExternalModuleFireMode::SemiAuto)
+	{
+		BurstProjectileClass = ProjectileClass;
+		BurstProjectileSpeed = ProjectileSpeed;
+		BurstLifeSpan = LifeSpan;
+		BurstDamageAmount = DamageAmount;
+		BurstInterval = Interval;
+		BurstShotsLeft = FMath::Max(SemiAutoShootsNumber, 1);
+
+		HandleSemiAutoShot();
+		if (BurstShotsLeft > 0)
+		{
+			GetWorld()->GetTimerManager().SetTimer(BurstTimerHandle, this, &AExternalModule::HandleSemiAutoShot, BurstInterval, true);
+		}
+		return;
+	}
+
+	NextAllowedShotTime = Now + Interval;
+	TrySpawnProjectile(ProjectileClass, ProjectileSpeed, LifeSpan, DamageAmount);
 }

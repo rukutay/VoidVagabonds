@@ -24,6 +24,7 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Properties**: Use `UPROPERTY` with scoped categories (e.g., `Ship|Navigation`, `Aim|Speed`).
 - **Debug**: Wrap debug drawing in `#if !UE_BUILD_SHIPPING` and gate with toggles.
 - **Lighting**: The sun directional light should aim from the sun toward the current player pawn.
+- **External modules**: LOS uses a single forward sphere sweep (EffectiveRange * 1.05) with lead prediction and projectile radius (base 16 cm). Shooting supports single/auto/semi-auto modes; semi-auto uses FireRate-derived burst intervals with safe muzzle spawn checks and per-shot damage override.
 
 ## Player Ship Manual Controls
 - **Bindings (Enhanced Input)**:

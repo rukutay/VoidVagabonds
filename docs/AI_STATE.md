@@ -3,11 +3,14 @@
 - Latest commit: `d7dcd9b` (small fix)
 
 # Last Completed Task
-- TASK 12: Updated sun light tick to honor ViewTargetActor every frame.
+- TASK 15: Added Shoot damage parameter and wired it into projectile damage amount on spawn.
 
 # Recently Touched Files (last 5–15)
-- Source/VagabondsWork/Sun.cpp (updated)
+- Source/VagabondsWork/ExternalModule.h (updated)
+- Source/VagabondsWork/ExternalModule.cpp (updated)
 - docs/CHANGELOG.md (updated)
+- docs/README.md (updated)
+- docs/DEVELOPMENT_GUIDE.md (updated)
 - docs/AI_STATE.md (updated)
 
 # Known Issues / TODO

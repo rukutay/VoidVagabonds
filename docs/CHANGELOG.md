@@ -7,6 +7,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 ## [Unreleased]
 ### Added
 - External ship module system (timer-driven aiming, tick disabled).
+- External module firing params (FireRate, SemiAutoShootsNumber, FireMode) and Shoot API with safe muzzle spawn + semi-auto burst timing + damage override.
 - Global navigation replanning with cached static obstacles.
 - Player manual ship controls (R/F throttle steps, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess.
 
@@ -18,6 +19,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Sun directional light rotation now updates every frame and forces Movable mobility for runtime updates.
 - Sun directional light now resolves tagged light + pawn every frame and applies rotation to the light component.
 - Sun light now prefers current ViewTargetActor each tick (falls back to player pawn).
+- External module line-of-sight uses a single forward sphere sweep with lead prediction and projectile radius.
 
 ### Removed
 - Roll aim functionality (removed to keep ship behavior stable).

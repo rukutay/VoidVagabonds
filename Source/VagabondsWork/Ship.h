@@ -56,167 +56,167 @@ public:
         int32 OtherBodyIndex);
 
     // NAVIGATION_TODO_REMOVE
-    UFUNCTION(BlueprintCallable, Category="Ship|AI")
+    UFUNCTION(BlueprintCallable, Category="Ship|AI", meta=(ToolTip="Get current goal location for AI navigation."))
     FVector GetGoalLocation() const;
 
-    UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="AI|Navigation")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Navigation", meta=(ToolTip="Target actor used for AI navigation and orbiting."))
     AActor* TargetActor = nullptr;
 
     // ---------------- Orbit ----------------
-    UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="AI|Orbit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ToolTip="Enable orbiting around the target actor."))
     bool bOrbitTarget = false;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ToolTip="Automatically choose a stable orbit axis per ship/target."))
     bool bAutoOrbitAxis = true;
 
     // Prevent axis being too close to world up/down (avoids "almost horizontal" planes)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ClampMin="0.0", ClampMax="89.0"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ClampMin="0.0", ClampMax="89.0", ToolTip="Minimum tilt away from world up/down for auto orbit axis."))
     float OrbitAxisMinTiltDeg = 15.0f;
 
-    UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="AI|Orbit", meta=(ClampMin="0"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ClampMin="0", ToolTip="Desired orbit radius in centimeters."))
     float EffectiveRange = 6000.0f; // cm
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ClampMin="0"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ClampMin="0", ToolTip="Orbit angular speed in degrees per second."))
     float OrbitAngularSpeedDeg = 18.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ToolTip="Manual orbit axis when auto-axis is disabled."))
     FVector OrbitAxis = FVector::UpVector;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ToolTip="Orbit direction: clockwise when true."))
     bool bOrbitClockwise = true;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ClampMin="0.0"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ClampMin="0.0", ToolTip="Extra tolerance before entering orbit ring."))
     float OrbitEnterToleranceMultiplier = 0.15f;
 
-    UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="AI|Orbit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit", meta=(ToolTip="Seed for deterministic orbit start angle (0 = auto)."))
     int32 OrbitSeed = 0; // 0 = auto
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit|Debug")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit|Debug", meta=(ToolTip="Draw orbit debug visuals."))
     bool bDebugOrbit = false;
 
-    UFUNCTION(BlueprintCallable, Category="AI|Navigation")
+    UFUNCTION(BlueprintCallable, Category="AI|Navigation", meta=(ToolTip="Get current target actor."))
     AActor* GetTargetActor() const { return TargetActor; }
 
     // ---------------- Controller ----------------
     // NAVIGATION_TODO_REMOVE
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|AI", meta=(AllowPrivateAccess="true"))
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|AI", meta=(AllowPrivateAccess="true", ToolTip="AI controller driving ship navigation/rotation."))
     AAIShipController* ShipController = nullptr;
 
     // ---------------- Components ----------------
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, meta=(ToolTip="Get the ship's root physics mesh."))
     UStaticMeshComponent* GetShipBase() const;
 
-    UFUNCTION(BlueprintCallable, Category="Ship|Components")
+    UFUNCTION(BlueprintCallable, Category="Ship|Components", meta=(ToolTip="Get the ship vitality component."))
     UShipVitalityComponent* GetVitality() const { return Vitality; }
 
     // ---------------- AI Controls ----------------
     // NAVIGATION_TODO_REMOVE
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Maximum pitch speed (deg/sec)."))
     float MaxPitchSpeed = 6.f;   // deg/sec
 
     // NAVIGATION_TODO_REMOVE
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Maximum yaw speed (deg/sec)."))
     float MaxYawSpeed = 18.f;    // deg/sec
 
     // NAVIGATION_TODO_REMOVE
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Pitch acceleration response."))
     float PitchAccelSpeed = 6.f;
 
     // NAVIGATION_TODO_REMOVE
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Yaw acceleration response."))
     float YawAccelSpeed = 7.f;
 
     // NAVIGATION_TODO_REMOVE
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Maximum roll speed (deg/sec)."))
     float MaxRollSpeed = 20.f;   // deg/sec
 
     // NAVIGATION_TODO_REMOVE
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Roll acceleration response."))
     float RollAccelSpeed = 10.f;
 
     // NAVIGATION_TODO_REMOVE
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Maximum roll angle when banking (deg)."))
     float MaxRollAngle = 22.5f; // degrees
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation", meta=(ToolTip="Roll alignment mode for AI rotation."))
     ERollAlignMode RollAlignMode = ERollAlignMode::Default;
 
     // Roll alignment gains (only used when RollAlignMode != Default)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation", meta=(ClampMin="0.0"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation", meta=(ClampMin="0.0", ToolTip="Roll alignment proportional gain."))
     float RollAlignKp = 2.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation", meta=(ClampMin="0.0"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation", meta=(ClampMin="0.0", ToolTip="Roll alignment derivative gain."))
     float RollAlignKd = 1.0f;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components", meta=(ToolTip="Root physics mesh for ship."))
     UStaticMeshComponent* ShipBase = nullptr;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components", meta=(ToolTip="Collision sphere used for radius checks."))
     USphereComponent* ShipRadius = nullptr;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|AI")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|AI", meta=(ToolTip="Navigation component for avoidance and waypoints."))
     UShipNavComponent* ShipNav = nullptr;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components", meta=(ToolTip="Ship health/shield component."))
     UShipVitalityComponent* Vitality = nullptr;
 
     // ---------------- Movement ----------------
     // NAVIGATION_TODO_REMOVE
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement", meta=(ToolTip="Maximum forward force scalar."))
     float MaxForwardForce = 500.f;
 
     // NAVIGATION_TODO_REMOVE
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement", meta=(ToolTip="Minimum throttle applied when steering."))
     float MinThrottle = 0.15f;
 
     // NAVIGATION_TODO_REMOVE
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement", meta=(ToolTip="Throttle interpolation speed."))
     float ThrottleInterpSpeed = 2.5f;
 
     // NAVIGATION_TODO_REMOVE
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|AI|Movement")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|AI|Movement", meta=(ToolTip="Current throttle value applied to thrust."))
     float CurrentThrottle = 0.f;
 
     // NAVIGATION_TODO_REMOVE
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement", meta=(ToolTip="Damping applied to lateral velocity."))
     float LateralDamping = 2.5f;
 
     // Soft Separation Settings
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Enable soft separation forces."))
     bool bEnableSoftSeparation = true;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Draw soft separation debug visuals."))
     bool bDebugSoftSeparation = false;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Extra separation margin beyond ship radius (cm)."))
     float SoftSeparationMarginCm = 30.0f;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Base soft separation force strength."))
     float SoftSeparationStrength = 40000.0f;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Maximum soft separation force clamp."))
     float SoftSeparationMaxForce = 90000.0f;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Damping applied to separation response."))
     float SoftSeparationDamping = 2.0f;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Smoothing response for separation force."))
     float SoftSeparationResponse = 6.0f;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation")
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Maximum overlapping actors processed per tick."))
     int32 SoftSeparationMaxActors = 6;
 
     // NAVIGATION_TODO_REMOVE
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, meta=(ToolTip="Apply forward steering force toward target location."))
     void ApplySteeringForce(FVector TargetLocation, float DeltaTime);
 
-    UFUNCTION(BlueprintCallable, Category="Ship|ManualControl")
+    UFUNCTION(BlueprintCallable, Category="Ship|ManualControl", meta=(ToolTip="Set manual rotation input (pitch, yaw, roll)."))
     void SetManualRotationInput(float Pitch, float Yaw, float Roll);
 
-    UFUNCTION(BlueprintCallable, Category="Ship|ManualControl")
+    UFUNCTION(BlueprintCallable, Category="Ship|ManualControl", meta=(ToolTip="Increase manual throttle step."))
     void StepThrottleUp();
 
-    UFUNCTION(BlueprintCallable, Category="Ship|ManualControl")
+    UFUNCTION(BlueprintCallable, Category="Ship|ManualControl", meta=(ToolTip="Decrease manual throttle step."))
     void StepThrottleDown();
 
 private:
