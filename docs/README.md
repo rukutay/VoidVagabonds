@@ -17,11 +17,13 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 
 ## Features (verified)
 - Timer-driven navigation and avoidance (no per-tick heavy pathfinding).
+- Navigation forces replans on stuck/static-blocked states and honors temp avoidance targets to prevent stalls.
+- Dynamic ship avoidance uses repulsion on predicted closest approach with relative-speed prediction for high-speed head-on safety.
 - Physics-driven thrust + yaw/pitch rotation for ship steering.
 - Static obstacle caching handled by the game mode; nav component requests replans.
 - Timer-driven external module aiming (tick disabled).
 - External module LOS uses a single forward sphere sweep with lead prediction and projectile radius.
-- External module firing supports single/auto/semi-auto modes with safe muzzle spawn and burst timing derived from FireRate, with per-shot damage override.
+- External module firing supports single/auto/semi-auto modes with safe muzzle spawn and burst timing derived from FireRate, with per-shot damage override and ShootDelay spacing.
 - Player ship manual control (R/F throttle steps, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess.
 - Sun directional light aims from the sun toward the current player pawn (auto-updating target).
 

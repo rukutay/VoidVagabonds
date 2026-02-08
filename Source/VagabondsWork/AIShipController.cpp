@@ -462,102 +462,102 @@ FVector AAIShipController::ComputeEscapeTarget(const FVector& ShipLocation, USph
 
 void AAIShipController::HandleStuckCheck()
 {
-    AShip* Ship = Cast<AShip>(GetPawn());
-    if (!Ship)
-    {
-        return;
-    }
+	AShip* Ship = Cast<AShip>(GetPawn());
+	if (!Ship)
+	{
+		return;
+	}
 
-    UWorld* World = GetWorld();
-    if (!World)
-    {
-        return;
-    }
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
 
-    UStaticMeshComponent* ShipBase = Ship->GetShipBase();
-    if (!ShipBase)
-    {
-        return;
-    }
+	UStaticMeshComponent* ShipBase = Ship->GetShipBase();
+	if (!ShipBase)
+	{
+		return;
+	}
 
-    const FVector Velocity = ShipBase->GetPhysicsLinearVelocity();
-    const float Speed = Velocity.Size();
-    const FVector GoalLocation = GetFocusLocation();
-    const float DistanceToGoal = FVector::Dist(Ship->GetActorLocation(), GoalLocation);
+	const FVector Velocity = ShipBase->GetPhysicsLinearVelocity();
+	const float Speed = Velocity.Size();
+	const FVector GoalLocation = GetFocusLocation();
+	const float DistanceToGoal = FVector::Dist(Ship->GetActorLocation(), GoalLocation);
 
-    if (Speed < MinStuckSpeed && DistanceToGoal >= PrevDistanceToGoal)
-    {
-        StuckAccumulatedTime += StuckCheckInterval;
-    }
-    else
-    {
-        StuckAccumulatedTime = 0.0f;
-    }
+	if (Speed < MinStuckSpeed && DistanceToGoal >= PrevDistanceToGoal)
+	{
+		StuckAccumulatedTime += StuckCheckInterval;
+	}
+	else
+	{
+		StuckAccumulatedTime = 0.0f;
+	}
 
-    PrevDistanceToGoal = DistanceToGoal;
-    if (!bIsUnstucking)
-    {
-        bIsUnstucking = (StuckAccumulatedTime >= StuckTimeThreshold);
-        if (bIsUnstucking)
-        {
-            const float CurrentTime = World->GetTimeSeconds();
-            UnstuckEndTime = CurrentTime + UnstuckDuration;
-            LastUnstuckForceTime = 0.0f;
-        }
-    }
+	PrevDistanceToGoal = DistanceToGoal;
+	if (!bIsUnstucking)
+	{
+		bIsUnstucking = (StuckAccumulatedTime >= StuckTimeThreshold);
+		if (bIsUnstucking)
+		{
+			const float CurrentTime = World->GetTimeSeconds();
+			UnstuckEndTime = CurrentTime + UnstuckDuration;
+			LastUnstuckForceTime = 0.0f;
+		}
+	}
 
-    if (!bIsUnstucking)
-    {
-        return;
-    }
+	if (!bIsUnstucking)
+	{
+		return;
+	}
 
-    const float CurrentTime = World->GetTimeSeconds();
-    if (CurrentTime >= UnstuckEndTime
-        || Speed > (MinStuckSpeed * 1.5f)
-        || !CurrentObstacleComp.IsValid())
-    {
-        bIsUnstucking = false;
-        StuckAccumulatedTime = 0.0f;
-        PrevDistanceToGoal = DistanceToGoal;
-        UnstuckEndTime = 0.0f;
-        LastUnstuckForceTime = 0.0f;
-        return;
-    }
+	const float CurrentTime = World->GetTimeSeconds();
+	if (CurrentTime >= UnstuckEndTime
+		|| Speed > (MinStuckSpeed * 1.5f)
+		|| !CurrentObstacleComp.IsValid())
+	{
+		bIsUnstucking = false;
+		StuckAccumulatedTime = 0.0f;
+		PrevDistanceToGoal = DistanceToGoal;
+		UnstuckEndTime = 0.0f;
+		LastUnstuckForceTime = 0.0f;
+		return;
+	}
 
-    if (CurrentTime < LastUnstuckForceTime + UnstuckForceInterval)
-    {
-        return;
-    }
+	if (CurrentTime < LastUnstuckForceTime + UnstuckForceInterval)
+	{
+		return;
+	}
 
-    const FVector ContactPoint = GetCurrentObstacleContactPoint();
-    if (ContactPoint.IsNearlyZero())
-    {
-        return;
-    }
+	const FVector ContactPoint = GetCurrentObstacleContactPoint();
+	if (ContactPoint.IsNearlyZero())
+	{
+		return;
+	}
 
-    const FVector ShipLocation = Ship->GetActorLocation();
-    const FVector PushDir = (ShipLocation - ContactPoint).GetSafeNormal();
-    if (PushDir.IsNearlyZero())
-    {
-        return;
-    }
+	const FVector ShipLocation = Ship->GetActorLocation();
+	const FVector PushDir = (ShipLocation - ContactPoint).GetSafeNormal();
+	if (PushDir.IsNearlyZero())
+	{
+		return;
+	}
 
-    const float ShipRadius = Ship->ShipRadius ? Ship->ShipRadius->GetScaledSphereRadius() : 0.0f;
-    if (ShipRadius <= KINDA_SMALL_NUMBER)
-    {
-        return;
-    }
+	const float ShipRadius = Ship->ShipRadius ? Ship->ShipRadius->GetScaledSphereRadius() : 0.0f;
+	if (ShipRadius <= KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
 
-    const float Distance = FVector::Dist(ShipLocation, ContactPoint);
-    const float PenetrationAlpha = FMath::Clamp(1.0f - (Distance / ShipRadius), 0.0f, 1.0f);
-    if (PenetrationAlpha <= 0.0f)
-    {
-        return;
-    }
+	const float Distance = FVector::Dist(ShipLocation, ContactPoint);
+	const float PenetrationAlpha = FMath::Clamp(1.0f - (Distance / ShipRadius), 0.0f, 1.0f);
+	if (PenetrationAlpha <= 0.0f)
+	{
+		return;
+	}
 
-    const FVector Force = PushDir * UnstuckForceStrength * PenetrationAlpha;
-    ShipBase->AddForceAtLocation(Force, ContactPoint);
-    LastUnstuckForceTime = CurrentTime;
+	const FVector Force = PushDir * UnstuckForceStrength * PenetrationAlpha;
+	ShipBase->AddForceAtLocation(Force, ContactPoint);
+	LastUnstuckForceTime = CurrentTime;
 }
 
 void AAIShipController::SetCurrentObstacleComp(UPrimitiveComponent* ObstacleComp)

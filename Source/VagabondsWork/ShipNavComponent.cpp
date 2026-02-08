@@ -85,7 +85,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 
 	const bool bForce = (StuckCounter >= StuckThreshold);
 
-	if (bTime && (bMoved || bGoalChanged || bForce))
+	if (bForce || (bTime && (bMoved || bGoalChanged)))
 	{
 		if (AVagabondsWorkGameMode* GameMode = GetWorld()->GetAuthGameMode<AVagabondsWorkGameMode>())
 		{
@@ -322,8 +322,8 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		const FVector RelPos = NeighborPos - ShipPos;
 		const FVector RelVel = ShipVelocity - NeighborVel;
 		const float RelVelSizeSq = RelVel.SizeSquared();
-		const float Speed = FMath::Max(ShipVelocity.Size(), 1.0f);
-		const float PredictionTime = FMath::Clamp((ShipRadiusCm / Speed) * PredictionTimeMultiplier, 0.25f, 3.0f);
+		const float RelSpeed = FMath::Max(RelVel.Size(), 1.0f);
+		const float PredictionTime = FMath::Clamp((ShipRadiusCm / RelSpeed) * PredictionTimeMultiplier, 0.5f, 3.0f);
 
 		float TimeToClosest = 0.0f;
 		if (RelVelSizeSq > KINDA_SMALL_NUMBER)
@@ -337,7 +337,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		if (ClosestDistance < CombinedRadius)
 		{
 			const float Penetration = CombinedRadius - ClosestDistance;
-			AvoidDir += Closest.GetSafeNormal() * (Penetration / CombinedRadius);
+			AvoidDir += (-Closest).GetSafeNormal() * (Penetration / CombinedRadius);
 			if (Penetration > BestPenetration)
 			{
 				BestPenetration = Penetration;
@@ -467,6 +467,12 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	{
 		NextReplanTime = CurrentTime;   // force immediate replan
 		StaticBlockedAccumTime = 0.0f;
+		if (TempReason == ETempWaypointReason::Static)
+		{
+			bHasTempWaypoint = false;
+			TempReason = ETempWaypointReason::None;
+			FocusStaticObstacleIndex = INDEX_NONE;
+		}
 	}
 	if (CurrentTime >= NextStuckCheckTime)
 	{
@@ -545,7 +551,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 
 FVector UShipNavComponent::GetNavTarget(const FVector& GoalLocation) const
 {
-	if (WaypointIndex < GlobalWaypoints.Num())
+	if (bHasTempWaypoint || WaypointIndex < GlobalWaypoints.Num())
 	{
 		return CurrentNavTarget;
 	}

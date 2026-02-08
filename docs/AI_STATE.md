@@ -3,7 +3,7 @@
 - Latest commit: `d7dcd9b` (small fix)
 
 # Last Completed Task
-- TASK 15: Added Shoot damage parameter and wired it into projectile damage amount on spawn.
+- TASK 16: Added ShootDelay property + Shoot delay param for spacing single shots and post-burst delay after SemiAutoShootsNumber.
 
 # Recently Touched Files (last 5–15)
 - Source/VagabondsWork/ExternalModule.h (updated)

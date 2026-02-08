@@ -7,12 +7,14 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 ## [Unreleased]
 ### Added
 - External ship module system (timer-driven aiming, tick disabled).
-- External module firing params (FireRate, SemiAutoShootsNumber, FireMode) and Shoot API with safe muzzle spawn + semi-auto burst timing + damage override.
+- External module firing params (FireRate, SemiAutoShootsNumber, FireMode, ShootDelay) and Shoot API with safe muzzle spawn + semi-auto burst timing + damage override.
 - Global navigation replanning with cached static obstacles.
 - Player manual ship controls (R/F throttle steps, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess.
 
 ### Improved
 - Navigation avoidance stability and replan jittering for scale.
+- Ship navigation now forces replans on stuck/static-blocked states and always honors temp avoidance targets to prevent long stalls.
+- Dynamic ship avoidance now uses repulsion on predicted closest approach with relative-speed prediction to reduce high-speed head-on collisions.
 - Ship steering uses physics-driven thrust with yaw/pitch rotation (roll disabled).
 - Sun/planet visuals and lighting channel handling (static mesh roots, tick disabled).
 - Sun directional light now aligns to the Sun-to-player direction (light passes through the Sun toward the pawn).

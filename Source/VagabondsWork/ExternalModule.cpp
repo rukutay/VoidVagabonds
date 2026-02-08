@@ -355,6 +355,13 @@ void AExternalModule::HandleSemiAutoShot()
 	}
 
 	BurstShotsLeft--;
+	if (BurstShotsLeft <= 0)
+	{
+		NextAllowedShotTime = Now + BurstInterval + BurstDelay;
+		GetWorld()->GetTimerManager().ClearTimer(BurstTimerHandle);
+		return;
+	}
+
 	NextAllowedShotTime = Now + BurstInterval;
 	if (BurstShotsLeft <= 0)
 	{
@@ -532,7 +539,7 @@ void AExternalModule::AimStep(float Dt)
 	}
 }
 
-void AExternalModule::Shoot(TSubclassOf<AProjectile> ProjectileClass, float ProjectileSpeed, float LifeSpan, float DamageAmount)
+void AExternalModule::Shoot(TSubclassOf<AProjectile> ProjectileClass, float ProjectileSpeed, float LifeSpan, float DamageAmount, float Delay)
 {
 	if (!ProjectileClass || !GetWorld()) return;
 	if (bUseReadyToShootCheck && !ReadyToShoot) return;
@@ -541,12 +548,14 @@ void AExternalModule::Shoot(TSubclassOf<AProjectile> ProjectileClass, float Proj
 	if (Now < NextAllowedShotTime) return;
 
 	const float Interval = GetShotInterval(ProjectileClass, ProjectileSpeed);
+	const float FinalDelay = FMath::Max(Delay, ShootDelay);
 	if (FireMode == EExternalModuleFireMode::SemiAuto)
 	{
 		BurstProjectileClass = ProjectileClass;
 		BurstProjectileSpeed = ProjectileSpeed;
 		BurstLifeSpan = LifeSpan;
 		BurstDamageAmount = DamageAmount;
+		BurstDelay = FinalDelay;
 		BurstInterval = Interval;
 		BurstShotsLeft = FMath::Max(SemiAutoShootsNumber, 1);
 
@@ -558,6 +567,6 @@ void AExternalModule::Shoot(TSubclassOf<AProjectile> ProjectileClass, float Proj
 		return;
 	}
 
-	NextAllowedShotTime = Now + Interval;
+	NextAllowedShotTime = Now + Interval + FinalDelay;
 	TrySpawnProjectile(ProjectileClass, ProjectileSpeed, LifeSpan, DamageAmount);
 }

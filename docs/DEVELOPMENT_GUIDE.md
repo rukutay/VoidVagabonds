@@ -19,12 +19,14 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 ## Coding Standards (current rules)
 - **Performance**: Avoid per-tick heavy traces/pathfinding; use **timer-driven** navigation/avoidance (jittered replans).
 - **Navigation/Steering**: Forward thrust + yaw/pitch rotation model; roll disabled; nav target for thrust = target for rotation.
+- **Navigation stability**: Ensure replans can be forced on stuck/static-blocked states and temp avoidance targets are honored to avoid stalls.
+- **Navigation avoidance**: Dynamic ship avoidance uses repulsion at predicted closest approach with relative-speed prediction for high-speed safety.
 - **Timers**: Prefer `FTimerHandle` updates; keep external modules tick-disabled.
 - **Naming**: Use Unreal prefixes (A/U/F/E), `b` prefix for booleans, `Cm` suffix for distances.
 - **Properties**: Use `UPROPERTY` with scoped categories (e.g., `Ship|Navigation`, `Aim|Speed`).
 - **Debug**: Wrap debug drawing in `#if !UE_BUILD_SHIPPING` and gate with toggles.
 - **Lighting**: The sun directional light should aim from the sun toward the current player pawn.
-- **External modules**: LOS uses a single forward sphere sweep (EffectiveRange * 1.05) with lead prediction and projectile radius (base 16 cm). Shooting supports single/auto/semi-auto modes; semi-auto uses FireRate-derived burst intervals with safe muzzle spawn checks and per-shot damage override.
+- **External modules**: LOS uses a single forward sphere sweep (EffectiveRange * 1.05) with lead prediction and projectile radius (base 16 cm). Shooting supports single/auto/semi-auto modes; semi-auto uses FireRate-derived burst intervals with safe muzzle spawn checks, per-shot damage override, and ShootDelay spacing between single shots/bursts.
 
 ## Player Ship Manual Controls
 - **Bindings (Enhanced Input)**:

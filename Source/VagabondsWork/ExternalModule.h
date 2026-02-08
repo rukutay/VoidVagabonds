@@ -147,6 +147,10 @@ protected:
 	  meta=(ToolTip="Fire mode: single, auto, semi-auto"))
 	EExternalModuleFireMode FireMode = EExternalModuleFireMode::Single;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot",
+	  meta=(ClampMin="0.0", ToolTip="Extra delay between shots/bursts (seconds)"))
+	float ShootDelay = 0.0f;
+
 	// Debug
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Debug", meta = (ToolTip = "Enable debug visualization"))
 	bool bDebugAim;
@@ -169,6 +173,7 @@ private:
 	float BurstProjectileSpeed = 0.0f;
 	float BurstLifeSpan = 0.0f;
 	float BurstDamageAmount = 0.0f;
+	float BurstDelay = 0.0f;
 
 	bool HasLineOfSightToTarget() const;
 	float GetProjectileCollisionRadius(TSubclassOf<AProjectile> ProjectileClass) const;
@@ -214,5 +219,5 @@ public:
 	void AimStep(float Dt);
 
 	UFUNCTION(BlueprintCallable, Category = "Shoot")
-	void Shoot(TSubclassOf<AProjectile> ProjectileClass, float ProjectileSpeed, float LifeSpan, float DamageAmount);
+	void Shoot(TSubclassOf<AProjectile> ProjectileClass, float ProjectileSpeed, float LifeSpan, float DamageAmount, float Delay);
 };
