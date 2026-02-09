@@ -171,6 +171,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Collision")
 	bool bSpawnDynamicOnHit = true;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|NearSwap")
+	bool bEnableNearActorSwap = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|NearSwap")
+	float NearActorSwapEnterRadius = 15000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|NearSwap")
+	float NearActorSwapExitRadius = 18000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|NearSwap")
+	float NearActorSwapInterval = 0.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|NearSwap")
+	bool bDebugNearActorSwap = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Collision")
 	TSubclassOf<AActor> DynamicAsteroidClass;
 
@@ -211,6 +226,12 @@ public:
 	bool ReplaceHISMInstanceWithActor(UHierarchicalInstancedStaticMeshComponent* SourceHISM, int32 InstanceIndex);
 
 private:
+	struct FNearSwapEntry
+	{
+		TWeakObjectPtr<UHierarchicalInstancedStaticMeshComponent> SourceHISM;
+		FTransform InstanceTransform;
+	};
+
 	struct FStreamingChunk
 	{
 		UHierarchicalInstancedStaticMeshComponent* Near = nullptr;
@@ -220,9 +241,13 @@ private:
 	};
 
 	void UpdateAsteroidStreaming();
+	void UpdateNearAsteroidActorSwap();
+	void CleanupNearSwapForComponent(UHierarchicalInstancedStaticMeshComponent* Component);
 	FVector GetStreamingViewLocation() const;
 	bool SpawnDynamicAsteroidFromInstance(UHierarchicalInstancedStaticMeshComponent* SourceHISM, int32 InstanceIndex,
 		const FVector& NormalImpulse, bool bApplyImpulse);
+	bool SpawnNearSwapAsteroidFromInstance(UHierarchicalInstancedStaticMeshComponent* SourceHISM, int32 InstanceIndex);
+	bool RestoreNearSwapActor(AActor* SwappedActor, bool bDestroyActor);
 
 	UFUNCTION()
 	void OnAsteroidHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
@@ -231,11 +256,18 @@ private:
 	UFUNCTION()
 	void OnDynamicAsteroidDestroyed(AActor* DestroyedActor);
 
+	UFUNCTION()
+	void OnNearSwapAsteroidDestroyed(AActor* DestroyedActor);
+
 	FTimerHandle StreamingTimerHandle;
+	FTimerHandle NearSwapTimerHandle;
 	int32 ActiveDynamicAsteroids = 0;
 	bool bUseAltStreamBuffer = false;
 	float LastStreamingCenterDistance = -1.0f;
 	uint32 LastStreamingConfigHash = 0;
 	TMap<int32, FStreamingChunk> ActiveStreamingChunks;
 	TSet<UHierarchicalInstancedStaticMeshComponent*> StreamingChunkComponents;
+	TSet<UHierarchicalInstancedStaticMeshComponent*> NearSwapHISMComponents;
+	TMap<TWeakObjectPtr<AActor>, FNearSwapEntry> ActiveNearSwapActors;
+	bool bRestoringNearSwapActor = false;
 };

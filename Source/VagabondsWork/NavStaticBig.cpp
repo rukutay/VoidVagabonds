@@ -2,6 +2,7 @@
 
 
 #include "NavStaticBig.h"
+#include "DrawDebugHelpers.h"
 #include "GameFramework/PlayerController.h"
 
 // Sets default values
@@ -82,6 +83,12 @@ void ANavStaticBig::BeginPlay()
 	{
 		UpdateAsteroidStreaming();
 		GetWorldTimerManager().SetTimer(StreamingTimerHandle, this, &ANavStaticBig::UpdateAsteroidStreaming, StreamingUpdateInterval, true);
+	}
+
+	if (bEnableNearActorSwap && NearActorSwapInterval > 0.0f)
+	{
+		UpdateNearAsteroidActorSwap();
+		GetWorldTimerManager().SetTimer(NearSwapTimerHandle, this, &ANavStaticBig::UpdateNearAsteroidActorSwap, NearActorSwapInterval, true);
 	}
 }
 
@@ -411,16 +418,19 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 				FStreamingChunk& Chunk = It.Value();
 				if (Chunk.Near)
 				{
+					CleanupNearSwapForComponent(Chunk.Near);
 					Chunk.Near->DestroyComponent();
 					StreamingChunkComponents.Remove(Chunk.Near);
 				}
 				if (Chunk.Mid)
 				{
+					CleanupNearSwapForComponent(Chunk.Mid);
 					Chunk.Mid->DestroyComponent();
 					StreamingChunkComponents.Remove(Chunk.Mid);
 				}
 				if (Chunk.Far)
 				{
+					CleanupNearSwapForComponent(Chunk.Far);
 					Chunk.Far->DestroyComponent();
 					StreamingChunkComponents.Remove(Chunk.Far);
 				}
@@ -531,16 +541,19 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 			Chunk->LastBand = DesiredBand;
 			if (Chunk->Near)
 			{
+				CleanupNearSwapForComponent(Chunk->Near);
 				NearCount = FMath::Max(NearCount - Chunk->Near->GetInstanceCount(), 0);
 				Chunk->Near->ClearInstances();
 			}
 			if (Chunk->Mid)
 			{
+				CleanupNearSwapForComponent(Chunk->Mid);
 				MidCount = FMath::Max(MidCount - Chunk->Mid->GetInstanceCount(), 0);
 				Chunk->Mid->ClearInstances();
 			}
 			if (Chunk->Far)
 			{
+				CleanupNearSwapForComponent(Chunk->Far);
 				FarCount = FMath::Max(FarCount - Chunk->Far->GetInstanceCount(), 0);
 				Chunk->Far->ClearInstances();
 			}
@@ -723,8 +736,14 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 	UHierarchicalInstancedStaticMeshComponent* MidVisible = bUseAltStreamBuffer ? AsteroidMidHISM : AsteroidMidHISMAlt;
 	UHierarchicalInstancedStaticMeshComponent* FarVisible = bUseAltStreamBuffer ? AsteroidFarHISM : AsteroidFarHISMAlt;
 
+	CleanupNearSwapForComponent(NearTarget);
+	CleanupNearSwapForComponent(NearVisible);
 	NearTarget->ClearInstances();
+	CleanupNearSwapForComponent(MidTarget);
+	CleanupNearSwapForComponent(MidVisible);
 	MidTarget->ClearInstances();
+	CleanupNearSwapForComponent(FarTarget);
+	CleanupNearSwapForComponent(FarVisible);
 	FarTarget->ClearInstances();
 	NearTarget->SetStaticMesh(AsteroidMeshes[0]);
 	MidTarget->SetStaticMesh(MidAsteroidMesh ? MidAsteroidMesh : AsteroidMeshes[0]);
@@ -963,6 +982,144 @@ bool ANavStaticBig::ReplaceHISMInstanceWithActor(UHierarchicalInstancedStaticMes
 	return SpawnDynamicAsteroidFromInstance(SourceHISM, InstanceIndex, EmptyImpulse, false);
 }
 
+void ANavStaticBig::UpdateNearAsteroidActorSwap()
+{
+	if (!bEnableNearActorSwap || !DynamicAsteroidClass)
+	{
+		return;
+	}
+
+	const FVector ViewLocation = GetStreamingViewLocation();
+	const float EnterRadius = FMath::Max(NearActorSwapEnterRadius, 0.0f);
+	const float ExitRadius = FMath::Max(NearActorSwapExitRadius, EnterRadius);
+	if (EnterRadius <= 0.0f)
+	{
+		return;
+	}
+	const float EnterRadiusSq = EnterRadius * EnterRadius;
+	const float ExitRadiusSq = ExitRadius * ExitRadius;
+
+	TArray<UHierarchicalInstancedStaticMeshComponent*> Candidates;
+	Candidates.Reserve(16);
+
+	if (bEnableStreaming)
+	{
+		for (const TPair<int32, FStreamingChunk>& Entry : ActiveStreamingChunks)
+		{
+			if (Entry.Value.Near && Entry.Value.Near->GetStaticMesh())
+			{
+				Candidates.Add(Entry.Value.Near);
+			}
+		}
+	}
+	else
+	{
+		if (AsteroidHISM)
+		{
+			Candidates.Add(AsteroidHISM);
+		}
+		if (AsteroidHISMAlt)
+		{
+			Candidates.Add(AsteroidHISMAlt);
+		}
+	}
+
+	NearSwapHISMComponents.Reset();
+	for (UHierarchicalInstancedStaticMeshComponent* Component : Candidates)
+	{
+		NearSwapHISMComponents.Add(Component);
+	}
+
+	for (UHierarchicalInstancedStaticMeshComponent* Component : Candidates)
+	{
+		if (!Component)
+		{
+			continue;
+		}
+
+		const int32 InstanceCount = Component->GetInstanceCount();
+		for (int32 InstanceIndex = InstanceCount - 1; InstanceIndex >= 0; --InstanceIndex)
+		{
+			FTransform InstanceTransform;
+			if (!Component->GetInstanceTransform(InstanceIndex, InstanceTransform, true))
+			{
+				continue;
+			}
+			const FVector InstanceLocation = InstanceTransform.GetLocation();
+			const float DistSq = FVector::DistSquared(ViewLocation, InstanceLocation);
+			if (DistSq <= EnterRadiusSq)
+			{
+				SpawnNearSwapAsteroidFromInstance(Component, InstanceIndex);
+			}
+		}
+	}
+
+	TArray<TWeakObjectPtr<AActor>> ActorsToRestore;
+	ActorsToRestore.Reserve(ActiveNearSwapActors.Num());
+	for (const TPair<TWeakObjectPtr<AActor>, FNearSwapEntry>& Entry : ActiveNearSwapActors)
+	{
+		AActor* Actor = Entry.Key.Get();
+		if (!Actor)
+		{
+			ActorsToRestore.Add(Entry.Key);
+			continue;
+		}
+		const FNearSwapEntry& SwapEntry = Entry.Value;
+		if (!SwapEntry.SourceHISM.IsValid())
+		{
+			ActorsToRestore.Add(Entry.Key);
+			continue;
+		}
+		const float DistSq = FVector::DistSquared(ViewLocation, Actor->GetActorLocation());
+		if (DistSq > ExitRadiusSq)
+		{
+			ActorsToRestore.Add(Entry.Key);
+		}
+	}
+
+	for (const TWeakObjectPtr<AActor>& ActorPtr : ActorsToRestore)
+	{
+		if (AActor* Actor = ActorPtr.Get())
+		{
+			RestoreNearSwapActor(Actor, true);
+		}
+		else
+		{
+			ActiveNearSwapActors.Remove(ActorPtr);
+		}
+	}
+}
+
+void ANavStaticBig::CleanupNearSwapForComponent(UHierarchicalInstancedStaticMeshComponent* Component)
+{
+	if (!Component)
+	{
+		return;
+	}
+
+	TArray<TWeakObjectPtr<AActor>> ActorsToRestore;
+	for (const TPair<TWeakObjectPtr<AActor>, FNearSwapEntry>& Entry : ActiveNearSwapActors)
+	{
+		const FNearSwapEntry& SwapEntry = Entry.Value;
+		if (SwapEntry.SourceHISM == Component)
+		{
+			ActorsToRestore.Add(Entry.Key);
+		}
+	}
+
+	for (const TWeakObjectPtr<AActor>& ActorPtr : ActorsToRestore)
+	{
+		if (AActor* Actor = ActorPtr.Get())
+		{
+			RestoreNearSwapActor(Actor, true);
+		}
+		else
+		{
+			ActiveNearSwapActors.Remove(ActorPtr);
+		}
+	}
+}
+
 bool ANavStaticBig::SpawnDynamicAsteroidFromInstance(UHierarchicalInstancedStaticMeshComponent* SourceHISM, int32 InstanceIndex,
 	const FVector& NormalImpulse, bool bApplyImpulse)
 {
@@ -1021,9 +1178,109 @@ bool ANavStaticBig::SpawnDynamicAsteroidFromInstance(UHierarchicalInstancedStati
 	return true;
 }
 
+bool ANavStaticBig::SpawnNearSwapAsteroidFromInstance(UHierarchicalInstancedStaticMeshComponent* SourceHISM, int32 InstanceIndex)
+{
+	if (!SourceHISM || InstanceIndex < 0 || !DynamicAsteroidClass)
+	{
+		return false;
+	}
+
+	FTransform InstanceTransform;
+	if (!SourceHISM->GetInstanceTransform(InstanceIndex, InstanceTransform, true))
+	{
+		return false;
+	}
+
+	UStaticMesh* SourceMesh = SourceHISM->GetStaticMesh();
+	if (!SourceMesh)
+	{
+		return false;
+	}
+
+	if (SourceHISM->RemoveInstance(InstanceIndex) == false)
+	{
+		return false;
+	}
+
+	const FVector SpawnLocation = InstanceTransform.GetLocation();
+	const FRotator SpawnRotation = InstanceTransform.Rotator();
+	const FVector SpawnScale = InstanceTransform.GetScale3D();
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	AActor* SpawnedAsteroid = GetWorld()->SpawnActor<AActor>(DynamicAsteroidClass, SpawnLocation, SpawnRotation, SpawnParams);
+	if (!SpawnedAsteroid)
+	{
+		SourceHISM->AddInstance(InstanceTransform, true);
+		return false;
+	}
+
+	SpawnedAsteroid->SetActorScale3D(SpawnScale);
+	if (UStaticMeshComponent* MeshComponent = SpawnedAsteroid->FindComponentByClass<UStaticMeshComponent>())
+	{
+		MeshComponent->SetStaticMesh(SourceMesh);
+	}
+	SpawnedAsteroid->OnDestroyed.AddDynamic(this, &ANavStaticBig::OnNearSwapAsteroidDestroyed);
+
+	FNearSwapEntry Entry;
+	Entry.SourceHISM = SourceHISM;
+	Entry.InstanceTransform = InstanceTransform;
+	ActiveNearSwapActors.Add(SpawnedAsteroid, Entry);
+
+#if !UE_BUILD_SHIPPING
+	if (bDebugNearActorSwap)
+	{
+		DrawDebugSphere(GetWorld(), SpawnLocation, 180.0f, 10, FColor::Purple, false, NearActorSwapInterval, 0, 1.2f);
+	}
+#endif
+
+	return true;
+}
+
+bool ANavStaticBig::RestoreNearSwapActor(AActor* SwappedActor, bool bDestroyActor)
+{
+	if (bRestoringNearSwapActor || !SwappedActor)
+	{
+		return false;
+	}
+
+	const FNearSwapEntry* Entry = ActiveNearSwapActors.Find(SwappedActor);
+	if (!Entry)
+	{
+		return false;
+	}
+
+	UHierarchicalInstancedStaticMeshComponent* SourceHISM = Entry->SourceHISM.Get();
+	if (SourceHISM)
+	{
+		SourceHISM->AddInstance(Entry->InstanceTransform, true);
+	}
+
+	ActiveNearSwapActors.Remove(SwappedActor);
+
+	if (bDestroyActor)
+	{
+		bRestoringNearSwapActor = true;
+		SwappedActor->Destroy();
+		bRestoringNearSwapActor = false;
+	}
+
+	return true;
+}
+
 void ANavStaticBig::OnDynamicAsteroidDestroyed(AActor* DestroyedActor)
 {
 	ActiveDynamicAsteroids = FMath::Max(ActiveDynamicAsteroids - 1, 0);
+}
+
+void ANavStaticBig::OnNearSwapAsteroidDestroyed(AActor* DestroyedActor)
+{
+	if (bRestoringNearSwapActor || !DestroyedActor)
+	{
+		return;
+	}
+
+	RestoreNearSwapActor(DestroyedActor, false);
 }
 
 FVector ANavStaticBig::GetStreamingViewLocation() const
