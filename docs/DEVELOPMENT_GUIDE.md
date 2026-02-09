@@ -24,6 +24,8 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Safety margin avoidance**: Filter self/invalid obstacles, skip tangent escape offsets when no target actor is set, suppress safety checks after forced Nav fallback, and guard invalid escape targets with debug reasons.
 - **Debugging**: Toggleable logs exist for unstuck checks, steering source/heading, and nav target/avoidance decisions.
 - **Navigation avoidance**: Dynamic ship avoidance uses repulsion at predicted closest approach with relative-speed prediction for high-speed safety.
+- **Navigation avoidance**: Dynamic/awakened asteroid actors (WorldDynamic) are included in neighbor avoidance queries.
+- **Navigation avoidance**: Local avoidance considers blocking PhysicsBody components using bounds-derived radii for non-ship obstacles.
 - **Timers**: Prefer `FTimerHandle` updates; keep external modules tick-disabled.
 - **Naming**: Use Unreal prefixes (A/U/F/E), `b` prefix for booleans, `Cm` suffix for distances.
 - **Properties**: Use `UPROPERTY` with scoped categories (e.g., `Ship|Navigation`, `Aim|Speed`).

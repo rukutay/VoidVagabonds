@@ -25,6 +25,13 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Unstuck recovery now reacquires blocking obstacles, enforces a minimum penetration scale for force, and aligns steering to escape targets to reduce stalls.
 - Safety margin avoidance now ignores self overlaps/invalid obstacles, skips tangent escape when no target actor, suppresses safety checks after forced Nav fallback, and guards against invalid escape targets with debug reasons.
 - Dynamic ship avoidance now uses repulsion on predicted closest approach with relative-speed prediction to reduce high-speed head-on collisions.
+- Dynamic avoidance now includes awakened/dynamic asteroid actors (WorldDynamic) in neighbor queries.
+- Local avoidance now considers blocking PhysicsBody components using bounds-derived radii for non-ship obstacles.
+- Debug draw now visualizes PhysicsBody local avoidance bounds when bDrawNavPath is enabled.
+- Dynamic avoidance prediction now uses correct relative velocity and blocking-component bounds origin for PhysicsBody obstacles.
+- Debug draw now marks predicted closest-approach points used for dynamic avoidance (blue).
+- Local avoidance now runs a speed/trajectory-based PhysicsBody line trace to seed avoidance before collision.
+- Forward PhysicsBody trace distance now has an editor-tunable multiplier.
 - Ship steering uses physics-driven thrust with yaw/pitch rotation (roll disabled).
 - NavStaticBig chunk streaming now allocates per-chunk instance budgets to avoid starving late spline sections.
 - NavStaticBig chunk streaming now rebuilds when streaming config changes so density/limit tweaks propagate.

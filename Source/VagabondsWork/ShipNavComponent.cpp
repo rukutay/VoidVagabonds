@@ -124,6 +124,18 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	const float NeighborRadius = ShipRadiusCm * NeighborRadiusMultiplier;
 	const FVector DesiredTarget = CurrentWaypoint;
 	AVagabondsWorkGameMode* GameMode = GetWorld()->GetAuthGameMode<AVagabondsWorkGameMode>();
+	FHitResult TraceHit;
+	const FVector ToTargetDir = (DesiredTarget - ShipPos).GetSafeNormal();
+	FVector TraceDir = ShipVelocity.GetSafeNormal();
+	if (TraceDir.IsNearlyZero())
+	{
+		TraceDir = ToTargetDir;
+	}
+	const float TraceBaseDistance = ShipRadiusCm * 4.0f;
+	const float TraceDistance = FMath::Clamp((TraceBaseDistance + ShipSpeed * 0.75f)
+											  * ForwardTraceDistanceMultiplier,
+		TraceBaseDistance,
+		ShipRadiusCm * 20.0f);
 	int32 StaticHitIndex = INDEX_NONE;
 	bool bStaticBlocked = false;
 	bool bStaticCheckDue = CurrentTime >= NextStaticRecheckTime;
@@ -245,6 +257,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	{
 		TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
 		ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
+		ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_WorldDynamic));
 		ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_PhysicsBody));
 		ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel2));
 
@@ -281,6 +294,48 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	FVector AvoidDir = FVector::ZeroVector;
 	float BestPenetration = 0.0f;
 	AActor* FocusCandidate = nullptr;
+	bool bTraceAvoidance = false;
+
+	if (!TraceDir.IsNearlyZero())
+	{
+		TArray<TEnumAsByte<EObjectTypeQuery>> TraceObjectTypes;
+		TraceObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_PhysicsBody));
+		TArray<AActor*> TraceIgnoredActors;
+		TraceIgnoredActors.Add(GetOwner());
+		const FVector TraceEnd = ShipPos + TraceDir * TraceDistance;
+		bTraceAvoidance = UKismetSystemLibrary::LineTraceSingleForObjects(
+			GetWorld(),
+			ShipPos,
+			TraceEnd,
+			TraceObjectTypes,
+			false,
+			TraceIgnoredActors,
+			EDrawDebugTrace::None,
+			TraceHit,
+			true);
+		if (bTraceAvoidance && TraceHit.bBlockingHit)
+		{
+			const FVector TraceNormal = TraceHit.ImpactNormal.GetSafeNormal();
+			const FVector TraceTangent = (ToTargetDir - FVector::DotProduct(ToTargetDir, TraceNormal) * TraceNormal).GetSafeNormal();
+			const FVector TraceAvoidDir = (TraceNormal + TraceTangent * 0.35f).GetSafeNormal();
+			if (!TraceAvoidDir.IsNearlyZero())
+			{
+				AvoidDir += TraceAvoidDir;
+			}
+			FocusCandidate = TraceHit.GetActor();
+
+#if !UE_BUILD_SHIPPING
+			if (bDrawNavPath)
+			{
+				DrawDebugLine(GetWorld(), ShipPos, TraceEnd, FColor::Silver, false, 0.0f, 0, 1.0f);
+				DrawDebugPoint(GetWorld(), TraceHit.ImpactPoint, 10.0f, FColor::White, false, 0.0f, 0);
+				DrawDebugLine(GetWorld(), TraceHit.ImpactPoint,
+					TraceHit.ImpactPoint + TraceNormal * (ShipRadiusCm * 1.5f),
+					FColor::White, false, 0.0f, 0, 1.0f);
+			}
+#endif
+		}
+	}
 
 	for (const TWeakObjectPtr<AActor>& NeighborPtr : CachedNeighbors)
 	{
@@ -288,6 +343,34 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		if (!NeighborActor || NeighborActor == GetOwner())
 		{
 			continue;
+		}
+
+		auto IsBlockingNav = [](const UPrimitiveComponent* Comp) -> bool
+		{
+			if (!Comp || Comp->GetCollisionEnabled() == ECollisionEnabled::NoCollision)
+			{
+				return false;
+			}
+			const bool bBlocksDynamic = Comp->GetCollisionResponseToChannel(ECC_WorldDynamic) == ECR_Block;
+			const bool bBlocksPhysics = Comp->GetCollisionResponseToChannel(ECC_PhysicsBody) == ECR_Block;
+			const bool bBlocksShip = Comp->GetCollisionResponseToChannel(ECC_GameTraceChannel2) == ECR_Block;
+			return bBlocksDynamic || bBlocksPhysics || bBlocksShip;
+		};
+
+		UPrimitiveComponent* BlockingComp = Cast<UPrimitiveComponent>(NeighborActor->GetRootComponent());
+		if (!IsBlockingNav(BlockingComp))
+		{
+			BlockingComp = nullptr;
+			TArray<UPrimitiveComponent*> PrimitiveComponents;
+			NeighborActor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
+			for (UPrimitiveComponent* PrimitiveComp : PrimitiveComponents)
+			{
+				if (IsBlockingNav(PrimitiveComp))
+				{
+					BlockingComp = PrimitiveComp;
+					break;
+				}
+			}
 		}
 
 		FVector NeighborPos = NeighborActor->GetActorLocation();
@@ -301,6 +384,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		}
 
 		float NeighborRadiusCm = ShipRadiusCm;
+		bool bHasShipRadius = false;
 		TArray<USphereComponent*> SphereComponents;
 		NeighborActor->GetComponents<USphereComponent>(SphereComponents);
 		for (USphereComponent* SphereComponent : SphereComponents)
@@ -308,6 +392,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			if (SphereComponent && SphereComponent->GetFName() == TEXT("ShipRadius"))
 			{
 				NeighborRadiusCm = SphereComponent->GetScaledSphereRadius();
+				bHasShipRadius = true;
 				break;
 			}
 		}
@@ -318,9 +403,21 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 				NeighborRadiusCm = RootComponent->Bounds.SphereRadius * 0.5f;
 			}
 		}
+		if (NeighborRadiusCm <= 0.0f && BlockingComp)
+		{
+			NeighborRadiusCm = BlockingComp->Bounds.SphereRadius;
+		}
+		if (NeighborRadiusCm <= 0.0f && !BlockingComp)
+		{
+			continue;
+		}
+		if (!bHasShipRadius && BlockingComp)
+		{
+			NeighborPos = BlockingComp->Bounds.Origin;
+		}
 
 		const FVector RelPos = NeighborPos - ShipPos;
-		const FVector RelVel = ShipVelocity - NeighborVel;
+		const FVector RelVel = NeighborVel - ShipVelocity;
 		const float RelVelSizeSq = RelVel.SizeSquared();
 		const float RelSpeed = FMath::Max(RelVel.Size(), 1.0f);
 		const float PredictionTime = FMath::Clamp((ShipRadiusCm / RelSpeed) * PredictionTimeMultiplier, 0.5f, 3.0f);
@@ -338,6 +435,25 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		{
 			const float Penetration = CombinedRadius - ClosestDistance;
 			AvoidDir += (-Closest).GetSafeNormal() * (Penetration / CombinedRadius);
+
+#if !UE_BUILD_SHIPPING
+			if (bDrawNavPath)
+			{
+				const FVector ClosestWorld = ShipPos + Closest;
+				DrawDebugPoint(GetWorld(), ClosestWorld, 10.0f, FColor::Blue, false, 0.0f, 0);
+				DrawDebugLine(GetWorld(), ShipPos, ClosestWorld, FColor::Blue, false, 0.0f, 0, 1.0f);
+			}
+#endif
+
+#if !UE_BUILD_SHIPPING
+			if (bDrawNavPath && !bHasShipRadius && BlockingComp)
+			{
+				DrawDebugSphere(GetWorld(), BlockingComp->Bounds.Origin, NeighborRadiusCm, 12,
+					FColor::Magenta, false, 0.0f, 0, 1.0f);
+				DrawDebugLine(GetWorld(), ShipPos, BlockingComp->Bounds.Origin, FColor::Magenta,
+					false, 0.0f, 0, 1.0f);
+			}
+#endif
 			if (Penetration > BestPenetration)
 			{
 				BestPenetration = Penetration;

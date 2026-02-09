@@ -3,7 +3,7 @@
 - Latest commit: `d7dcd9b` (small fix)
 
 # Last Completed Task
-- TASK 40: Added safety margin suppression after forced Nav fallback, invalid escape target guards with fallback to Nav, and debug reasons for escape target failures.
+- TASK 41: Added editor-tunable forward trace distance multiplier for PhysicsBody avoidance.
 
 # Recently Touched Files (last 5–15)
 - Source/VagabondsWork/AIShipController.h (updated)

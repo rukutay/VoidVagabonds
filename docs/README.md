@@ -22,6 +22,8 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Safety margin avoidance filters self overlaps/invalid obstacles, avoids tangent escape when no target actor is set, suppresses safety checks after forced Nav fallback, and guards against invalid escape targets with debug reasons.
 - Toggleable debug logs for unstuck checks, steering source/heading, and nav target/avoidance decisions.
 - Dynamic ship avoidance uses repulsion on predicted closest approach with relative-speed prediction for high-speed head-on safety.
+- Dynamic/awakened asteroid actors (WorldDynamic) are included in neighbor avoidance queries.
+- Local avoidance now considers blocking PhysicsBody components (bounds-derived radius) in addition to ships and dynamic actors.
 - Physics-driven thrust + yaw/pitch rotation for ship steering.
 - Static obstacle caching handled by the game mode; nav component requests replans.
 - Timer-driven external module aiming (tick disabled).

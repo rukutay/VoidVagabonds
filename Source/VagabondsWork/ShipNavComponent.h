@@ -63,6 +63,9 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance", meta=(ToolTip="Neighbor query radius multiplier."))
 	float NeighborRadiusMultiplier = 8.0f;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance", meta=(ToolTip="Multiplier for forward PhysicsBody trace distance."))
+	float ForwardTraceDistanceMultiplier = 1.0f;
+
     UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance", meta=(ToolTip="Maximum neighbors processed per query."))
 	int32 MaxNeighbors = 16;
 
