@@ -33,7 +33,7 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - NavStaticBig supports view-based asteroid streaming with near/mid/far HISM tiers, stratified random sampling, jittered spawn probabilities, instance budgets, editor preview caps, and incremental chunk streaming with hysteresis (double-buffer fallback) to avoid blinking (impostor-friendly). Chunk rebuilds only trigger when a chunk changes band and now use deterministic along-spline jitter, frame roll, distance/radial noise, micro-clusters, and per-candidate dropout (scaled budgets) to reduce grid alignment.
 - NavStaticBig can convert hit near-tier HISM instances into dynamic physics actors on impact.
 - NavStaticBig exposes a Blueprint helper to replace an HISM instance with a spawned actor using the same transform and mesh.
-- NavStaticBig can swap near-field HISM instances into real actors on a timer with enter/exit hysteresis for collision-ready local avoidance; actors that wake physics remain actors (no HISM restore).
+- NavStaticBig can swap near-field HISM instances into real actors on a timer with enter/exit hysteresis for collision-ready local avoidance; actors that wake physics remain actors (no HISM restore) and sleeping swaps contribute navigation anchors for avoidance.
 - Player ship manual control (R/F throttle steps, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess.
 - Sun directional light aims from the sun toward the current player pawn (auto-updating target).
 

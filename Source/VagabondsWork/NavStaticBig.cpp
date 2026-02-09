@@ -4,6 +4,7 @@
 #include "NavStaticBig.h"
 #include "DrawDebugHelpers.h"
 #include "GameFramework/PlayerController.h"
+#include "VagabondsWorkGameMode.h"
 
 // Sets default values
 ANavStaticBig::ANavStaticBig()
@@ -986,6 +987,13 @@ void ANavStaticBig::UpdateNearAsteroidActorSwap()
 {
 	if (!bEnableNearActorSwap || !DynamicAsteroidClass)
 	{
+		if (UWorld* World = GetWorld())
+		{
+			if (AVagabondsWorkGameMode* GameMode = World->GetAuthGameMode<AVagabondsWorkGameMode>())
+			{
+				GameMode->SetRuntimeNavObstacleActors(TArray<AActor*>());
+			}
+		}
 		return;
 	}
 
@@ -1090,6 +1098,34 @@ void ANavStaticBig::UpdateNearAsteroidActorSwap()
 		else
 		{
 			ActiveNearSwapActors.Remove(ActorPtr);
+		}
+	}
+
+	TArray<AActor*> SleepingActors;
+	SleepingActors.Reserve(ActiveNearSwapActors.Num());
+	for (const TPair<TWeakObjectPtr<AActor>, FNearSwapEntry>& Entry : ActiveNearSwapActors)
+	{
+		AActor* Actor = Entry.Key.Get();
+		if (!Actor)
+		{
+			continue;
+		}
+		if (Entry.Value.bBecameDynamic)
+		{
+			continue;
+		}
+		UPrimitiveComponent* RootPrimitive = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+		const bool bAwake = RootPrimitive && RootPrimitive->IsSimulatingPhysics() && RootPrimitive->IsAnyRigidBodyAwake();
+		if (!bAwake)
+		{
+			SleepingActors.Add(Actor);
+		}
+	}
+	if (UWorld* World = GetWorld())
+	{
+		if (AVagabondsWorkGameMode* GameMode = World->GetAuthGameMode<AVagabondsWorkGameMode>())
+		{
+			GameMode->SetRuntimeNavObstacleActors(SleepingActors);
 		}
 	}
 }

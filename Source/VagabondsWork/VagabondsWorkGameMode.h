@@ -42,6 +42,7 @@ public:
 	bool GetClosestObstacleToSegment(const FVector& A, const FVector& B, int32& OutIndex) const;
 	bool IsSegmentClearOfStaticObstacles(const FVector& A, const FVector& B, int32* OutFirstHitIndex = nullptr) const;
 	const FNavObstacleSphereProxy* FindObstacleByActor(AActor* InActor) const;
+	void SetRuntimeNavObstacleActors(const TArray<AActor*>& Actors);
 
 	UFUNCTION(BlueprintCallable, Category = "Navigation")
 	TArray<FVector> FindGlobalPathAnchors(const FVector& Start, const FVector& Goal) const;
@@ -74,7 +75,16 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Navigation")
 	TArray<FNavObstacleSphereProxy> StaticNavObstacles;
 
+	UPROPERTY(VisibleAnywhere, Category = "Navigation")
+	TArray<FNavObstacleSphereProxy> RuntimeNavObstacles;
+
+	UPROPERTY(VisibleAnywhere, Category = "Navigation")
+	TArray<FNavObstacleSphereProxy> CombinedNavObstacles;
+
 	float NextStaticObstacleRefreshTime = 0.0f;
+
+private:
+	void RefreshCombinedNavObstacles();
 };
 
 

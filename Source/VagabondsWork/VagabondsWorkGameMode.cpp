@@ -38,6 +38,50 @@ AVagabondsWorkGameMode::AVagabondsWorkGameMode()
 	PrimaryActorTick.bCanEverTick = true;
 }
 
+void AVagabondsWorkGameMode::SetRuntimeNavObstacleActors(const TArray<AActor*>& Actors)
+{
+	RuntimeNavObstacles.Reset();
+	constexpr float GoldenAngle = 2.39996322972865332f;
+	const int32 AnchorCount = FMath::Max(NavAnchorsPerObstacle, 1);
+
+	for (AActor* Actor : Actors)
+	{
+		if (!IsValid(Actor))
+		{
+			continue;
+		}
+
+		USceneComponent* RootComponent = Actor->GetRootComponent();
+		if (!RootComponent)
+		{
+			continue;
+		}
+
+		const FBoxSphereBounds Bounds = RootComponent->Bounds;
+		FNavObstacleSphereProxy Proxy;
+		Proxy.Actor = Actor;
+		Proxy.Center = Bounds.Origin;
+		Proxy.BaseRadius = Bounds.SphereRadius;
+		Proxy.InflatedRadius = Proxy.BaseRadius + DefaultShipRadiusCm + NavSafetyMarginCm;
+		Proxy.Anchors.Reserve(AnchorCount);
+
+		for (int32 Index = 0; Index < AnchorCount; ++Index)
+		{
+			const float T = AnchorCount == 1 ? 0.0f : static_cast<float>(Index) / (AnchorCount - 1);
+			const float Z = 1.0f - (2.0f * T);
+			const float Radius = FMath::Sqrt(FMath::Max(1.0f - Z * Z, 0.0f));
+			const float Angle = GoldenAngle * Index;
+			const FVector Direction(Radius * FMath::Cos(Angle), Radius * FMath::Sin(Angle), Z);
+			const FVector Anchor = Proxy.Center + Direction * (Proxy.InflatedRadius * NavAnchorShellMultiplier);
+			Proxy.Anchors.Add(Anchor);
+		}
+
+		RuntimeNavObstacles.Add(MoveTemp(Proxy));
+	}
+
+	RefreshCombinedNavObstacles();
+}
+
 void AVagabondsWorkGameMode::BeginPlay()
 {
 	Super::BeginPlay();
@@ -82,6 +126,8 @@ void AVagabondsWorkGameMode::BeginPlay()
 
 		StaticNavObstacles.Add(MoveTemp(Proxy));
 	}
+
+	RefreshCombinedNavObstacles();
 
 	if (bNavDebugDrawStatic)
 	{
@@ -146,11 +192,13 @@ void AVagabondsWorkGameMode::Tick(float DeltaSeconds)
 			Proxy.Anchors.Add(Proxy.Center + Dir * (Proxy.InflatedRadius * NavAnchorShellMultiplier));
 		}
 	}
+
+	RefreshCombinedNavObstacles();
 }
 
 const TArray<FNavObstacleSphereProxy>& AVagabondsWorkGameMode::GetStaticNavObstacles() const
 {
-	return StaticNavObstacles;
+	return CombinedNavObstacles;
 }
 
 bool AVagabondsWorkGameMode::GetClosestObstacleToSegment(const FVector& A, const FVector& B, int32& OutIndex) const
@@ -166,9 +214,9 @@ bool AVagabondsWorkGameMode::IsSegmentClearOfStaticObstacles(const FVector& A, c
 		*OutFirstHitIndex = INDEX_NONE;
 	}
 
-	for (int32 Index = 0; Index < StaticNavObstacles.Num(); ++Index)
+	for (int32 Index = 0; Index < CombinedNavObstacles.Num(); ++Index)
 	{
-		const FNavObstacleSphereProxy& Proxy = StaticNavObstacles[Index];
+		const FNavObstacleSphereProxy& Proxy = CombinedNavObstacles[Index];
 		if (SegmentIntersectsSphere(A, B, Proxy.Center, Proxy.InflatedRadius))
 		{
 			if (OutFirstHitIndex)
@@ -189,7 +237,7 @@ const FNavObstacleSphereProxy* AVagabondsWorkGameMode::FindObstacleByActor(AActo
 		return nullptr;
 	}
 
-	for (const FNavObstacleSphereProxy& Proxy : StaticNavObstacles)
+	for (const FNavObstacleSphereProxy& Proxy : CombinedNavObstacles)
 	{
 		if (Proxy.Actor.Get() == InActor)
 		{
@@ -240,8 +288,8 @@ TArray<FVector> AVagabondsWorkGameMode::FindGlobalPathAnchors(const FVector& Sta
 	constexpr float CorridorPaddingCm = 2000.0f;
 
 	TArray<const FNavObstacleSphereProxy*> CandidateObstacles;
-	CandidateObstacles.Reserve(StaticNavObstacles.Num());
-	for (const FNavObstacleSphereProxy& Proxy : StaticNavObstacles)
+	CandidateObstacles.Reserve(CombinedNavObstacles.Num());
+	for (const FNavObstacleSphereProxy& Proxy : CombinedNavObstacles)
 	{
 		const float CorridorRadius = Proxy.InflatedRadius + CorridorPaddingCm;
 		if (SegmentIntersectsSphere(Start, Goal, Proxy.Center, CorridorRadius))
@@ -252,7 +300,7 @@ TArray<FVector> AVagabondsWorkGameMode::FindGlobalPathAnchors(const FVector& Sta
 
 	if (CandidateObstacles.Num() == 0)
 	{
-		for (const FNavObstacleSphereProxy& Proxy : StaticNavObstacles)
+		for (const FNavObstacleSphereProxy& Proxy : CombinedNavObstacles)
 		{
 			CandidateObstacles.Add(&Proxy);
 		}
@@ -423,4 +471,12 @@ TArray<FVector> AVagabondsWorkGameMode::FindGlobalPathAnchors(const FVector& Sta
 	}
 
 	return Result;
+}
+
+void AVagabondsWorkGameMode::RefreshCombinedNavObstacles()
+{
+	CombinedNavObstacles.Reset();
+	CombinedNavObstacles.Reserve(StaticNavObstacles.Num() + RuntimeNavObstacles.Num());
+	CombinedNavObstacles.Append(StaticNavObstacles);
+	CombinedNavObstacles.Append(RuntimeNavObstacles);
 }
