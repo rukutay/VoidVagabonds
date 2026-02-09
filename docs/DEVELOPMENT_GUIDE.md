@@ -20,6 +20,9 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Performance**: Avoid per-tick heavy traces/pathfinding; use **timer-driven** navigation/avoidance (jittered replans).
 - **Navigation/Steering**: Forward thrust + yaw/pitch rotation model; roll disabled; nav target for thrust = target for rotation.
 - **Navigation stability**: Ensure replans can be forced on stuck/static-blocked states and temp avoidance targets are honored to avoid stalls.
+- **Unstuck recovery**: Reacquire blocking obstacles when needed, enforce minimum penetration scaling for force, and align steering to escape targets during unstuck.
+- **Safety margin avoidance**: Filter self/invalid obstacles, skip tangent escape offsets when no target actor is set, suppress safety checks after forced Nav fallback, and guard invalid escape targets with debug reasons.
+- **Debugging**: Toggleable logs exist for unstuck checks, steering source/heading, and nav target/avoidance decisions.
 - **Navigation avoidance**: Dynamic ship avoidance uses repulsion at predicted closest approach with relative-speed prediction for high-speed safety.
 - **Timers**: Prefer `FTimerHandle` updates; keep external modules tick-disabled.
 - **Naming**: Use Unreal prefixes (A/U/F/E), `b` prefix for booleans, `Cm` suffix for distances.
@@ -32,7 +35,7 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **NavStaticBig**: Asteroid generation is spline-driven, seeded, and uses width/height bounds with scale ranges.
 - **NavStaticBig**: View-based asteroid streaming with near/mid/far HISM tiers, per-tier density/instance budgets, and editor preview caps.
 - **NavStaticBig**: Organic spawn jitter/probability controls plus near-tier hit-to-dynamic-actor conversion.
-- **NavStaticBig**: Incremental chunk-based streaming with hysteresis bands plus stratified random sampling (double-buffer fallback) to avoid visible blinking during movement. Chunk rebuilds only trigger when a chunk changes band. Streaming adds deterministic along-spline jitter, frame roll, distance/radial noise, micro-clusters, and per-candidate dropout (low-frequency modulation) for less grid-like placement; dropout also scales per-tier budgets for visible thinning.
+- **NavStaticBig**: Incremental chunk-based streaming with hysteresis bands plus stratified random sampling (double-buffer fallback) to avoid visible blinking during movement. Chunk rebuilds only trigger when a chunk changes band or when streaming config changes. Streaming adds deterministic along-spline jitter, frame roll, distance/radial noise, micro-clusters, and per-candidate dropout (low-frequency modulation) for less grid-like placement; dropout also scales per-tier budgets for visible thinning. Per-chunk instance budgets prevent late spline sections from starving.
 - **NavStaticBig**: Blueprint helper can replace a HISM instance with a spawned actor using the same transform/mesh for manual swaps.
 
 ## Player Ship Manual Controls

@@ -235,6 +235,7 @@ private:
 	int32 ActiveDynamicAsteroids = 0;
 	bool bUseAltStreamBuffer = false;
 	float LastStreamingCenterDistance = -1.0f;
+	uint32 LastStreamingConfigHash = 0;
 	TMap<int32, FStreamingChunk> ActiveStreamingChunks;
 	TSet<UHierarchicalInstancedStaticMeshComponent*> StreamingChunkComponents;
 };

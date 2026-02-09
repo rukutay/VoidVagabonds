@@ -266,6 +266,7 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 	const float ClampedClusterChance = FMath::Clamp(StreamingClusterChance, 0.0f, 1.0f);
 	const int32 ClampedClusterMaxExtra = FMath::Max(StreamingClusterMaxExtra, 0);
 	const float ClampedClusterRadius = FMath::Max(StreamingClusterRadius, 0.0f);
+	uint32 StreamingConfigHash = 0;
 	int32 InstanceLimit = FMath::Max(MaxAsteroidInstances, 0);
 	int32 UpdateLimit = InstanceLimit;
 	int32 NearLimit = FMath::Max(MaxNearInstances, 0);
@@ -293,6 +294,32 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 	const int32 EffectiveNearLimit = FMath::FloorToInt(static_cast<float>(NearLimit) * (1.0f - DropoutMean));
 	const int32 EffectiveMidLimit = FMath::FloorToInt(static_cast<float>(MidLimit) * (1.0f - DropoutMean));
 	const int32 EffectiveFarLimit = FMath::FloorToInt(static_cast<float>(FarLimit) * (1.0f - DropoutMean));
+
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(Seed));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(FieldWidth));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(FieldHeight));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(EffectiveNearLimit));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(EffectiveMidLimit));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(EffectiveFarLimit));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(NearDensity));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(MidDensity));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(FarDensity));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(ClampedNearSpawn));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(ClampedMidSpawn));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(ClampedFarSpawn));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(ClampedStreamingJitter));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(ClampedDropoutMin));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(ClampedDropoutMax));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(ClampedFrameRoll));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(ClampedDistanceWarp));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(ClampedNoiseFrequency));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(ClampedRadialNoiseAmplitude));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(ClampedRadialNoiseFrequency));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(ClampedClusterChance));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(ClampedClusterMaxExtra));
+	StreamingConfigHash = HashCombine(StreamingConfigHash, GetTypeHash(ClampedClusterRadius));
+	const bool bStreamingConfigChanged = StreamingConfigHash != LastStreamingConfigHash;
+	LastStreamingConfigHash = StreamingConfigHash;
 
 	if (InstanceLimit == 0 || UpdateLimit == 0)
 	{
@@ -366,6 +393,16 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 
 		AddWrappedRange(AddStart, AddEnd, DesiredChunks);
 		AddWrappedRange(RemoveStart, RemoveEnd, KeepChunks);
+
+		TArray<int32> OrderedChunks = DesiredChunks.Array();
+		OrderedChunks.Sort();
+		const int32 DesiredChunkCount = FMath::Max(OrderedChunks.Num(), 1);
+		const int32 NearBaseBudget = (EffectiveNearLimit > 0) ? (EffectiveNearLimit / DesiredChunkCount) : 0;
+		const int32 MidBaseBudget = (EffectiveMidLimit > 0) ? (EffectiveMidLimit / DesiredChunkCount) : 0;
+		const int32 FarBaseBudget = (EffectiveFarLimit > 0) ? (EffectiveFarLimit / DesiredChunkCount) : 0;
+		const int32 NearRemainder = (EffectiveNearLimit > 0) ? (EffectiveNearLimit % DesiredChunkCount) : 0;
+		const int32 MidRemainder = (EffectiveMidLimit > 0) ? (EffectiveMidLimit % DesiredChunkCount) : 0;
+		const int32 FarRemainder = (EffectiveFarLimit > 0) ? (EffectiveFarLimit % DesiredChunkCount) : 0;
 
 		for (auto It = ActiveStreamingChunks.CreateIterator(); It; ++It)
 		{
@@ -459,8 +496,12 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 			return NewComp;
 		};
 
-		for (int32 ChunkIndex : DesiredChunks)
+		for (int32 OrderedIndex = 0; OrderedIndex < OrderedChunks.Num(); ++OrderedIndex)
 		{
+			const int32 ChunkIndex = OrderedChunks[OrderedIndex];
+			const int32 NearChunkBudget = NearBaseBudget + ((OrderedIndex < NearRemainder) ? 1 : 0);
+			const int32 MidChunkBudget = MidBaseBudget + ((OrderedIndex < MidRemainder) ? 1 : 0);
+			const int32 FarChunkBudget = FarBaseBudget + ((OrderedIndex < FarRemainder) ? 1 : 0);
 			FStreamingChunk* Chunk = ActiveStreamingChunks.Find(ChunkIndex);
 			if (!Chunk)
 			{
@@ -482,7 +523,7 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 			const FVector ChunkLocation = FieldSpline->GetLocationAtDistanceAlongSpline(ChunkCenter, ESplineCoordinateSpace::World);
 			const float ChunkDistanceToView = FVector::Dist(ChunkLocation, ViewLocation);
 			const int32 DesiredBand = GetChunkBand(ChunkDistanceToView, Chunk->LastBand);
-			const bool bNeedsRebuild = Chunk->LastBand == INDEX_NONE || DesiredBand != Chunk->LastBand;
+			const bool bNeedsRebuild = bStreamingConfigChanged || Chunk->LastBand == INDEX_NONE || DesiredBand != Chunk->LastBand;
 			if (!bNeedsRebuild)
 			{
 				continue;
@@ -509,6 +550,9 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 			const int32 CandidateCount = FMath::Max(1, FMath::CeilToInt((ChunkLengthLocal / 1000.0f) * NearDensity * EffectiveDensityScale));
 			const float SegmentLength = ChunkLengthLocal / static_cast<float>(CandidateCount);
 
+			int32 NearChunkCount = 0;
+			int32 MidChunkCount = 0;
+			int32 FarChunkCount = 0;
 			for (int32 CandidateIndex = 0; CandidateIndex < CandidateCount; ++CandidateIndex)
 			{
 				if (NearCount >= NearLimit && MidCount >= MidLimit && FarCount >= FarLimit)
@@ -551,17 +595,17 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 				const float DistanceToView = FVector::Dist(InstanceLocation, ViewLocation);
 				UHierarchicalInstancedStaticMeshComponent* TargetHISM = nullptr;
 				float SpawnChance = 0.0f;
-				if (DistanceToView <= AdjustedMidStart && NearCount < EffectiveNearLimit)
+				if (DistanceToView <= AdjustedMidStart && NearCount < EffectiveNearLimit && NearChunkCount < NearChunkBudget)
 				{
 					TargetHISM = Chunk->Near;
 					SpawnChance = ClampedNearSpawn;
 				}
-				else if (DistanceToView <= AdjustedMidEnd && MidCount < EffectiveMidLimit)
+				else if (DistanceToView <= AdjustedMidEnd && MidCount < EffectiveMidLimit && MidChunkCount < MidChunkBudget)
 				{
 					TargetHISM = Chunk->Mid;
 					SpawnChance = ClampedMidSpawn;
 				}
-				else if (DistanceToView <= AdjustedFarEnd && FarCount < EffectiveFarLimit)
+				else if (DistanceToView <= AdjustedFarEnd && FarCount < EffectiveFarLimit && FarChunkCount < FarChunkBudget)
 				{
 					TargetHISM = Chunk->Far;
 					SpawnChance = ClampedFarSpawn;
@@ -578,6 +622,18 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 				}
 				auto AddInstanceWithOptionalCluster = [&](const FVector& BaseLocation)
 				{
+					if (TargetHISM == Chunk->Near && NearChunkCount >= NearChunkBudget)
+					{
+						return;
+					}
+					if (TargetHISM == Chunk->Mid && MidChunkCount >= MidChunkBudget)
+					{
+						return;
+					}
+					if (TargetHISM == Chunk->Far && FarChunkCount >= FarChunkBudget)
+					{
+						return;
+					}
 					const FRotator InstanceRotation(
 						CandidateStream.FRandRange(0.0f, 360.0f),
 						CandidateStream.FRandRange(0.0f, 360.0f),
@@ -588,14 +644,17 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 					if (TargetHISM == Chunk->Near)
 					{
 						++NearCount;
+						++NearChunkCount;
 					}
 					else if (TargetHISM == Chunk->Mid)
 					{
 						++MidCount;
+						++MidChunkCount;
 					}
 					else
 					{
 						++FarCount;
+						++FarChunkCount;
 					}
 
 					if (ClampedClusterMaxExtra <= 0 || CandidateStream.FRand() > ClampedClusterChance)
@@ -606,6 +665,18 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 					for (int32 ExtraIndex = 0; ExtraIndex < ExtraCount; ++ExtraIndex)
 					{
 						if (NearCount >= EffectiveNearLimit && MidCount >= EffectiveMidLimit && FarCount >= EffectiveFarLimit)
+						{
+							break;
+						}
+						if (TargetHISM == Chunk->Near && NearChunkCount >= NearChunkBudget)
+						{
+							break;
+						}
+						if (TargetHISM == Chunk->Mid && MidChunkCount >= MidChunkBudget)
+						{
+							break;
+						}
+						if (TargetHISM == Chunk->Far && FarChunkCount >= FarChunkBudget)
 						{
 							break;
 						}
@@ -623,14 +694,17 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 						if (TargetHISM == Chunk->Near)
 						{
 							++NearCount;
+							++NearChunkCount;
 						}
 						else if (TargetHISM == Chunk->Mid)
 						{
 							++MidCount;
+							++MidChunkCount;
 						}
 						else
 						{
 							++FarCount;
+							++FarChunkCount;
 						}
 					}
 				};

@@ -246,8 +246,23 @@ void AAIShipController::HandleSafetyMarginCheck()
         return;
     }
 
-    UPrimitiveComponent* ObstacleComp = CurrentObstacleComp.Get();
+    if (World->GetTimeSeconds() < SafetyMarginSuppressUntilTime)
+    {
+        bInsideSafetyMargin = false;
+        CurrentNavObstacleComp.Reset();
+        CurrentNavObstacleActor.Reset();
+        return;
+    }
+
+	UPrimitiveComponent* ObstacleComp = CurrentObstacleComp.Get();
     FVector ClosestPoint = FVector::ZeroVector;
+	if (ObstacleComp && (ObstacleComp->GetOwner() == Ship))
+	{
+		ObstacleComp = nullptr;
+		CurrentObstacleComp.Reset();
+		CurrentNavObstacleActor.Reset();
+		bInsideSafetyMargin = false;
+	}
     const FVector ShipLocation = Ship->GetActorLocation();
     const bool bHasCurrentPoint = ObstacleComp
         && ObstacleComp->GetClosestPointOnCollision(ShipLocation, ClosestPoint);
@@ -280,6 +295,11 @@ void AAIShipController::HandleSafetyMarginCheck()
             {
                 UPrimitiveComponent* OverlapComp = Overlap.GetComponent();
                 if (!OverlapComp)
+                {
+                    continue;
+                }
+                if (OverlapComp == Ship->ShipRadius || OverlapComp == Ship->GetShipBase()
+                    || OverlapComp->GetOwner() == Ship)
                 {
                     continue;
                 }
@@ -321,6 +341,22 @@ void AAIShipController::HandleSafetyMarginCheck()
     UpdateInsideSafetyMargin(Ship->ShipRadius);
 }
 
+void AAIShipController::SuppressSafetyMargin(float DurationSeconds)
+{
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    const float Now = World->GetTimeSeconds();
+    const float Duration = FMath::Max(0.0f, DurationSeconds);
+    SafetyMarginSuppressUntilTime = FMath::Max(SafetyMarginSuppressUntilTime, Now + Duration);
+    bInsideSafetyMargin = false;
+    CurrentNavObstacleComp.Reset();
+    CurrentNavObstacleActor.Reset();
+}
+
 bool AAIShipController::UpdateInsideSafetyMargin(USphereComponent* ShipRadius)
 {
     if (!ShipRadius)
@@ -350,6 +386,13 @@ bool AAIShipController::UpdateInsideSafetyMargin(USphereComponent* ShipRadius)
     if (!ControlledPawn)
     {
         bInsideSafetyMargin = false;
+        CurrentNavObstacleActor.Reset();
+        return false;
+    }
+    if (ObstacleComp->GetOwner() == ControlledPawn)
+    {
+        bInsideSafetyMargin = false;
+        CurrentNavObstacleComp.Reset();
         CurrentNavObstacleActor.Reset();
         return false;
     }
@@ -408,6 +451,10 @@ FVector AAIShipController::ComputeEscapeTarget(const FVector& ShipLocation, USph
         return ShipLocation;
     }
 
+    const APawn* ControlledPawn = GetPawn();
+    const bool bLogSafety = bDebugSafetyMargin;
+    const FString ShipLabel = ControlledPawn ? ControlledPawn->GetActorNameOrLabel() : TEXT("None");
+
     const UPrimitiveComponent* ObstacleComp =
         (bInsideSafetyMargin && CurrentNavObstacleComp.IsValid())
             ? CurrentNavObstacleComp.Get()
@@ -415,6 +462,19 @@ FVector AAIShipController::ComputeEscapeTarget(const FVector& ShipLocation, USph
     const AActor* ObstacleActor = CurrentNavObstacleActor.Get();
     if (!ObstacleComp && !ObstacleActor)
     {
+        if (bLogSafety)
+        {
+            UE_LOG(LogTemp, Verbose, TEXT("Ship %s EscapeTarget invalid: no obstacle"), *ShipLabel);
+        }
+        return ShipLocation;
+    }
+    if (ControlledPawn && ((ObstacleComp && ObstacleComp->GetOwner() == ControlledPawn)
+        || ObstacleActor == ControlledPawn))
+    {
+        if (bLogSafety)
+        {
+            UE_LOG(LogTemp, Verbose, TEXT("Ship %s EscapeTarget invalid: obstacle is self"), *ShipLabel);
+        }
         return ShipLocation;
     }
 
@@ -427,6 +487,12 @@ FVector AAIShipController::ComputeEscapeTarget(const FVector& ShipLocation, USph
     }
     if (!bHasPoint && !ObstacleActor)
     {
+        if (bLogSafety)
+        {
+            UE_LOG(LogTemp, Verbose, TEXT("Ship %s EscapeTarget invalid: no contact point (ObstacleComp=%s)"),
+                *ShipLabel,
+                ObstacleComp ? *ObstacleComp->GetName() : TEXT("None"));
+        }
         return ShipLocation;
     }
 
@@ -440,6 +506,13 @@ FVector AAIShipController::ComputeEscapeTarget(const FVector& ShipLocation, USph
 
     if (Normal.IsNearlyZero())
     {
+        if (bLogSafety)
+        {
+            UE_LOG(LogTemp, Verbose, TEXT("Ship %s EscapeTarget invalid: zero normal (ObstacleComp=%s ObstacleActor=%s)"),
+                *ShipLabel,
+                ObstacleComp ? *ObstacleComp->GetName() : TEXT("None"),
+                ObstacleActor ? *ObstacleActor->GetActorNameOrLabel() : TEXT("None"));
+        }
         return ShipLocation;
     }
 
@@ -447,7 +520,9 @@ FVector AAIShipController::ComputeEscapeTarget(const FVector& ShipLocation, USph
     const float EscapeDistance = (ShipRadiusValue * 2.0f) + NavSafetyMargin;
     FVector EscapeTarget = ShipLocation + Normal * EscapeDistance;
 
-    if (const APawn* ControlledPawn = GetPawn())
+    const AShip* Ship = ControlledPawn ? Cast<AShip>(ControlledPawn) : nullptr;
+    const bool bHasTargetActor = Ship && Ship->TargetActor;
+    if (ControlledPawn && bHasTargetActor)
     {
         const FVector Forward = ControlledPawn->GetActorForwardVector();
         const FVector Tangent = (Forward - FVector::DotProduct(Forward, Normal) * Normal).GetSafeNormal();
@@ -462,6 +537,7 @@ FVector AAIShipController::ComputeEscapeTarget(const FVector& ShipLocation, USph
 
 void AAIShipController::HandleStuckCheck()
 {
+	const bool bWasUnstucking = bIsUnstucking;
 	AShip* Ship = Cast<AShip>(GetPawn());
 	if (!Ship)
 	{
@@ -480,6 +556,74 @@ void AAIShipController::HandleStuckCheck()
 		return;
 	}
 
+	UPrimitiveComponent* ObstacleComp = CurrentObstacleComp.Get();
+	if (!ObstacleComp && Ship->ShipRadius)
+	{
+		const float ShipRadiusValue = Ship->ShipRadius->GetScaledSphereRadius();
+		const float QueryRadius = ShipRadiusValue + NavSafetyMargin;
+		if (QueryRadius > KINDA_SMALL_NUMBER)
+		{
+			FCollisionObjectQueryParams ObjectParams;
+			ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+			ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+			ObjectParams.AddObjectTypesToQuery(ECC_PhysicsBody);
+			FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(UnstuckReacquire), false);
+			QueryParams.AddIgnoredActor(Ship);
+
+			TArray<FOverlapResult> Overlaps;
+			World->OverlapMultiByObjectType(
+				Overlaps,
+				Ship->GetActorLocation(),
+				FQuat::Identity,
+				ObjectParams,
+				FCollisionShape::MakeSphere(QueryRadius),
+				QueryParams);
+
+			float BestDistanceSq = TNumericLimits<float>::Max();
+			UPrimitiveComponent* BestComp = nullptr;
+			for (const FOverlapResult& Overlap : Overlaps)
+			{
+				UPrimitiveComponent* OverlapComp = Overlap.GetComponent();
+				if (!OverlapComp)
+				{
+					continue;
+				}
+				if (OverlapComp == Ship->ShipRadius || OverlapComp == Ship->GetShipBase()
+					|| OverlapComp->GetOwner() == Ship)
+				{
+					continue;
+				}
+
+				const bool bBlocksStatic = OverlapComp->GetCollisionResponseToChannel(ECC_WorldStatic) == ECR_Block;
+				const bool bBlocksDynamic = OverlapComp->GetCollisionResponseToChannel(ECC_WorldDynamic) == ECR_Block;
+				const bool bBlocksPhysics = OverlapComp->GetCollisionResponseToChannel(ECC_PhysicsBody) == ECR_Block;
+				if (!bBlocksStatic && !bBlocksDynamic && !bBlocksPhysics)
+				{
+					continue;
+				}
+
+				FVector ClosestPoint = FVector::ZeroVector;
+				if (!OverlapComp->GetClosestPointOnCollision(Ship->GetActorLocation(), ClosestPoint))
+				{
+					continue;
+				}
+
+				const float DistanceSq = FVector::DistSquared(Ship->GetActorLocation(), ClosestPoint);
+				if (DistanceSq < BestDistanceSq)
+				{
+					BestDistanceSq = DistanceSq;
+					BestComp = OverlapComp;
+				}
+			}
+
+			if (BestComp)
+			{
+				SetCurrentObstacleComp(BestComp);
+				ObstacleComp = BestComp;
+			}
+		}
+	}
+
 	const FVector Velocity = ShipBase->GetPhysicsLinearVelocity();
 	const float Speed = Velocity.Size();
 	const FVector GoalLocation = GetFocusLocation();
@@ -495,6 +639,19 @@ void AAIShipController::HandleStuckCheck()
 	}
 
 	PrevDistanceToGoal = DistanceToGoal;
+#if !UE_BUILD_SHIPPING
+	if (bDebugUnstuck)
+	{
+		const APawn* ControlledPawn = GetPawn();
+		UE_LOG(LogTemp, Verbose,
+			TEXT("Ship %s UnstuckCheck Speed=%.1f Dist=%.1f StuckTime=%.2f Obstacle=%s"),
+			ControlledPawn ? *ControlledPawn->GetActorNameOrLabel() : TEXT("None"),
+			Speed,
+			DistanceToGoal,
+			StuckAccumulatedTime,
+			CurrentObstacleComp.IsValid() ? *CurrentObstacleComp->GetName() : TEXT("None"));
+	}
+#endif
 	if (!bIsUnstucking)
 	{
 		bIsUnstucking = (StuckAccumulatedTime >= StuckTimeThreshold);
@@ -503,6 +660,15 @@ void AAIShipController::HandleStuckCheck()
 			const float CurrentTime = World->GetTimeSeconds();
 			UnstuckEndTime = CurrentTime + UnstuckDuration;
 			LastUnstuckForceTime = 0.0f;
+
+#if !UE_BUILD_SHIPPING
+			if (bDebugUnstuck)
+			{
+				const APawn* ControlledPawn = GetPawn();
+				UE_LOG(LogTemp, Warning, TEXT("Ship %s Unstuck start"),
+					ControlledPawn ? *ControlledPawn->GetActorNameOrLabel() : TEXT("None"));
+			}
+#endif
 		}
 	}
 
@@ -516,6 +682,18 @@ void AAIShipController::HandleStuckCheck()
 		|| Speed > (MinStuckSpeed * 1.5f)
 		|| !CurrentObstacleComp.IsValid())
 	{
+		if (bIsUnstucking)
+		{
+#if !UE_BUILD_SHIPPING
+			if (bDebugUnstuck)
+			{
+				const APawn* ControlledPawn = GetPawn();
+				UE_LOG(LogTemp, Warning, TEXT("Ship %s Unstuck stop (%s)"),
+					ControlledPawn ? *ControlledPawn->GetActorNameOrLabel() : TEXT("None"),
+					CurrentObstacleComp.IsValid() ? TEXT("Recovered") : TEXT("LostObstacle"));
+			}
+#endif
+		}
 		bIsUnstucking = false;
 		StuckAccumulatedTime = 0.0f;
 		PrevDistanceToGoal = DistanceToGoal;
@@ -543,13 +721,18 @@ void AAIShipController::HandleStuckCheck()
 	}
 
 	const float ShipRadius = Ship->ShipRadius ? Ship->ShipRadius->GetScaledSphereRadius() : 0.0f;
-	if (ShipRadius <= KINDA_SMALL_NUMBER)
+	const float EffectiveRadius = ShipRadius + NavSafetyMargin;
+	if (EffectiveRadius <= KINDA_SMALL_NUMBER)
 	{
 		return;
 	}
 
 	const float Distance = FVector::Dist(ShipLocation, ContactPoint);
-	const float PenetrationAlpha = FMath::Clamp(1.0f - (Distance / ShipRadius), 0.0f, 1.0f);
+	float PenetrationAlpha = FMath::Clamp(1.0f - (Distance / EffectiveRadius), 0.0f, 1.0f);
+	if (PenetrationAlpha <= 0.0f && Distance <= (EffectiveRadius * 1.2f))
+	{
+		PenetrationAlpha = 0.2f;
+	}
 	if (PenetrationAlpha <= 0.0f)
 	{
 		return;
@@ -558,6 +741,23 @@ void AAIShipController::HandleStuckCheck()
 	const FVector Force = PushDir * UnstuckForceStrength * PenetrationAlpha;
 	ShipBase->AddForceAtLocation(Force, ContactPoint);
 	LastUnstuckForceTime = CurrentTime;
+
+#if !UE_BUILD_SHIPPING
+	if (!bWasUnstucking && bIsUnstucking && bDebugUnstuck)
+	{
+		const APawn* ControlledPawn = GetPawn();
+		UE_LOG(LogTemp, Warning, TEXT("Ship %s Unstuck start"),
+			ControlledPawn ? *ControlledPawn->GetActorNameOrLabel() : TEXT("None"));
+	}
+	if (bDebugUnstuck)
+	{
+		const APawn* ControlledPawn = GetPawn();
+		UE_LOG(LogTemp, Verbose, TEXT("Ship %s Unstuck force %.1f Pen=%.2f"),
+			ControlledPawn ? *ControlledPawn->GetActorNameOrLabel() : TEXT("None"),
+			Force.Size(),
+			PenetrationAlpha);
+	}
+#endif
 }
 
 void AAIShipController::SetCurrentObstacleComp(UPrimitiveComponent* ObstacleComp)

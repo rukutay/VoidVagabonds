@@ -108,6 +108,9 @@ protected:
     UPROPERTY(EditAnywhere, Category = "Navigation|Debug", meta=(ToolTip="Draw navigation debug visuals."))
 	bool bDrawNavPath = false;
 
+    UPROPERTY(EditAnywhere, Category = "Navigation|Debug", meta=(ToolTip="Log navigation target/avoidance decisions."))
+	bool bDebugNav = false;
+
     UPROPERTY(VisibleAnywhere, Category = "Navigation", meta=(ToolTip="Current global waypoint list."))
 	TArray<FVector> GlobalWaypoints;
 

@@ -94,6 +94,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit|Debug", meta=(ToolTip="Draw orbit debug visuals."))
     bool bDebugOrbit = false;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Navigation|Debug", meta=(DisplayName="Debug Steering", ToolTip="Log steering target source and heading."))
+    bool bDebugSteering = false;
+
     UFUNCTION(BlueprintCallable, Category="AI|Navigation", meta=(ToolTip="Get current target actor."))
     AActor* GetTargetActor() const { return TargetActor; }
 
@@ -206,6 +209,9 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Maximum overlapping actors processed per tick."))
     int32 SoftSeparationMaxActors = 6;
 
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Manual Control State."))
+    bool bManualControl = false;
+
     // NAVIGATION_TODO_REMOVE
     UFUNCTION(BlueprintCallable, meta=(ToolTip="Apply forward steering force toward target location."))
     void ApplySteeringForce(FVector TargetLocation, float DeltaTime);
@@ -225,7 +231,6 @@ private:
 
     bool bLoggedMissingController = false;
 
-    bool bManualControl = false;
     int32 ManualThrottleStep = 0;
     float ManualPitchInput = 0.f;
     float ManualYawInput = 0.f;
@@ -233,6 +238,11 @@ private:
     TWeakObjectPtr<AAIShipController> StoredAIController;
 
     float DebugMessageAccumulator = 0.f;
+    float DebugSteeringAccumulator = 0.f;
+    float SafetyStateTimeAccumulated = 0.f;
+    float SafetyStatePrevGoalDistance = 0.f;
+    float SafetyStateLogAccumulator = 0.f;
+    float SafetyForceNavCooldown = 0.f;
 
     // Orbit runtime state (not replicated)
     bool bOrbitInitialized = false;

@@ -452,6 +452,26 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 
 	CurrentNavTarget = bHasTempWaypoint ? TempWaypoint : CurrentWaypoint;
 
+#if !UE_BUILD_SHIPPING
+	if (bDebugNav)
+	{
+		const TCHAR* ReasonText = TEXT("None");
+		switch (TempReason)
+		{
+			case ETempWaypointReason::Dynamic: ReasonText = TEXT("Dynamic"); break;
+			case ETempWaypointReason::Static: ReasonText = TEXT("Static"); break;
+			default: break;
+		}
+		UE_LOG(LogTemp, Log,
+			TEXT("NavTarget=%s Temp=%s Reason=%s Stuck=%d StaticBlocked=%s"),
+			*CurrentNavTarget.ToString(),
+			bHasTempWaypoint ? TEXT("Yes") : TEXT("No"),
+			ReasonText,
+			StuckCounter,
+			bStaticBlocked ? TEXT("Yes") : TEXT("No"));
+	}
+#endif
+
 	// Handle static blocked accumulation and force replan
 	if (bStaticBlocked)
 	{
@@ -502,6 +522,15 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			{
 				bHasTempWaypoint = false;
 			}
+
+#if !UE_BUILD_SHIPPING
+			if (bDebugNav)
+			{
+				UE_LOG(LogTemp, Warning,
+					TEXT("Nav stuck: Replan forced. VelDot=%.2f"),
+					VelDot);
+			}
+#endif
 		}
 	}
 

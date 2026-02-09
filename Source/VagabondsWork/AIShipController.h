@@ -41,6 +41,12 @@ public:
     UFUNCTION(BlueprintCallable, Category="Navigation", meta=(ToolTip="Compute a temporary escape target when inside the safety margin."))
     FVector ComputeEscapeTarget(const FVector& ShipLocation, USphereComponent* ShipRadius) const;
 
+    UFUNCTION(BlueprintCallable, Category="Navigation", meta=(ToolTip="Temporarily suppress safety margin checks (seconds)."))
+    void SuppressSafetyMargin(float DurationSeconds);
+
+    UFUNCTION(BlueprintCallable, Category="Navigation", meta=(ToolTip="Get safety margin suppression duration."))
+    float GetSafetyMarginSuppressDuration() const { return SafetyMarginSuppressDuration; }
+
 private:
     void HandleStuckCheck();
     void HandleSafetyMarginCheck();
@@ -58,8 +64,14 @@ private:
     UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance", meta=(ToolTip="Interval (seconds) between safety margin checks."))
     float SafetyMarginCheckInterval = 0.15f;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance", meta=(ToolTip="Seconds to suppress safety margin checks after forcing Nav fallback."))
+    float SafetyMarginSuppressDuration = 1.5f;
+
     UPROPERTY(EditDefaultsOnly, Category = "Navigation|Debug", meta=(ToolTip="Draw safety margin debug points."))
     bool bDebugSafetyMargin = false;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Unstuck|Debug", meta=(ToolTip="Enable unstuck debug logging."))
+    bool bDebugUnstuck = false;
 
     FTimerHandle StuckCheckTimerHandle;
 
@@ -79,6 +91,9 @@ private:
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Avoidance", meta=(ToolTip="True when inside the safety margin."))
     bool bInsideSafetyMargin = false;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Avoidance", meta=(ToolTip="World time until safety margin checks are suppressed."))
+    float SafetyMarginSuppressUntilTime = 0.0f;
 
     UPROPERTY(VisibleAnywhere, Category = "Unstuck|State", meta=(ToolTip="World time when unstuck behavior ends."))
     float UnstuckEndTime = 0.0f;

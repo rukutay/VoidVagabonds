@@ -8,6 +8,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 ### Added
 - External ship module system (timer-driven aiming, tick disabled).
 - External module firing params (FireRate, SemiAutoShootsNumber, FireMode, ShootDelay) and Shoot API with safe muzzle spawn + semi-auto burst timing + damage override.
+- Toggleable debug logs for unstuck checks, steering source/heading, and nav target/avoidance decisions.
 - NavStaticBig asteroid field scaffolding (plane radius, spline, HISM, generation config hooks).
 - NavStaticBig circular spline build helper with radius override or plane radius scaling.
 - NavStaticBig asteroid field generation along spline with seeded offsets and scale variation.
@@ -20,8 +21,12 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 ### Improved
 - Navigation avoidance stability and replan jittering for scale.
 - Ship navigation now forces replans on stuck/static-blocked states and always honors temp avoidance targets to prevent long stalls.
+- Unstuck recovery now reacquires blocking obstacles, enforces a minimum penetration scale for force, and aligns steering to escape targets to reduce stalls.
+- Safety margin avoidance now ignores self overlaps/invalid obstacles, skips tangent escape when no target actor, suppresses safety checks after forced Nav fallback, and guards against invalid escape targets with debug reasons.
 - Dynamic ship avoidance now uses repulsion on predicted closest approach with relative-speed prediction to reduce high-speed head-on collisions.
 - Ship steering uses physics-driven thrust with yaw/pitch rotation (roll disabled).
+- NavStaticBig chunk streaming now allocates per-chunk instance budgets to avoid starving late spline sections.
+- NavStaticBig chunk streaming now rebuilds when streaming config changes so density/limit tweaks propagate.
 - NavStaticBig chunk streaming now rebuilds only dirty chunks using band hysteresis to reduce visible blinking.
 - NavStaticBig streaming now adds deterministic along-spline jitter to remove grid-aligned asteroid placement.
 - NavStaticBig streaming now uses stratified random candidates and radial offsets to further reduce plane-aligned placement.

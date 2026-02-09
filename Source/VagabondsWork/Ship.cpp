@@ -48,6 +48,12 @@ void AShip::BeginPlay()
         UE_LOG(LogTemp, Warning, TEXT("ShipController not found on %s"), *GetName());
         bLoggedMissingController = true;
     }
+#if !UE_BUILD_SHIPPING
+    UE_LOG(LogTemp, Log, TEXT("Ship %s DebugSteering=%s DebugOrbit=%s"),
+        *GetActorNameOrLabel(),
+        bDebugSteering ? TEXT("true") : TEXT("false"),
+        bDebugOrbit ? TEXT("true") : TEXT("false"));
+#endif
 }
 
 FVector AShip::ComputeOrbitGoal(const FVector& Center, float DeltaTime)
@@ -200,6 +206,69 @@ void AShip::Tick(float DeltaTime)
         }
 
         const FVector ActorLocation = GetActorLocation();
+        const float DistanceToGoal = FVector::Dist(ActorLocation, Goal);
+        const bool bInSafetyMargin = ShipController && ShipController->IsInsideSafetyMargin();
+        const bool bIsUnstuck = ShipController && ShipController->IsUnstucking();
+        const bool bSafetyMarginAllowed = SafetyForceNavCooldown <= 0.0f;
+        const bool bSafetyMarginActive = bInSafetyMargin && bSafetyMarginAllowed;
+        if (SafetyForceNavCooldown > 0.0f)
+        {
+            SafetyForceNavCooldown = FMath::Max(0.0f, SafetyForceNavCooldown - DeltaTime);
+        }
+        if (bSafetyMarginActive || bIsUnstuck)
+        {
+            if (SafetyStateTimeAccumulated <= 0.0f)
+            {
+                SafetyStatePrevGoalDistance = DistanceToGoal;
+            }
+            if (DistanceToGoal < (SafetyStatePrevGoalDistance - 10.0f))
+            {
+                SafetyStatePrevGoalDistance = DistanceToGoal;
+                SafetyStateTimeAccumulated = 0.0f;
+            }
+            else
+            {
+                SafetyStateTimeAccumulated += DeltaTime;
+            }
+        }
+        else
+        {
+            SafetyStatePrevGoalDistance = DistanceToGoal;
+            SafetyStateTimeAccumulated = 0.0f;
+        }
+        bool bForceNav = false;
+        if ((bSafetyMarginActive || bIsUnstuck) && SafetyStateTimeAccumulated >= 1.0f)
+        {
+            bForceNav = true;
+            SafetyStateTimeAccumulated = 0.0f;
+            SafetyForceNavCooldown = 1.0f;
+            if (ShipController)
+            {
+                ShipController->SetCurrentObstacleComp(nullptr);
+                ShipController->SuppressSafetyMargin(ShipController->GetSafetyMarginSuppressDuration());
+            }
+#if !UE_BUILD_SHIPPING
+            UE_LOG(LogTemp, Warning, TEXT("Ship %s forcing Nav fallback (state=%s Dist=%.1f)"),
+                *GetActorNameOrLabel(),
+                bInSafetyMargin ? TEXT("SafetyMargin") : TEXT("Unstuck"),
+                DistanceToGoal);
+#endif
+        }
+#if !UE_BUILD_SHIPPING
+        if (bDebugSteering)
+        {
+            SafetyStateLogAccumulator += DeltaTime;
+            if (SafetyStateLogAccumulator >= 1.0f)
+            {
+                SafetyStateLogAccumulator = 0.0f;
+                const TCHAR* StateLabel = bSafetyMarginActive ? TEXT("SafetyMargin") : (bIsUnstuck ? TEXT("Unstuck") : TEXT("Nav"));
+                UE_LOG(LogTemp, Verbose, TEXT("Ship %s NavState=%s Dist=%.1f"),
+                    *GetActorNameOrLabel(),
+                    StateLabel,
+                    DistanceToGoal);
+            }
+        }
+#endif
 #if !UE_BUILD_SHIPPING
         if ((Goal - ActorLocation).IsNearlyZero(1.f))
         {
@@ -207,28 +276,73 @@ void AShip::Tick(float DeltaTime)
             if (DebugMessageAccumulator >= 1.f)
             {
                 DebugMessageAccumulator = 0.f;
-                UE_LOG(LogTemp, Warning, TEXT("Ship %s has goal equal to self."), *GetName());
+                UE_LOG(LogTemp, Warning, TEXT("Ship %s has goal equal to self."), *GetActorNameOrLabel());
             }
         }
 #endif
-        const float ShipRadiusCm = ShipRadius ? ShipRadius->GetScaledSphereRadius() : 300.f;
-        FVector SteeringTarget = Goal;
-        if (ShipController && ShipController->IsInsideSafetyMargin())
+		const float ShipRadiusCm = ShipRadius ? ShipRadius->GetScaledSphereRadius() : 300.f;
+		FVector SteeringTarget = Goal;
+		const TCHAR* SteeringSource = TEXT("Goal");
+		if (!bForceNav && bSafetyMarginActive)
         {
             SteeringTarget = ShipController->ComputeEscapeTarget(ActorLocation, ShipRadius);
+            SteeringSource = TEXT("SafetyMargin");
 #if !UE_BUILD_SHIPPING
-            if (SteeringTarget.Equals(ActorLocation, 1.f))
+            const bool bTargetIsSelf = SteeringTarget.Equals(ActorLocation, 1.f);
+            const bool bTargetIsZero = SteeringTarget.IsNearlyZero();
+            const bool bTargetIsFinite = SteeringTarget.ContainsNaN() == false;
+            if (bTargetIsSelf || bTargetIsZero || !bTargetIsFinite)
             {
-                UE_LOG(LogTemp, Warning, TEXT("InsideSafetyMargin but EscapeTarget == Self (ObstacleComp invalid?)"));
+                UE_LOG(LogTemp, Warning, TEXT("Ship %s invalid EscapeTarget (Self=%s Zero=%s Finite=%s) - forcing Nav"),
+                    *GetActorNameOrLabel(),
+                    bTargetIsSelf ? TEXT("true") : TEXT("false"),
+                    bTargetIsZero ? TEXT("true") : TEXT("false"),
+                    bTargetIsFinite ? TEXT("true") : TEXT("false"));
+                bForceNav = true;
+                SteeringSource = TEXT("Nav");
+                if (ShipController)
+                {
+                    ShipController->SetCurrentObstacleComp(nullptr);
+                    ShipController->SuppressSafetyMargin(ShipController->GetSafetyMarginSuppressDuration());
+                }
             }
 #endif
+		}
+		else if (!bForceNav && bIsUnstuck)
+		{
+			SteeringTarget = ShipController->ComputeEscapeTarget(ActorLocation, ShipRadius);
+            SteeringSource = TEXT("Unstuck");
         }
         else if (ShipNav && (!ShipController || !ShipController->IsUnstucking()))
         {
             ShipNav->TickNav(DeltaTime, Goal, ShipRadiusCm, bMovingGoal);
             SteeringTarget = ShipNav->GetNavTarget(Goal);
+            SteeringSource = TEXT("Nav");
         }
 
+#if !UE_BUILD_SHIPPING
+        if (bDebugSteering)
+        {
+            DebugSteeringAccumulator += DeltaTime;
+            if (DebugSteeringAccumulator >= 0.5f)
+            {
+                DebugSteeringAccumulator = 0.f;
+                const FVector Forward = ShipBase ? ShipBase->GetForwardVector() : FVector::ForwardVector;
+                const FVector ToTarget = (SteeringTarget - ActorLocation).GetSafeNormal();
+                const float Heading = FVector::DotProduct(Forward, ToTarget);
+                const float Distance = FVector::Dist(ActorLocation, SteeringTarget);
+                const float Speed = ShipBase ? ShipBase->GetPhysicsLinearVelocity().Size() : 0.0f;
+                UE_LOG(LogTemp, Log,
+                    TEXT("Ship %s Steer[%s] Dist=%.1f Speed=%.1f Heading=%.2f Target=%s"),
+                    *GetActorNameOrLabel(),
+                    SteeringSource,
+                    Distance,
+                    Speed,
+                    Heading,
+                    *SteeringTarget.ToString());
+            }
+        }
+#endif
         ApplySteeringForce(SteeringTarget, DeltaTime);
 
 #if !UE_BUILD_SHIPPING
@@ -349,10 +463,15 @@ void AShip::HandleShipRadiusBeginOverlap(
     bool bFromSweep,
     const FHitResult& SweepResult)
 {
-    if (!OtherComp)
+	if (!OtherComp)
     {
         return;
     }
+
+	if (OtherActor == this || OtherComp == ShipBase || OtherComp == ShipRadius)
+	{
+		return;
+	}
 
     // Update overlap filtering logic to also accept Pawns as blockers
     const bool bBlocksStatic = OtherComp->GetCollisionResponseToChannel(ECC_WorldStatic) == ECR_Block;
@@ -365,27 +484,26 @@ void AShip::HandleShipRadiusBeginOverlap(
         return;
     }
 
-    // Add to soft separation bookkeeping (avoid duplicates)
-    if (OtherComp != ShipRadius && OtherComp != ShipBase)
-    {
-        // Check if component already exists (avoid duplicates)
-        bool bAlreadyExists = false;
-        for (const auto& WeakComp : SoftOverlapComps)
-        {
-            if (WeakComp.IsValid() && WeakComp.Get() == OtherComp)
-            {
-                bAlreadyExists = true;
-                break;
-            }
-        }
-        
-        if (!bAlreadyExists)
-        {
-            SoftOverlapComps.Add(TWeakObjectPtr<UPrimitiveComponent>(OtherComp));
-        }
-    }
+	// Add to soft separation bookkeeping (avoid duplicates)
+	{
+		// Check if component already exists (avoid duplicates)
+		bool bAlreadyExists = false;
+		for (const auto& WeakComp : SoftOverlapComps)
+		{
+			if (WeakComp.IsValid() && WeakComp.Get() == OtherComp)
+			{
+				bAlreadyExists = true;
+				break;
+			}
+		}
+		
+		if (!bAlreadyExists)
+		{
+			SoftOverlapComps.Add(TWeakObjectPtr<UPrimitiveComponent>(OtherComp));
+		}
+	}
 
-    if (EnsureShipController())
+	if (EnsureShipController())
     {
         ShipController->SetCurrentObstacleComp(OtherComp);
     }
