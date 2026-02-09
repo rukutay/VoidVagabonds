@@ -219,6 +219,9 @@ public:
     UFUNCTION(BlueprintCallable, Category="Ship|ManualControl", meta=(ToolTip="Set manual rotation input (pitch, yaw, roll)."))
     void SetManualRotationInput(float Pitch, float Yaw, float Roll);
 
+    UFUNCTION(BlueprintCallable, Category="Ship|Rotation", meta=(ToolTip="Apply shared rotation servo toward target angular velocity (deg/sec)."))
+    void ApplyRotationServo(const FVector& TargetAngVelLocal, float DeltaTime);
+
     UFUNCTION(BlueprintCallable, Category="Ship|ManualControl", meta=(ToolTip="Increase manual throttle step."))
     void StepThrottleUp();
 
@@ -228,6 +231,8 @@ public:
 private:
     bool EnsureShipController();
     void ApplyManualControl(float DeltaTime);
+    void ApplyManualTorqueControl(const FVector& TargetAngVelLocal, float DeltaTime);
+    void CacheManualRotationTuning(const AAIShipController* PreviousController);
 
     bool bLoggedMissingController = false;
 
@@ -235,6 +240,15 @@ private:
     float ManualPitchInput = 0.f;
     float ManualYawInput = 0.f;
     float ManualRollInput = 0.f;
+    bool bManualUseTorquePD = false;
+    float ManualTorqueKpPitch = 0.f;
+    float ManualTorqueKpYaw = 0.f;
+    float ManualTorqueKdPitch = 0.f;
+    float ManualTorqueKdYaw = 0.f;
+    float ManualMaxTorquePitch = 0.f;
+    float ManualMaxTorqueYaw = 0.f;
+    float ManualTorqueRollDamping = 0.f;
+    float ManualMaxTorqueRoll = 0.f;
     TWeakObjectPtr<AAIShipController> StoredAIController;
 
     float DebugMessageAccumulator = 0.f;

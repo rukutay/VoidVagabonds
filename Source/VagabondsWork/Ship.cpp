@@ -384,6 +384,7 @@ void AShip::PossessedBy(AController* NewController)
     if (NewController && NewController->IsPlayerController())
     {
         StoredAIController = ShipController;
+        CacheManualRotationTuning(StoredAIController.Get());
         bManualControl = true;
 
         ManualThrottleStep = FMath::Clamp(FMath::RoundToInt(CurrentThrottle * 3.f), -1, 3);
@@ -402,6 +403,7 @@ void AShip::UnPossessed()
         ManualPitchInput = 0.f;
         ManualYawInput = 0.f;
         ManualRollInput = 0.f;
+        bManualUseTorquePD = false;
     }
 
     if (StoredAIController.IsValid() && GetController() != StoredAIController.Get())
@@ -622,6 +624,30 @@ void AShip::SetManualRotationInput(float Pitch, float Yaw, float Roll)
     ManualRollInput = FMath::Clamp(Roll, -1.f, 1.f);
 }
 
+void AShip::ApplyRotationServo(const FVector& TargetAngVelLocal, float DeltaTime)
+{
+    if (!ShipBase || DeltaTime <= 0.f)
+    {
+        return;
+    }
+
+    const float PitchResponse = FMath::Max(PitchAccelSpeed, 0.1f);
+    const float YawResponse = FMath::Max(YawAccelSpeed, 0.1f);
+    const float RollResponse = FMath::Max(RollAccelSpeed, 0.1f);
+
+    const FTransform& ShipBaseTransform = ShipBase->GetComponentTransform();
+    const FVector CurAngVelWorld = ShipBase->GetPhysicsAngularVelocityInDegrees();
+    const FVector CurAngVelLocal = ShipBaseTransform.InverseTransformVectorNoScale(CurAngVelWorld);
+
+    FVector NewAngVelLocal = CurAngVelLocal;
+    NewAngVelLocal.X = FMath::FInterpTo(CurAngVelLocal.X, TargetAngVelLocal.X, DeltaTime, RollResponse);
+    NewAngVelLocal.Y = FMath::FInterpTo(CurAngVelLocal.Y, TargetAngVelLocal.Y, DeltaTime, PitchResponse);
+    NewAngVelLocal.Z = FMath::FInterpTo(CurAngVelLocal.Z, TargetAngVelLocal.Z, DeltaTime, YawResponse);
+
+    const FVector NewAngVelWorld = ShipBaseTransform.TransformVectorNoScale(NewAngVelLocal);
+    ShipBase->SetPhysicsAngularVelocityInDegrees(NewAngVelWorld, false);
+}
+
 void AShip::StepThrottleUp()
 {
     ManualThrottleStep = FMath::Clamp(ManualThrottleStep + 1, -1, 3);
@@ -656,21 +682,74 @@ void AShip::ApplyManualControl(float DeltaTime)
         ManualPitchInput * MaxPitchSpeed,
         ManualYawInput * MaxYawSpeed);
 
-    const float PitchResponse = FMath::Max(PitchAccelSpeed, 0.1f);
-    const float YawResponse = FMath::Max(YawAccelSpeed, 0.1f);
-    const float RollResponse = FMath::Max(RollAccelSpeed, 0.1f);
+    if (bManualUseTorquePD)
+    {
+        ApplyManualTorqueControl(TargetAngVelLocal, DeltaTime);
+    }
+    else
+    {
+        ApplyRotationServo(TargetAngVelLocal, DeltaTime);
+    }
+}
+
+void AShip::ApplyManualTorqueControl(const FVector& TargetAngVelLocal, float DeltaTime)
+{
+    if (!ShipBase || DeltaTime <= 0.f)
+    {
+        return;
+    }
 
     const FTransform& ShipBaseTransform = ShipBase->GetComponentTransform();
-    const FVector CurAngVelWorld = ShipBase->GetPhysicsAngularVelocityInDegrees();
-    const FVector CurAngVelLocal = ShipBaseTransform.InverseTransformVectorNoScale(CurAngVelWorld);
+    const FVector CurAngVelWorldDeg = ShipBase->GetPhysicsAngularVelocityInDegrees();
+    const FVector CurAngVelLocalDeg = ShipBaseTransform.InverseTransformVectorNoScale(CurAngVelWorldDeg);
+    const FVector CurAngVelLocalRad = CurAngVelLocalDeg * (PI / 180.f);
 
-    FVector NewAngVelLocal = CurAngVelLocal;
-    NewAngVelLocal.X = FMath::FInterpTo(CurAngVelLocal.X, TargetAngVelLocal.X, DeltaTime, RollResponse);
-    NewAngVelLocal.Y = FMath::FInterpTo(CurAngVelLocal.Y, TargetAngVelLocal.Y, DeltaTime, PitchResponse);
-    NewAngVelLocal.Z = FMath::FInterpTo(CurAngVelLocal.Z, TargetAngVelLocal.Z, DeltaTime, YawResponse);
+    const FVector TargetAngVelLocalRad = TargetAngVelLocal * (PI / 180.f);
+    const FVector ErrorLocalRad = TargetAngVelLocalRad - CurAngVelLocalRad;
 
-    const FVector NewAngVelWorld = ShipBaseTransform.TransformVectorNoScale(NewAngVelLocal);
-    ShipBase->SetPhysicsAngularVelocityInDegrees(NewAngVelWorld, false);
+    const FVector Inertia = ShipBase->GetInertiaTensor();
+    const float Ix = FMath::Max(Inertia.X, 1.f);
+    const float Iy = FMath::Max(Inertia.Y, 1.f);
+    const float Iz = FMath::Max(Inertia.Z, 1.f);
+
+    float AlphaPitch = (ManualTorqueKpPitch * ErrorLocalRad.Y) - (ManualTorqueKdPitch * CurAngVelLocalRad.Y);
+    float AlphaYaw = (ManualTorqueKpYaw * ErrorLocalRad.Z) - (ManualTorqueKdYaw * CurAngVelLocalRad.Z);
+
+    float TorquePitch = Iy * AlphaPitch;
+    float TorqueYaw = Iz * AlphaYaw;
+
+    float TorqueRoll = 0.f;
+    if (RollAlignMode == ERollAlignMode::Default)
+    {
+        TorqueRoll = -Ix * (ManualTorqueRollDamping * CurAngVelLocalRad.X);
+    }
+
+    TorquePitch = FMath::Clamp(TorquePitch, -ManualMaxTorquePitch, ManualMaxTorquePitch);
+    TorqueYaw = FMath::Clamp(TorqueYaw, -ManualMaxTorqueYaw, ManualMaxTorqueYaw);
+    TorqueRoll = FMath::Clamp(TorqueRoll, -ManualMaxTorqueRoll, ManualMaxTorqueRoll);
+
+    const FVector TorqueLocal(TorqueRoll, TorquePitch, TorqueYaw);
+    const FVector TorqueWorld = ShipBaseTransform.TransformVectorNoScale(TorqueLocal);
+    ShipBase->AddTorqueInRadians(TorqueWorld, NAME_None, true);
+}
+
+void AShip::CacheManualRotationTuning(const AAIShipController* PreviousController)
+{
+    if (!PreviousController)
+    {
+        bManualUseTorquePD = false;
+        return;
+    }
+
+    bManualUseTorquePD = PreviousController->UsesTorquePD();
+    ManualTorqueKpPitch = PreviousController->GetTorqueKpPitch();
+    ManualTorqueKpYaw = PreviousController->GetTorqueKpYaw();
+    ManualTorqueKdPitch = PreviousController->GetTorqueKdPitch();
+    ManualTorqueKdYaw = PreviousController->GetTorqueKdYaw();
+    ManualMaxTorquePitch = PreviousController->GetMaxTorquePitch();
+    ManualMaxTorqueYaw = PreviousController->GetMaxTorqueYaw();
+    ManualTorqueRollDamping = PreviousController->GetTorqueRollDamping();
+    ManualMaxTorqueRoll = PreviousController->GetMaxTorqueRoll();
 }
 
 bool AShip::EnsureShipController()

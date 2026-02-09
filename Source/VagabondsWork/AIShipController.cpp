@@ -211,23 +211,7 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
     }
 
     const FVector TargetAngVelLocal(DesiredRollRate, DesiredPitchRate, DesiredYawRate);
-
-    const float PitchResponse = FMath::Max(Ship->PitchAccelSpeed, 0.1f);
-    const float YawResponse   = FMath::Max(Ship->YawAccelSpeed, 0.1f);
-    const float RollResponse  = FMath::Max(Ship->RollAccelSpeed, 0.1f);
-
-    // Current angular velocity (deg/sec) in world space. Convert to local for axis control.
-    const FVector CurAngVelWorld = ShipBase->GetPhysicsAngularVelocityInDegrees();
-    const FVector CurAngVelLocal = ShipBaseTransform.InverseTransformVectorNoScale(CurAngVelWorld);
-
-    FVector NewAngVelLocal = CurAngVelLocal;
-    NewAngVelLocal.X = FMath::FInterpTo(CurAngVelLocal.X, TargetAngVelLocal.X, DeltaTime, RollResponse);
-    NewAngVelLocal.Y = FMath::FInterpTo(CurAngVelLocal.Y, TargetAngVelLocal.Y, DeltaTime, PitchResponse);
-    NewAngVelLocal.Z = FMath::FInterpTo(CurAngVelLocal.Z, TargetAngVelLocal.Z, DeltaTime, YawResponse);
-
-    const FVector NewAngVelWorld = ShipBaseTransform.TransformVectorNoScale(NewAngVelLocal);
-
-    ShipBase->SetPhysicsAngularVelocityInDegrees(NewAngVelWorld, false);
+    Ship->ApplyRotationServo(TargetAngVelLocal, DeltaTime);
 }
 
 void AAIShipController::HandleSafetyMarginCheck()

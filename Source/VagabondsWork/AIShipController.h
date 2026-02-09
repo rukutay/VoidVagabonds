@@ -47,6 +47,33 @@ public:
     UFUNCTION(BlueprintCallable, Category="Navigation", meta=(ToolTip="Get safety margin suppression duration."))
     float GetSafetyMarginSuppressDuration() const { return SafetyMarginSuppressDuration; }
 
+    UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="True when using torque-based rotation."))
+    bool UsesTorquePD() const { return bUseTorquePD; }
+
+    UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="Torque PD pitch proportional gain."))
+    float GetTorqueKpPitch() const { return TorqueKpPitch; }
+
+    UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="Torque PD yaw proportional gain."))
+    float GetTorqueKpYaw() const { return TorqueKpYaw; }
+
+    UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="Torque PD pitch derivative gain."))
+    float GetTorqueKdPitch() const { return TorqueKdPitch; }
+
+    UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="Torque PD yaw derivative gain."))
+    float GetTorqueKdYaw() const { return TorqueKdYaw; }
+
+    UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="Torque PD max pitch torque clamp."))
+    float GetMaxTorquePitch() const { return MaxTorquePitch; }
+
+    UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="Torque PD max yaw torque clamp."))
+    float GetMaxTorqueYaw() const { return MaxTorqueYaw; }
+
+    UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="Torque PD roll damping gain."))
+    float GetTorqueRollDamping() const { return TorqueRollDamping; }
+
+    UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="Torque PD max roll torque clamp."))
+    float GetMaxTorqueRoll() const { return MaxTorqueRoll; }
+
 private:
     void HandleStuckCheck();
     void HandleSafetyMarginCheck();
@@ -154,14 +181,14 @@ private:
     float TorqueKdYaw = 7.f;
 
     UPROPERTY(EditDefaultsOnly, Category="Rotation|TorquePD", meta=(ToolTip="Max pitch torque clamp (N*cm)."))
-    float MaxTorquePitch = 8.0e7f; // N*cm (clamp)
+    float MaxTorquePitch = 1.f; // N*cm (clamp)
 
     UPROPERTY(EditDefaultsOnly, Category="Rotation|TorquePD", meta=(ToolTip="Max yaw torque clamp (N*cm)."))
-    float MaxTorqueYaw = 1.0e8f;
+    float MaxTorqueYaw = 1.f;
 
     UPROPERTY(EditDefaultsOnly, Category="Rotation|TorquePD", meta=(ToolTip="Roll damping gain when not roll-aligning."))
-    float TorqueRollDamping = 4.f; // roll angular velocity damping (rad/s)
+    float TorqueRollDamping = 0.2f; // roll angular velocity damping (rad/s)
 
     UPROPERTY(EditDefaultsOnly, Category="Rotation|TorquePD", meta=(ToolTip="Max roll torque clamp (N*cm)."))
-    float MaxTorqueRoll = 3.0e7f;
+    float MaxTorqueRoll = 1.f;
 };
