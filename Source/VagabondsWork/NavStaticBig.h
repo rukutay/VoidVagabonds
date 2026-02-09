@@ -230,6 +230,7 @@ private:
 	{
 		TWeakObjectPtr<UHierarchicalInstancedStaticMeshComponent> SourceHISM;
 		FTransform InstanceTransform;
+		bool bBecameDynamic = false;
 	};
 
 	struct FStreamingChunk
@@ -258,6 +259,9 @@ private:
 
 	UFUNCTION()
 	void OnNearSwapAsteroidDestroyed(AActor* DestroyedActor);
+
+	UFUNCTION()
+	void OnNearSwapAsteroidWake(UPrimitiveComponent* WokeComponent, FName BoneName);
 
 	FTimerHandle StreamingTimerHandle;
 	FTimerHandle NearSwapTimerHandle;

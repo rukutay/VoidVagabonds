@@ -1070,6 +1070,10 @@ void ANavStaticBig::UpdateNearAsteroidActorSwap()
 			ActorsToRestore.Add(Entry.Key);
 			continue;
 		}
+		if (SwapEntry.bBecameDynamic)
+		{
+			continue;
+		}
 		const float DistSq = FVector::DistSquared(ViewLocation, Actor->GetActorLocation());
 		if (DistSq > ExitRadiusSq)
 		{
@@ -1219,6 +1223,7 @@ bool ANavStaticBig::SpawnNearSwapAsteroidFromInstance(UHierarchicalInstancedStat
 	if (UStaticMeshComponent* MeshComponent = SpawnedAsteroid->FindComponentByClass<UStaticMeshComponent>())
 	{
 		MeshComponent->SetStaticMesh(SourceMesh);
+		MeshComponent->OnComponentWake.AddDynamic(this, &ANavStaticBig::OnNearSwapAsteroidWake);
 	}
 	SpawnedAsteroid->OnDestroyed.AddDynamic(this, &ANavStaticBig::OnNearSwapAsteroidDestroyed);
 
@@ -1281,6 +1286,28 @@ void ANavStaticBig::OnNearSwapAsteroidDestroyed(AActor* DestroyedActor)
 	}
 
 	RestoreNearSwapActor(DestroyedActor, false);
+}
+
+void ANavStaticBig::OnNearSwapAsteroidWake(UPrimitiveComponent* WokeComponent, FName BoneName)
+{
+	if (!WokeComponent)
+	{
+		return;
+	}
+
+	AActor* Owner = WokeComponent->GetOwner();
+	if (!Owner)
+	{
+		return;
+	}
+
+	FNearSwapEntry* Entry = ActiveNearSwapActors.Find(Owner);
+	if (!Entry)
+	{
+		return;
+	}
+
+	Entry->bBecameDynamic = true;
 }
 
 FVector ANavStaticBig::GetStreamingViewLocation() const
