@@ -311,6 +311,9 @@ bool AExternalModule::TrySpawnProjectile(TSubclassOf<AProjectile> ProjectileClas
 		SpawnLoc += Forward * Step;
 	}
 
+/* 	bFoundClear = true;
+	SpawnLoc += Forward * Step; */
+
 	if (!bFoundClear) return false;
 
 	FActorSpawnParameters SpawnParams;
