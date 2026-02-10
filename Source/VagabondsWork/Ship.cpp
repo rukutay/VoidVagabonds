@@ -31,6 +31,7 @@ AShip::AShip()
     // NAVIGATION_TODO_REMOVE
     ShipRadius->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     ShipRadius->SetCollisionProfileName(TEXT("Pawn"));
+    ShipRadius->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
     ShipRadius->SetSphereRadius(300.f);
 
     ShipRadius->OnComponentBeginOverlap.AddDynamic(this, &AShip::HandleShipRadiusBeginOverlap);
@@ -475,12 +476,10 @@ void AShip::HandleShipRadiusBeginOverlap(
 	}
 
     // Update overlap filtering logic to also accept Pawns as blockers
-    const bool bBlocksStatic = OtherComp->GetCollisionResponseToChannel(ECC_WorldStatic) == ECR_Block;
-    const bool bBlocksDynamic = OtherComp->GetCollisionResponseToChannel(ECC_WorldDynamic) == ECR_Block;
-    const bool bBlocksPhysics = OtherComp->GetCollisionResponseToChannel(ECC_PhysicsBody) == ECR_Block;
+    const bool bBlocksAvoidance = OtherComp->GetCollisionResponseToChannel(ECC_GameTraceChannel3) == ECR_Block;
     const bool bIsPawn = OtherActor && OtherActor->IsA<APawn>();
     
-    if (!bBlocksStatic && !bBlocksDynamic && !bBlocksPhysics && !bIsPawn)
+    if (!bBlocksAvoidance && !bIsPawn)
     {
         return;
     }

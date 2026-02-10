@@ -554,6 +554,11 @@ void AExternalModule::Shoot(TSubclassOf<AProjectile> ProjectileClass, float Proj
 	const float FinalDelay = FMath::Max(Delay, ShootDelay);
 	if (FireMode == EExternalModuleFireMode::SemiAuto)
 	{
+		if (GetWorld()->GetTimerManager().IsTimerActive(BurstTimerHandle) || BurstShotsLeft > 0)
+		{
+			return;
+		}
+
 		BurstProjectileClass = ProjectileClass;
 		BurstProjectileSpeed = ProjectileSpeed;
 		BurstLifeSpan = LifeSpan;

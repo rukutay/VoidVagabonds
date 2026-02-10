@@ -256,10 +256,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	if (CurrentTime >= NextNeighborQueryTime)
 	{
 		TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
-		ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
-		ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_WorldDynamic));
-		ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_PhysicsBody));
-		ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel2));
+		ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel3));
 
 		TArray<AActor*> IgnoredActors;
 		IgnoredActors.Add(GetOwner());
@@ -298,21 +295,14 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 
 	if (!TraceDir.IsNearlyZero())
 	{
-		TArray<TEnumAsByte<EObjectTypeQuery>> TraceObjectTypes;
-		TraceObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_PhysicsBody));
-		TArray<AActor*> TraceIgnoredActors;
-		TraceIgnoredActors.Add(GetOwner());
+		FCollisionQueryParams TraceParams(SCENE_QUERY_STAT(ShipNavAvoidTrace), false, GetOwner());
 		const FVector TraceEnd = ShipPos + TraceDir * TraceDistance;
-		bTraceAvoidance = UKismetSystemLibrary::LineTraceSingleForObjects(
-			GetWorld(),
+		bTraceAvoidance = GetWorld()->LineTraceSingleByChannel(
+			TraceHit,
 			ShipPos,
 			TraceEnd,
-			TraceObjectTypes,
-			false,
-			TraceIgnoredActors,
-			EDrawDebugTrace::None,
-			TraceHit,
-			true);
+			ECC_GameTraceChannel3,
+			TraceParams);
 		if (bTraceAvoidance && TraceHit.bBlockingHit)
 		{
 			const FVector TraceNormal = TraceHit.ImpactNormal.GetSafeNormal();
@@ -351,10 +341,8 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			{
 				return false;
 			}
-			const bool bBlocksDynamic = Comp->GetCollisionResponseToChannel(ECC_WorldDynamic) == ECR_Block;
-			const bool bBlocksPhysics = Comp->GetCollisionResponseToChannel(ECC_PhysicsBody) == ECR_Block;
-			const bool bBlocksShip = Comp->GetCollisionResponseToChannel(ECC_GameTraceChannel2) == ECR_Block;
-			return bBlocksDynamic || bBlocksPhysics || bBlocksShip;
+			const bool bBlocksAvoidance = Comp->GetCollisionResponseToChannel(ECC_GameTraceChannel3) == ECR_Block;
+			return bBlocksAvoidance;
 		};
 
 		UPrimitiveComponent* BlockingComp = Cast<UPrimitiveComponent>(NeighborActor->GetRootComponent());
@@ -536,7 +524,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			bool bClearLineOfSight = true;
 			FHitResult HitResult;
 			FCollisionQueryParams Params(SCENE_QUERY_STAT(ShipNavTempLOS), false, GetOwner());
-			if (GetWorld()->LineTraceSingleByChannel(HitResult, ShipPos, CurrentWaypoint, ECC_Visibility, Params))
+			if (GetWorld()->LineTraceSingleByChannel(HitResult, ShipPos, CurrentWaypoint, ECC_GameTraceChannel3, Params))
 			{
 				bClearLineOfSight = false;
 			}
