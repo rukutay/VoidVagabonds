@@ -3,15 +3,17 @@
 - Latest commit: `d7dcd9b` (small fix)
 
 # Last Completed Task
-- TASK 41: Added editor-tunable forward trace distance multiplier for PhysicsBody avoidance.
+- TASK 42: Unified player steering with AI rotation, added analog throttle, and added manual roll-align toggle.
 
 # Recently Touched Files (last 5–15)
-- Source/VagabondsWork/AIShipController.h (updated)
-- Source/VagabondsWork/AIShipController.cpp (updated)
+- Source/VagabondsWork/PlayerMainController.h (updated)
+- Source/VagabondsWork/PlayerMainController.cpp (updated)
+- Source/VagabondsWork/Ship.h (updated)
 - Source/VagabondsWork/Ship.cpp (updated)
-- docs/CHANGELOG.md (updated)
+- Source/VagabondsWork/AIShipController.h (updated)
 - docs/README.md (updated)
 - docs/DEVELOPMENT_GUIDE.md (updated)
+- docs/CHANGELOG.md (updated)
 - docs/AI_STATE.md (updated)
 
 # Known Issues / TODO

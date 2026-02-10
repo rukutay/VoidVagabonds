@@ -43,13 +43,12 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 
 ## Player Ship Manual Controls
 - **Bindings (Enhanced Input)**:
-  - Throttle step up: **R**
-  - Throttle step down: **F**
+  - Throttle (analog axis): **R/F** or **W/S** mapped to +/- 1 on a single axis
   - Pitch: **W/S**
   - Yaw: **A/D**
   - Roll: **Q/E**
-- **Setup**: Create Input Actions + Mapping Context assets in Blueprint and assign them to `APlayerMainController` fields.
-- **Behavior**: On player possess, current throttle is preserved; on unpossess, the previous AI controller resumes control.
+- **Setup**: Create Input Actions + Mapping Context assets in Blueprint and assign them to `APlayerMainController` fields (`ThrottleAction`, `PitchAction`, `YawAction`, `RollAction`).
+- **Behavior**: On player possess, the previous AI controller resumes control on unpossess. Manual mode uses AI-style steering, and `AShip::bManualUseRollAlign` toggles roll-align in manual control (default true).
 
 ## Debugging / Profiling
 > TODO: Add Unreal Insights capture steps and standard `stat` command workflow once adopted for this project.

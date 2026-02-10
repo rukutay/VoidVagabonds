@@ -34,13 +34,10 @@ void APlayerMainController::SetupInputComponent()
         return;
     }
 
-    if (ThrottleUpAction)
+    if (ThrottleAction)
     {
-        EnhancedInputComponent->BindAction(ThrottleUpAction, ETriggerEvent::Started, this, &APlayerMainController::HandleThrottleUp);
-    }
-    if (ThrottleDownAction)
-    {
-        EnhancedInputComponent->BindAction(ThrottleDownAction, ETriggerEvent::Started, this, &APlayerMainController::HandleThrottleDown);
+        EnhancedInputComponent->BindAction(ThrottleAction, ETriggerEvent::Triggered, this, &APlayerMainController::HandleThrottleInput);
+        EnhancedInputComponent->BindAction(ThrottleAction, ETriggerEvent::Completed, this, &APlayerMainController::HandleThrottleInput);
     }
     if (PitchAction)
     {
@@ -59,19 +56,11 @@ void APlayerMainController::SetupInputComponent()
     }
 }
 
-void APlayerMainController::HandleThrottleUp(const FInputActionValue& Value)
+void APlayerMainController::HandleThrottleInput(const FInputActionValue& Value)
 {
     if (AShip* Ship = Cast<AShip>(GetPawn()))
     {
-        Ship->StepThrottleUp();
-    }
-}
-
-void APlayerMainController::HandleThrottleDown(const FInputActionValue& Value)
-{
-    if (AShip* Ship = Cast<AShip>(GetPawn()))
-    {
-        Ship->StepThrottleDown();
+        Ship->SetManualThrottleInput(Value.Get<float>());
     }
 }
 

@@ -74,6 +74,9 @@ public:
     UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="Torque PD max roll torque clamp."))
     float GetMaxTorqueRoll() const { return MaxTorqueRoll; }
 
+    UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="Aim error dead zone in degrees."))
+    float GetAimDeadZoneDeg() const { return AimDeadZoneDeg; }
+
 private:
     void HandleStuckCheck();
     void HandleSafetyMarginCheck();

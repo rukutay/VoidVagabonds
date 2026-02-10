@@ -144,6 +144,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation", meta=(ToolTip="Roll alignment mode for AI rotation."))
     ERollAlignMode RollAlignMode = ERollAlignMode::Default;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|ManualControl", meta=(ToolTip="Allow roll alignment while in manual control."))
+    bool bManualUseRollAlign = true;
+
     // Roll alignment gains (only used when RollAlignMode != Default)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation", meta=(ClampMin="0.0", ToolTip="Roll alignment proportional gain."))
     float RollAlignKp = 2.0f;
@@ -214,32 +217,31 @@ public:
 
     // NAVIGATION_TODO_REMOVE
     UFUNCTION(BlueprintCallable, meta=(ToolTip="Apply forward steering force toward target location."))
-    void ApplySteeringForce(FVector TargetLocation, float DeltaTime);
+    void ApplySteeringForce(FVector TargetLocation, float DeltaTime, bool bOverrideThrottle = false, float ThrottleOverride = 0.f);
 
     UFUNCTION(BlueprintCallable, Category="Ship|ManualControl", meta=(ToolTip="Set manual rotation input (pitch, yaw, roll)."))
     void SetManualRotationInput(float Pitch, float Yaw, float Roll);
 
+    UFUNCTION(BlueprintCallable, Category="Ship|ManualControl", meta=(ToolTip="Set manual throttle input (-1 to 1)."))
+    void SetManualThrottleInput(float Value);
+
     UFUNCTION(BlueprintCallable, Category="Ship|Rotation", meta=(ToolTip="Apply shared rotation servo toward target angular velocity (deg/sec)."))
     void ApplyRotationServo(const FVector& TargetAngVelLocal, float DeltaTime);
-
-    UFUNCTION(BlueprintCallable, Category="Ship|ManualControl", meta=(ToolTip="Increase manual throttle step."))
-    void StepThrottleUp();
-
-    UFUNCTION(BlueprintCallable, Category="Ship|ManualControl", meta=(ToolTip="Decrease manual throttle step."))
-    void StepThrottleDown();
 
 private:
     bool EnsureShipController();
     void ApplyManualControl(float DeltaTime);
+    void ApplyManualShipRotation(const FVector& TargetLocation, float DeltaTime);
     void ApplyManualTorqueControl(const FVector& TargetAngVelLocal, float DeltaTime);
     void CacheManualRotationTuning(const AAIShipController* PreviousController);
 
     bool bLoggedMissingController = false;
 
-    int32 ManualThrottleStep = 0;
+    float ManualThrottleInput = 0.f;
     float ManualPitchInput = 0.f;
     float ManualYawInput = 0.f;
     float ManualRollInput = 0.f;
+    float ManualAimDeadZoneDeg = 0.35f;
     bool bManualUseTorquePD = false;
     float ManualTorqueKpPitch = 0.f;
     float ManualTorqueKpYaw = 0.f;

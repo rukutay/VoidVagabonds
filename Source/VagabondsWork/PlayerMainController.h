@@ -23,8 +23,7 @@ public:
 	virtual void SetupInputComponent() override;
 
 protected:
-	void HandleThrottleUp(const FInputActionValue& Value);
-	void HandleThrottleDown(const FInputActionValue& Value);
+	void HandleThrottleInput(const FInputActionValue& Value);
 	void HandlePitchInput(const FInputActionValue& Value);
 	void HandleYawInput(const FInputActionValue& Value);
 	void HandleRollInput(const FInputActionValue& Value);
@@ -35,10 +34,7 @@ private:
 	UInputMappingContext* ShipMappingContext = nullptr;
 
 	UPROPERTY(EditAnywhere, Category = "Input")
-	UInputAction* ThrottleUpAction = nullptr;
-
-	UPROPERTY(EditAnywhere, Category = "Input")
-	UInputAction* ThrottleDownAction = nullptr;
+	UInputAction* ThrottleAction = nullptr;
 
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* PitchAction = nullptr;
