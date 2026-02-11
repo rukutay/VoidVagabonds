@@ -6,6 +6,8 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 
 ## [Unreleased]
 ### Added
+- Player-facing marketing document for portfolio presentation (`docs/marketing.md`).
+- LevelBoundaries runtime atmosphere spawning system (BP-configurable classes, predictive placement, overlap-safe class checks, timed cadence, and max-instance cap).
 - External ship module system (timer-driven aiming, tick disabled).
 - External module firing params (FireRate, SemiAutoShootsNumber, FireMode, ShootDelay) and Shoot API with safe muzzle spawn + semi-auto burst timing + damage override.
 - Toggleable debug logs for unstuck checks, steering source/heading, and nav target/avoidance decisions.
@@ -17,12 +19,16 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - NavStaticBig Blueprint helper to replace a HISM instance with a spawned actor using the same transform and mesh.
 - NavStaticBig near-field asteroid actor swap (timer-driven with enter/exit hysteresis) for full collision near the player; asteroids that wake physics remain actors and sleeping swaps now feed runtime navigation anchors.
 - Global navigation replanning with cached static obstacles.
-- Player manual ship controls (analog throttle, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess and manual roll-align toggle.
+- Player manual ship controls (analog throttle, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess, manual roll-align toggle, and ManualYawBankScale for yaw-driven banking when roll-align is disabled.
+- Ship presets for movement + TorquePD rotation tuning (Fighter/Interceptor/Gunship/Cruiser/Carrier) with Blueprint-selectable values.
+- Ship vitality presets now align with ship presets (hull/shield/recharge/armor) and reset current hull/shield to max on preset apply.
 
 ### Improved
+- AI ships now passively level roll only while moving forward to keep horizontal alignment without fighting steering.
 - Navigation avoidance stability and replan jittering for scale.
 - Ship navigation now forces replans on stuck/static-blocked states and always honors temp avoidance targets to prevent long stalls.
 - Unstuck recovery now reacquires blocking obstacles, enforces a minimum penetration scale for force, and aligns steering to escape targets to reduce stalls.
+- NavStaticBig spawns now bias to a sun-aligned plane with a small 3–7 degree tilt to keep asteroid belts cohesive.
 - Safety margin avoidance now ignores self overlaps/invalid obstacles, skips tangent escape when no target actor, suppresses safety checks after forced Nav fallback, and guards against invalid escape targets with debug reasons.
 - Dynamic ship avoidance now uses repulsion on predicted closest approach with relative-speed prediction to reduce high-speed head-on collisions.
 - Dynamic avoidance now includes awakened/dynamic asteroid actors (WorldDynamic) in neighbor queries.
@@ -47,6 +53,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Sun directional light now resolves tagged light + pawn every frame and applies rotation to the light component.
 - Sun light now prefers current ViewTargetActor each tick (falls back to player pawn).
 - External module line-of-sight uses a single forward sphere sweep with lead prediction and projectile radius.
+- External modules now reset PivotBase/PivotGun to local rotation (0,0,0) when no target is set, and only aim when TargetActor is valid.
 
 ### Removed
 - Roll aim functionality (removed to keep ship behavior stable).

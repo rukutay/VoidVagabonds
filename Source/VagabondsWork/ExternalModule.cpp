@@ -401,14 +401,42 @@ float AExternalModule::GetCurrentPitch() const
 
 void AExternalModule::UpdateAim()
 {
-	if (!TargetActor) return;
 	const float Dt = (AimUpdateHz > 0) ? (1.f / AimUpdateHz) : 0.f;
 	AimStep(Dt);
 }
 
 void AExternalModule::AimStep(float Dt)
 {
-	if (!PivotBase || !PivotGun || !Muzzle || !TargetActor || Dt <= 0) return;
+	if (!PivotBase || !PivotGun || !Muzzle || Dt <= 0) return;
+	if (!TargetActor)
+	{
+		ReadyToShoot = false;
+		if (!bUseDegPerSecSpeed)
+		{
+			const FRotator CurrentYawRel = PivotBase->GetRelativeRotation();
+			const FRotator NewYawRel = FMath::RInterpTo(CurrentYawRel, FRotator::ZeroRotator, Dt, YawInterpSpeed);
+			PivotBase->SetRelativeRotation(FRotator(0.f, NewYawRel.Yaw, 0.f));
+
+			const FRotator CurrentPitchRel = PivotGun->GetRelativeRotation();
+			const FRotator NewPitchRel = FMath::RInterpTo(CurrentPitchRel, FRotator::ZeroRotator, Dt, PitchInterpSpeed);
+			PivotGun->SetRelativeRotation(FRotator(NewPitchRel.Pitch, 0.f, 0.f));
+		}
+		else
+		{
+			const float CurrentYaw = FRotator::NormalizeAxis(PivotBase->GetRelativeRotation().Yaw);
+			const float YawDelta = FMath::FindDeltaAngleDegrees(CurrentYaw, 0.f);
+			const float YawStep = FMath::Clamp(YawDelta, -YawDegPerSec * Dt, +YawDegPerSec * Dt);
+			const float NewYaw = FRotator::NormalizeAxis(CurrentYaw + YawStep);
+			PivotBase->SetRelativeRotation(FRotator(0.f, NewYaw, 0.f));
+
+			const float CurrentPitch = FRotator::NormalizeAxis(PivotGun->GetRelativeRotation().Pitch);
+			const float PitchDelta = FMath::FindDeltaAngleDegrees(CurrentPitch, 0.f);
+			const float PitchStep = FMath::Clamp(PitchDelta, -PitchDegPerSec * Dt, +PitchDegPerSec * Dt);
+			const float NewPitch = FRotator::NormalizeAxis(CurrentPitch + PitchStep);
+			PivotGun->SetRelativeRotation(FRotator(NewPitch, 0.f, 0.f));
+		}
+		return;
+	}
 
 	ReadyToShoot = HasLineOfSightToTarget();
 
@@ -496,7 +524,7 @@ void AExternalModule::AimStep(float Dt)
 		const float NewPitch = FRotator::NormalizeAxis(CurrentPitch + Step);
 		PivotGun->SetRelativeRotation(FRotator(NewPitch, 0.f, 0.f));
 	}
-	
+
 	// Debug visualization
 	if (bDebugAim && GetWorld())
 	{
@@ -551,7 +579,6 @@ void AExternalModule::Shoot(TSubclassOf<AProjectile> ProjectileClass, float Proj
 	if (Now < NextAllowedShotTime) return;
 
 	const float Interval = GetShotInterval(ProjectileClass, ProjectileSpeed);
-	const float FinalDelay = FMath::Max(Delay, ShootDelay);
 	if (FireMode == EExternalModuleFireMode::SemiAuto)
 	{
 		if (GetWorld()->GetTimerManager().IsTimerActive(BurstTimerHandle) || BurstShotsLeft > 0)
@@ -563,7 +590,7 @@ void AExternalModule::Shoot(TSubclassOf<AProjectile> ProjectileClass, float Proj
 		BurstProjectileSpeed = ProjectileSpeed;
 		BurstLifeSpan = LifeSpan;
 		BurstDamageAmount = DamageAmount;
-		BurstDelay = FinalDelay;
+		BurstDelay = FMath::Max(Delay, ShootDelay);
 		BurstInterval = Interval;
 		BurstShotsLeft = FMath::Max(SemiAutoShootsNumber, 1);
 
@@ -575,6 +602,6 @@ void AExternalModule::Shoot(TSubclassOf<AProjectile> ProjectileClass, float Proj
 		return;
 	}
 
-	NextAllowedShotTime = Now + Interval + FinalDelay;
+	NextAllowedShotTime = Now + Interval;
 	TrySpawnProjectile(ProjectileClass, ProjectileSpeed, LifeSpan, DamageAmount);
 }

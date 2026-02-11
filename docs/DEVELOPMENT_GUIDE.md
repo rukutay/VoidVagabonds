@@ -22,24 +22,29 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Navigation stability**: Ensure replans can be forced on stuck/static-blocked states and temp avoidance targets are honored to avoid stalls.
 - **Unstuck recovery**: Reacquire blocking obstacles when needed, enforce minimum penetration scaling for force, and align steering to escape targets during unstuck.
 - **Safety margin avoidance**: Filter self/invalid obstacles, skip tangent escape offsets when no target actor is set, suppress safety checks after forced Nav fallback, and guard invalid escape targets with debug reasons.
+- **AI roll leveling**: When roll-align mode is Default, AI ships passively level roll only while moving forward to avoid fighting steering.
 - **Debugging**: Toggleable logs exist for unstuck checks, steering source/heading, and nav target/avoidance decisions.
 - **Navigation avoidance**: Dynamic ship avoidance uses repulsion at predicted closest approach with relative-speed prediction for high-speed safety.
 - **Navigation avoidance**: Dynamic/awakened asteroid actors (WorldDynamic) are included in neighbor avoidance queries.
 - **Navigation avoidance**: Local avoidance considers blocking PhysicsBody components using bounds-derived radii for non-ship obstacles.
+- Ship presets: `AShip` supports movement presets (Fighter/Interceptor/Gunship/Cruiser/Carrier) that also apply TorquePD rotation tuning on BeginPlay; disable `bApplyPresetOnBeginPlay` to keep manual BP edits.
+- Ship vitality: presets also tune hull/shield/recharge/armor values and reset current hull/shield to max when applied.
 - **Timers**: Prefer `FTimerHandle` updates; keep external modules tick-disabled.
 - **Naming**: Use Unreal prefixes (A/U/F/E), `b` prefix for booleans, `Cm` suffix for distances.
 - **Properties**: Use `UPROPERTY` with scoped categories (e.g., `Ship|Navigation`, `Aim|Speed`).
 - **Debug**: Wrap debug drawing in `#if !UE_BUILD_SHIPPING` and gate with toggles.
 - **Lighting**: The sun directional light should aim from the sun toward the current player pawn.
-- **External modules**: LOS uses a single forward sphere sweep (EffectiveRange * 1.05) with lead prediction and projectile radius (base 16 cm). Shooting supports single/auto/semi-auto modes; semi-auto uses FireRate-derived burst intervals with safe muzzle spawn checks, per-shot damage override, and ShootDelay spacing between single shots/bursts.
+- **External modules**: LOS uses a single forward sphere sweep (EffectiveRange * 1.05) with lead prediction and projectile radius (base 16 cm). Aiming runs only when `TargetActor` is valid; when no target is set, PivotBase/PivotGun reset to local rotation (0,0,0) and ReadyToShoot remains false. Shooting supports single/auto/semi-auto modes; semi-auto uses FireRate-derived burst intervals with safe muzzle spawn checks, per-shot damage override, and ShootDelay spacing between single shots/bursts.
 - **NavStaticBig**: Asteroid field scaffolding now includes spline/plane radius components, generation config, and HISM storage.
 - **NavStaticBig**: Circular spline helper defaults to plane radius * 1.5 unless an override is provided.
 - **NavStaticBig**: Asteroid generation is spline-driven, seeded, and uses width/height bounds with scale ranges.
 - **NavStaticBig**: View-based asteroid streaming with near/mid/far HISM tiers, per-tier density/instance budgets, and editor preview caps.
 - **NavStaticBig**: Organic spawn jitter/probability controls plus near-tier hit-to-dynamic-actor conversion.
+- **NavStaticBig**: Boundary spawns bias toward a sun-aligned plane with a 3–7 degree tilt for cohesive asteroid belts.
 - **NavStaticBig**: Incremental chunk-based streaming with hysteresis bands plus stratified random sampling (double-buffer fallback) to avoid visible blinking during movement. Chunk rebuilds only trigger when a chunk changes band or when streaming config changes. Streaming adds deterministic along-spline jitter, frame roll, distance/radial noise, micro-clusters, and per-candidate dropout (low-frequency modulation) for less grid-like placement; dropout also scales per-tier budgets for visible thinning. Per-chunk instance budgets prevent late spline sections from starving.
 - **NavStaticBig**: Blueprint helper can replace a HISM instance with a spawned actor using the same transform/mesh for manual swaps.
 - **NavStaticBig**: Near-field asteroid swap can replace near HISM instances with actors on a timer, using enter/exit hysteresis radii for stable collision/avoidance behavior; actors that wake physics remain actors (no HISM restore) and sleeping swaps feed runtime navigation anchors.
+- **LevelBoundaries**: Runtime atmosphere system is timer-driven and BP-configurable; spawns fog/stardust actors at BeginPlay and periodically thereafter with prediction, non-overlap-by-class, distance-based despawn (2x radius), and a hard cap on active instances.
 
 ## Player Ship Manual Controls
 - **Bindings (Enhanced Input)**:
@@ -48,7 +53,7 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
   - Yaw: **A/D**
   - Roll: **Q/E**
 - **Setup**: Create Input Actions + Mapping Context assets in Blueprint and assign them to `APlayerMainController` fields (`ThrottleAction`, `PitchAction`, `YawAction`, `RollAction`).
-- **Behavior**: On player possess, the previous AI controller resumes control on unpossess. Manual mode uses AI-style steering, and `AShip::bManualUseRollAlign` toggles roll-align in manual control (default true).
+- **Behavior**: On player possess, the previous AI controller resumes control on unpossess. Manual mode uses AI-style steering, `AShip::bManualUseRollAlign` toggles roll-align (default true), and `AShip::ManualYawBankScale` tunes yaw-driven banking when manual roll-align is disabled.
 
 ## Debugging / Profiling
 > TODO: Add Unreal Insights capture steps and standard `stat` command workflow once adopted for this project.

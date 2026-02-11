@@ -77,6 +77,18 @@ public:
     UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="Aim error dead zone in degrees."))
     float GetAimDeadZoneDeg() const { return AimDeadZoneDeg; }
 
+    UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="Apply torque PD tuning values."))
+    void SetTorqueTuning(
+        bool bEnableTorquePD,
+        float InTorqueKpPitch,
+        float InTorqueKpYaw,
+        float InTorqueKdPitch,
+        float InTorqueKdYaw,
+        float InMaxTorquePitch,
+        float InMaxTorqueYaw,
+        float InMaxTorqueRoll,
+        float InTorqueRollDamping);
+
 private:
     void HandleStuckCheck();
     void HandleSafetyMarginCheck();
@@ -194,4 +206,16 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category="Rotation|TorquePD", meta=(ToolTip="Max roll torque clamp (N*cm)."))
     float MaxTorqueRoll = 1.f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|RollLevel", meta=(ToolTip="Enable passive roll leveling when moving forward."))
+    bool bEnableForwardRollLevel = true;
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|RollLevel", meta=(ToolTip="Forward speed threshold (cm/s) to enable roll leveling."))
+    float ForwardRollLevelSpeedThreshold = 50.f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|RollLevel", meta=(ToolTip="Multiplier for roll level PD gains."))
+    float ForwardRollLevelGainScale = 1.0f;
+
+    UPROPERTY(VisibleAnywhere, Category="Rotation|Debug", meta=(ToolTip="Accumulator for roll alignment debug logging."))
+    float RollAlignDebugAccumulator = 0.0f;
 };

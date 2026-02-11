@@ -30,6 +30,28 @@ void AAIShipController::BeginPlay()
     }
 }
 
+void AAIShipController::SetTorqueTuning(
+    bool bEnableTorquePD,
+    float InTorqueKpPitch,
+    float InTorqueKpYaw,
+    float InTorqueKdPitch,
+    float InTorqueKdYaw,
+    float InMaxTorquePitch,
+    float InMaxTorqueYaw,
+    float InMaxTorqueRoll,
+    float InTorqueRollDamping)
+{
+    bUseTorquePD = bEnableTorquePD;
+    TorqueKpPitch = InTorqueKpPitch;
+    TorqueKpYaw = InTorqueKpYaw;
+    TorqueKdPitch = InTorqueKdPitch;
+    TorqueKdYaw = InTorqueKdYaw;
+    MaxTorquePitch = InMaxTorquePitch;
+    MaxTorqueYaw = InMaxTorqueYaw;
+    MaxTorqueRoll = InMaxTorqueRoll;
+    TorqueRollDamping = InTorqueRollDamping;
+}
+
 FVector AAIShipController::GetFocusLocation()
 {
     AShip* Ship = Cast<AShip>(GetPawn());
@@ -70,12 +92,24 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
     float RollErrRad = 0.f;
     if (Ship->RollAlignMode != ERollAlignMode::Default)
     {
+        FVector RollRefWorldDir = ToTargetWorld;
+        if (Ship->TargetActor)
+        {
+            const FVector ToAlignTarget = Ship->TargetActor->GetActorLocation() - ActorLocation;
+            if (!ToAlignTarget.IsNearlyZero())
+            {
+                RollRefWorldDir = ToAlignTarget.GetSafeNormal();
+            }
+        }
+
+        const FVector RollRefLocalDir =
+            ShipBaseTransform.InverseTransformVectorNoScale(RollRefWorldDir).GetSafeNormal();
         FVector DesiredUpLocal = FVector::UpVector;
 
         if (Ship->RollAlignMode == ERollAlignMode::BackToTarget)
-            DesiredUpLocal = ToTargetLocalDir;       // +Up -> target
+            DesiredUpLocal = RollRefLocalDir;       // +Up -> target
         else if (Ship->RollAlignMode == ERollAlignMode::BellyToTarget)
-            DesiredUpLocal = -ToTargetLocalDir;      // -Up -> target
+            DesiredUpLocal = -RollRefLocalDir;      // -Up -> target
 
         // Roll is rotation around local X, so remove X component
         DesiredUpLocal.X = 0.f;
@@ -89,6 +123,25 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
         const float CrossX = FVector::CrossProduct(CurrentUpLocal, DesiredUpLocal).X;
         const float DotUD  = FVector::DotProduct(CurrentUpLocal, DesiredUpLocal);
         RollErrRad = FMath::Atan2(CrossX, DotUD); // [-pi,pi]
+
+#if !UE_BUILD_SHIPPING
+        if (Ship->bDebugSteering && World)
+        {
+            RollAlignDebugAccumulator += DeltaTime;
+            if (RollAlignDebugAccumulator >= 0.5f)
+            {
+                RollAlignDebugAccumulator = 0.0f;
+                const TCHAR* AlignSource = Ship->TargetActor ? TEXT("Target") : TEXT("Steering");
+                UE_LOG(LogTemp, Log, TEXT("Ship %s RollAlign[%s] ErrDeg=%.2f"),
+                    *Ship->GetActorNameOrLabel(),
+                    AlignSource,
+                    FMath::RadiansToDegrees(RollErrRad));
+            }
+            const FVector DrawStart = ActorLocation;
+            const FVector DrawEnd = ActorLocation + RollRefWorldDir * 800.0f;
+            DrawDebugDirectionalArrow(World, DrawStart, DrawEnd, 120.0f, FColor::Purple, false, 0.0f, 0, 2.0f);
+        }
+#endif
     }
 
     // Check if target is behind the ship
@@ -172,8 +225,41 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
         float TorqueRoll = 0.f;
         if (Ship->RollAlignMode == ERollAlignMode::Default)
         {
-            // Old behavior: damping only
-            TorqueRoll = -Ix * (TorqueRollDamping * CurAngVelLocalRad.X);
+            float RollLevelErrRad = 0.f;
+            bool bApplyForwardRollLevel = false;
+            if (bEnableForwardRollLevel)
+            {
+                const FVector CurVelWorld = ShipBase->GetPhysicsLinearVelocity();
+                const FVector CurVelLocal = ShipBaseTransform.InverseTransformVectorNoScale(CurVelWorld);
+                bApplyForwardRollLevel = CurVelLocal.X > ForwardRollLevelSpeedThreshold;
+            }
+
+            if (bApplyForwardRollLevel)
+            {
+                const FVector WorldUpLocal = ShipBaseTransform.InverseTransformVectorNoScale(FVector::UpVector);
+                FVector DesiredUpLocal = WorldUpLocal;
+                DesiredUpLocal.X = 0.f;
+                if (DesiredUpLocal.IsNearlyZero())
+                {
+                    DesiredUpLocal = FVector(0.f, 0.f, 1.f);
+                }
+                DesiredUpLocal.Normalize();
+
+                const FVector CurrentUpLocal(0.f, 0.f, 1.f);
+                const float CrossX = FVector::CrossProduct(CurrentUpLocal, DesiredUpLocal).X;
+                const float DotUD = FVector::DotProduct(CurrentUpLocal, DesiredUpLocal);
+                RollLevelErrRad = FMath::Atan2(CrossX, DotUD);
+
+                const float RollKp = Ship->RollAlignKp * ForwardRollLevelGainScale;
+                const float RollKd = Ship->RollAlignKd * ForwardRollLevelGainScale;
+                const float AlphaRoll = (RollKp * RollLevelErrRad) - (RollKd * CurAngVelLocalRad.X);
+                TorqueRoll = Ix * AlphaRoll;
+            }
+            else
+            {
+                // Old behavior: damping only
+                TorqueRoll = -Ix * (TorqueRollDamping * CurAngVelLocalRad.X);
+            }
         }
         else
         {
@@ -204,7 +290,41 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
     const float DesiredYawRate   = FMath::Clamp(YawErrDz   * 0.55f, -Ship->MaxYawSpeed,  Ship->MaxYawSpeed);
 
     float DesiredRollRate = 0.f;
-    if (Ship->RollAlignMode != ERollAlignMode::Default)
+    if (Ship->RollAlignMode == ERollAlignMode::Default)
+    {
+        float RollLevelErrRad = 0.f;
+        bool bApplyForwardRollLevel = false;
+        if (bEnableForwardRollLevel)
+        {
+            const FVector CurVelWorld = ShipBase->GetPhysicsLinearVelocity();
+            const FVector CurVelLocal = ShipBaseTransform.InverseTransformVectorNoScale(CurVelWorld);
+            bApplyForwardRollLevel = CurVelLocal.X > ForwardRollLevelSpeedThreshold;
+        }
+
+        if (bApplyForwardRollLevel)
+        {
+            const FVector WorldUpLocal = ShipBaseTransform.InverseTransformVectorNoScale(FVector::UpVector);
+            FVector DesiredUpLocal = WorldUpLocal;
+            DesiredUpLocal.X = 0.f;
+            if (DesiredUpLocal.IsNearlyZero())
+            {
+                DesiredUpLocal = FVector(0.f, 0.f, 1.f);
+            }
+            DesiredUpLocal.Normalize();
+
+            const FVector CurrentUpLocal(0.f, 0.f, 1.f);
+            const float CrossX = FVector::CrossProduct(CurrentUpLocal, DesiredUpLocal).X;
+            const float DotUD = FVector::DotProduct(CurrentUpLocal, DesiredUpLocal);
+            RollLevelErrRad = FMath::Atan2(CrossX, DotUD);
+
+            const float RollErrDeg = FMath::RadiansToDegrees(RollLevelErrRad);
+            DesiredRollRate = FMath::Clamp(
+                RollErrDeg * 0.5f * ForwardRollLevelGainScale,
+                -Ship->MaxRollSpeed,
+                Ship->MaxRollSpeed);
+        }
+    }
+    else
     {
         const float RollErrDeg = FMath::RadiansToDegrees(RollErrRad);
         DesiredRollRate = FMath::Clamp(RollErrDeg * 0.5f, -Ship->MaxRollSpeed, Ship->MaxRollSpeed);

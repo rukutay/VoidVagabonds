@@ -127,6 +127,33 @@ void ANavStaticBig::BuildCircularSpline(float Radius, int32 NumPoints)
 	FieldSpline->UpdateSpline();
 }
 
+UStaticMesh* ANavStaticBig::GetRandomAsteroidMesh(FRandomStream& RandomStream) const
+{
+	if (AsteroidMeshes.Num() == 0)
+	{
+		return nullptr;
+	}
+
+	for (int32 Attempt = 0; Attempt < AsteroidMeshes.Num(); ++Attempt)
+	{
+		const int32 Index = RandomStream.RandRange(0, AsteroidMeshes.Num() - 1);
+		if (UStaticMesh* Mesh = AsteroidMeshes[Index])
+		{
+			return Mesh;
+		}
+	}
+
+	for (UStaticMesh* Mesh : AsteroidMeshes)
+	{
+		if (Mesh)
+		{
+			return Mesh;
+		}
+	}
+
+	return nullptr;
+}
+
 void ANavStaticBig::GenerateAsteroidField()
 {
 	if (bEnableStreaming)
@@ -150,20 +177,34 @@ void ANavStaticBig::GenerateAsteroidField()
 		return;
 	}
 
+	FRandomStream MeshStream(Seed + 19);
+	UStaticMesh* SelectedMesh = GetRandomAsteroidMesh(MeshStream);
+	if (!SelectedMesh)
+	{
+		return;
+	}
+	UStaticMesh* MidMesh = MidAsteroidMesh ? MidAsteroidMesh : SelectedMesh;
+	UStaticMesh* FarMesh = FarAsteroidMesh ? FarAsteroidMesh : SelectedMesh;
+	const int32 ClampedMidForcedLod = FMath::Max(MidAsteroidForcedLod, 0);
+	const int32 ClampedFarForcedLod = FMath::Max(FarAsteroidForcedLod, 0);
+
 	const float ClampedJitterMin = FMath::Max(StepJitterMin, 0.05f);
 	const float ClampedJitterMax = FMath::Max(StepJitterMax, ClampedJitterMin);
 
 	AsteroidHISM->ClearInstances();
-	AsteroidHISM->SetStaticMesh(AsteroidMeshes[0]);
+	AsteroidHISM->SetStaticMesh(SelectedMesh);
+	AsteroidHISM->ForcedLodModel = 0;
 	if (AsteroidMidHISM)
 	{
 		AsteroidMidHISM->ClearInstances();
-		AsteroidMidHISM->SetStaticMesh(MidAsteroidMesh ? MidAsteroidMesh : AsteroidMeshes[0]);
+		AsteroidMidHISM->SetStaticMesh(MidMesh);
+		AsteroidMidHISM->ForcedLodModel = ClampedMidForcedLod;
 	}
 	if (AsteroidFarHISM)
 	{
 		AsteroidFarHISM->ClearInstances();
-		AsteroidFarHISM->SetStaticMesh(FarAsteroidMesh ? FarAsteroidMesh : AsteroidMeshes[0]);
+		AsteroidFarHISM->SetStaticMesh(FarMesh);
+		AsteroidFarHISM->ForcedLodModel = ClampedFarForcedLod;
 	}
 
 	const float SafeDensity = FMath::Max(DensityPer1000uu, 0.001f);
@@ -241,6 +282,15 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 		return;
 	}
 
+	FRandomStream MeshStream(Seed + 19);
+	UStaticMesh* BaseMesh = GetRandomAsteroidMesh(MeshStream);
+	if (!BaseMesh)
+	{
+		return;
+	}
+	const int32 ClampedMidForcedLod = FMath::Max(MidAsteroidForcedLod, 0);
+	const int32 ClampedFarForcedLod = FMath::Max(FarAsteroidForcedLod, 0);
+
 	const float ClampedJitterMin = FMath::Max(StepJitterMin, 0.05f);
 	const float ClampedJitterMax = FMath::Max(StepJitterMax, ClampedJitterMin);
 	const float ClampedNearSpawn = FMath::Clamp(NearSpawnProbability, 0.0f, 1.0f);
@@ -252,13 +302,15 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 	const float ClampedMidStart = FMath::Max(MidRangeStart, 0.0f);
 	const float ClampedMidEnd = FMath::Max(MidRangeEnd, ClampedMidStart);
 	const float ClampedFarStart = FMath::Max(FarRangeStart, ClampedMidEnd);
-	const float ClampedFarEnd = FMath::Max(FarRangeEnd, ClampedFarStart);
+	const bool bFarRangeUnlimited = FarRangeEnd <= 0.0f;
+	const float ClampedFarEnd = bFarRangeUnlimited ? ClampedFarStart : FMath::Max(FarRangeEnd, ClampedFarStart);
 	const float NearDensity = FMath::Max(DensityPer1000uu, 0.001f);
 	const float MidDensity = FMath::Max(MidDensityPer1000uu, 0.001f);
 	const float FarDensity = FMath::Max(FarDensityPer1000uu, 0.001f);
 	const float AdjustedMidStart = FMath::Max(ClampedMidStart + StreamingBandHysteresis, 0.0f);
 	const float AdjustedMidEnd = FMath::Max(ClampedMidEnd + StreamingBandHysteresis, AdjustedMidStart);
-	const float AdjustedFarEnd = FMath::Max(ClampedFarEnd + StreamingBandHysteresis, AdjustedMidEnd);
+	const float AdjustedFarEnd = bFarRangeUnlimited ? BIG_NUMBER
+		: FMath::Max(ClampedFarEnd + StreamingBandHysteresis, AdjustedMidEnd);
 	const float SeedStep = 1000.0f / FMath::Max3(NearDensity, MidDensity, FarDensity);
 	const float HalfWidth = FieldWidth * 0.5f;
 	const float HalfHeight = FieldHeight * 0.5f;
@@ -489,13 +541,14 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 			return 2;
 		};
 
-		auto CreateChunkComponent = [&](const FString& BaseName, int32 ChunkIndex, UStaticMesh* Mesh, bool bCollision)
+		auto CreateChunkComponent = [&](const FString& BaseName, int32 ChunkIndex, UStaticMesh* Mesh, bool bCollision, int32 ForcedLod)
 		{
 			const FName ComponentName(*FString::Printf(TEXT("%s_%d"), *BaseName, ChunkIndex));
 			UHierarchicalInstancedStaticMeshComponent* NewComp = NewObject<UHierarchicalInstancedStaticMeshComponent>(this, ComponentName);
 			NewComp->SetupAttachment(BodyMesh);
 			NewComp->RegisterComponent();
 			NewComp->SetStaticMesh(Mesh);
+			NewComp->ForcedLodModel = ForcedLod;
 			NewComp->SetCollisionEnabled(bCollision ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
 			NewComp->SetNotifyRigidBodyCollision(bCollision);
 			NewComp->SetVisibility(true, true);
@@ -516,10 +569,16 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 			FStreamingChunk* Chunk = ActiveStreamingChunks.Find(ChunkIndex);
 			if (!Chunk)
 			{
+				FRandomStream ChunkMeshStream(Seed + ChunkIndex * 4099 + 17);
+				UStaticMesh* ChunkMesh = GetRandomAsteroidMesh(ChunkMeshStream);
+				if (!ChunkMesh)
+				{
+					ChunkMesh = BaseMesh;
+				}
 				FStreamingChunk NewChunk;
-				NewChunk.Near = CreateChunkComponent(TEXT("AsteroidChunkNear"), ChunkIndex, AsteroidMeshes[0], bEnableNearCollision);
-				NewChunk.Mid = CreateChunkComponent(TEXT("AsteroidChunkMid"), ChunkIndex, MidAsteroidMesh ? MidAsteroidMesh : AsteroidMeshes[0], false);
-				NewChunk.Far = CreateChunkComponent(TEXT("AsteroidChunkFar"), ChunkIndex, FarAsteroidMesh ? FarAsteroidMesh : AsteroidMeshes[0], false);
+				NewChunk.Near = CreateChunkComponent(TEXT("AsteroidChunkNear"), ChunkIndex, ChunkMesh, bEnableNearCollision, 0);
+				NewChunk.Mid = CreateChunkComponent(TEXT("AsteroidChunkMid"), ChunkIndex, ChunkMesh, false, ClampedMidForcedLod);
+				NewChunk.Far = CreateChunkComponent(TEXT("AsteroidChunkFar"), ChunkIndex, ChunkMesh, false, ClampedFarForcedLod);
 				ActiveStreamingChunks.Add(ChunkIndex, NewChunk);
 				Chunk = ActiveStreamingChunks.Find(ChunkIndex);
 			}
@@ -619,7 +678,8 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 					TargetHISM = Chunk->Mid;
 					SpawnChance = ClampedMidSpawn;
 				}
-				else if (DistanceToView <= AdjustedFarEnd && FarCount < EffectiveFarLimit && FarChunkCount < FarChunkBudget)
+				else if ((bFarRangeUnlimited || DistanceToView <= AdjustedFarEnd)
+					&& FarCount < EffectiveFarLimit && FarChunkCount < FarChunkBudget)
 				{
 					TargetHISM = Chunk->Far;
 					SpawnChance = ClampedFarSpawn;
@@ -746,9 +806,17 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 	CleanupNearSwapForComponent(FarTarget);
 	CleanupNearSwapForComponent(FarVisible);
 	FarTarget->ClearInstances();
-	NearTarget->SetStaticMesh(AsteroidMeshes[0]);
-	MidTarget->SetStaticMesh(MidAsteroidMesh ? MidAsteroidMesh : AsteroidMeshes[0]);
-	FarTarget->SetStaticMesh(FarAsteroidMesh ? FarAsteroidMesh : AsteroidMeshes[0]);
+	UStaticMesh* MidMesh = MidAsteroidMesh ? MidAsteroidMesh : BaseMesh;
+	UStaticMesh* FarMesh = FarAsteroidMesh ? FarAsteroidMesh : BaseMesh;
+	NearTarget->SetStaticMesh(BaseMesh);
+	MidTarget->SetStaticMesh(MidMesh);
+	FarTarget->SetStaticMesh(FarMesh);
+	NearTarget->ForcedLodModel = 0;
+	MidTarget->ForcedLodModel = ClampedMidForcedLod;
+	FarTarget->ForcedLodModel = ClampedFarForcedLod;
+	NearVisible->ForcedLodModel = 0;
+	MidVisible->ForcedLodModel = ClampedMidForcedLod;
+	FarVisible->ForcedLodModel = ClampedFarForcedLod;
 	NearTarget->SetCollisionEnabled(bEnableNearCollision ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
 	MidTarget->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	FarTarget->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -803,7 +871,7 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 					SpawnChance = ClampedMidSpawn;
 				}
 			}
-			else if (DistanceToView <= ClampedFarEnd)
+			else if (bFarRangeUnlimited || DistanceToView <= ClampedFarEnd)
 			{
 				if (FarAdded < EffectiveFarLimit)
 				{

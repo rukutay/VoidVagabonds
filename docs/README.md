@@ -20,13 +20,14 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Navigation forces replans on stuck/static-blocked states and honors temp avoidance targets to prevent stalls.
 - Unstuck recovery reacquires blocking obstacles, enforces minimum penetration scaling for force, and aligns steering to escape targets.
 - Safety margin avoidance filters self overlaps/invalid obstacles, avoids tangent escape when no target actor is set, suppresses safety checks after forced Nav fallback, and guards against invalid escape targets with debug reasons.
+- AI ships passively level roll only while moving forward to keep horizontal alignment without fighting steering.
 - Toggleable debug logs for unstuck checks, steering source/heading, and nav target/avoidance decisions.
 - Dynamic ship avoidance uses repulsion on predicted closest approach with relative-speed prediction for high-speed head-on safety.
 - Dynamic/awakened asteroid actors (WorldDynamic) are included in neighbor avoidance queries.
 - Local avoidance now considers blocking PhysicsBody components (bounds-derived radius) in addition to ships and dynamic actors.
 - Physics-driven thrust + yaw/pitch rotation for ship steering.
 - Static obstacle caching handled by the game mode; nav component requests replans.
-- Timer-driven external module aiming (tick disabled).
+- Timer-driven external module aiming (tick disabled); when no target is set, module pivots reset to local rotation (0,0,0) and aiming stops until a target is provided.
 - External module LOS uses a single forward sphere sweep with lead prediction and projectile radius.
 - External module firing supports single/auto/semi-auto modes with safe muzzle spawn and burst timing derived from FireRate, with per-shot damage override and ShootDelay spacing.
 - NavStaticBig supports asteroid field configuration scaffolding (spline, plane radius, HISM, generation params).
@@ -36,7 +37,11 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - NavStaticBig can convert hit near-tier HISM instances into dynamic physics actors on impact.
 - NavStaticBig exposes a Blueprint helper to replace an HISM instance with a spawned actor using the same transform and mesh.
 - NavStaticBig can swap near-field HISM instances into real actors on a timer with enter/exit hysteresis for collision-ready local avoidance; actors that wake physics remain actors (no HISM restore) and sleeping swaps contribute navigation anchors for avoidance.
-- Player ship manual control (analog throttle, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess and optional roll-align toggle in manual mode.
+- NavStaticBig boundary spawns bias to a sun-aligned plane with a subtle 3–7 degree tilt for cohesive asteroid belts.
+- LevelBoundaries can now spawn and stream runtime atmosphere actors (fog/stardust) with predictive placement, overlap-safe class checks, timed cadence, and a hard cap on active instances (Blueprint-configurable).
+- Player ship manual control (analog throttle, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess, optional roll-align toggle, and a ManualYawBankScale setting to tune yaw-driven banking when roll-align is disabled.
+- Ship movement presets (Fighter/Interceptor/Gunship/Cruiser/Carrier) that apply movement + TorquePD rotation tuning on BeginPlay, with Blueprint-tunable overrides.
+- Ship presets now also drive vitality tuning (hull/shield/recharge/armor) and reset spawn hull/shield to max on preset apply.
 - Sun directional light aims from the sun toward the current player pawn (auto-updating target).
 
 > TODO: Add any additional gameplay feature claims only after verifying them in code/docs with explicit evidence.
@@ -64,3 +69,4 @@ See [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) for setup, build, and packaging
 - [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)
 - [CHANGELOG.md](CHANGELOG.md)
 - [VERSION_CHANGES.md](VERSION_CHANGES.md)
+- [marketing.md](marketing.md)
