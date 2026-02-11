@@ -181,7 +181,7 @@ public:
     bool bDebugOrbit = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Navigation|Debug", meta=(DisplayName="Debug Steering", ToolTip="Log steering target source and heading."))
-    bool bDebugSteering = false;
+    bool bDebugSteering = true;
 
     UFUNCTION(BlueprintCallable, Category="AI|Navigation", meta=(ToolTip="Get current target actor."))
     AActor* GetTargetActor() const { return TargetActor; }

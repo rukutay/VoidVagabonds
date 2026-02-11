@@ -215,4 +215,7 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category="Rotation|RollLevel", meta=(ToolTip="Multiplier for roll level PD gains."))
     float ForwardRollLevelGainScale = 1.0f;
+
+    UPROPERTY(VisibleAnywhere, Category="Rotation|Debug", meta=(ToolTip="Accumulator for roll alignment debug logging."))
+    float RollAlignDebugAccumulator = 0.0f;
 };

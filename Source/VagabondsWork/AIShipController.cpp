@@ -92,12 +92,24 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
     float RollErrRad = 0.f;
     if (Ship->RollAlignMode != ERollAlignMode::Default)
     {
+        FVector RollRefWorldDir = ToTargetWorld;
+        if (Ship->TargetActor)
+        {
+            const FVector ToAlignTarget = Ship->TargetActor->GetActorLocation() - ActorLocation;
+            if (!ToAlignTarget.IsNearlyZero())
+            {
+                RollRefWorldDir = ToAlignTarget.GetSafeNormal();
+            }
+        }
+
+        const FVector RollRefLocalDir =
+            ShipBaseTransform.InverseTransformVectorNoScale(RollRefWorldDir).GetSafeNormal();
         FVector DesiredUpLocal = FVector::UpVector;
 
         if (Ship->RollAlignMode == ERollAlignMode::BackToTarget)
-            DesiredUpLocal = ToTargetLocalDir;       // +Up -> target
+            DesiredUpLocal = RollRefLocalDir;       // +Up -> target
         else if (Ship->RollAlignMode == ERollAlignMode::BellyToTarget)
-            DesiredUpLocal = -ToTargetLocalDir;      // -Up -> target
+            DesiredUpLocal = -RollRefLocalDir;      // -Up -> target
 
         // Roll is rotation around local X, so remove X component
         DesiredUpLocal.X = 0.f;
@@ -111,6 +123,25 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
         const float CrossX = FVector::CrossProduct(CurrentUpLocal, DesiredUpLocal).X;
         const float DotUD  = FVector::DotProduct(CurrentUpLocal, DesiredUpLocal);
         RollErrRad = FMath::Atan2(CrossX, DotUD); // [-pi,pi]
+
+#if !UE_BUILD_SHIPPING
+        if (Ship->bDebugSteering && World)
+        {
+            RollAlignDebugAccumulator += DeltaTime;
+            if (RollAlignDebugAccumulator >= 0.5f)
+            {
+                RollAlignDebugAccumulator = 0.0f;
+                const TCHAR* AlignSource = Ship->TargetActor ? TEXT("Target") : TEXT("Steering");
+                UE_LOG(LogTemp, Log, TEXT("Ship %s RollAlign[%s] ErrDeg=%.2f"),
+                    *Ship->GetActorNameOrLabel(),
+                    AlignSource,
+                    FMath::RadiansToDegrees(RollErrRad));
+            }
+            const FVector DrawStart = ActorLocation;
+            const FVector DrawEnd = ActorLocation + RollRefWorldDir * 800.0f;
+            DrawDebugDirectionalArrow(World, DrawStart, DrawEnd, 120.0f, FColor::Purple, false, 0.0f, 0, 2.0f);
+        }
+#endif
     }
 
     // Check if target is behind the ship
