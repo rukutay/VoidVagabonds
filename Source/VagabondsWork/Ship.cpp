@@ -798,15 +798,22 @@ void AShip::ApplyManualShipRotation(const FVector& TargetLocation, float DeltaTi
             TorqueRoll = (Ix * (ManualTorqueKpPitch * RollErrRadManual))
                 - (Ix * (ManualTorqueRollDamping * CurAngVelLocalRad.X));
         }
-        else if (!bManualUseRollAlign || RollAlignMode == ERollAlignMode::Default)
+        else if (!bManualUseRollAlign)
         {
-            TorqueRoll = -Ix * (ManualTorqueRollDamping * CurAngVelLocalRad.X);
+            const float RollTargetRad = -ManualYawInput * ManualYawBankScale * MaxRollSpeed * (PI / 180.f);
+            const float RollErrRadManual = RollTargetRad - CurAngVelLocalRad.X;
+            TorqueRoll = (Ix * (ManualTorqueKpPitch * RollErrRadManual))
+                - (Ix * (ManualTorqueRollDamping * CurAngVelLocalRad.X));
         }
-        else if (bManualUseRollAlign)
+        else if (bManualUseRollAlign && RollAlignMode != ERollAlignMode::Default)
         {
             const float AlphaRoll =
                 (RollAlignKp * RollErrRad) - (RollAlignKd * CurAngVelLocalRad.X);
             TorqueRoll = Ix * AlphaRoll;
+        }
+        else
+        {
+            TorqueRoll = -Ix * (ManualTorqueRollDamping * CurAngVelLocalRad.X);
         }
 
         TorquePitch = FMath::Clamp(TorquePitch, -ManualMaxTorquePitch, ManualMaxTorquePitch);
@@ -826,6 +833,10 @@ void AShip::ApplyManualShipRotation(const FVector& TargetLocation, float DeltaTi
     if (FMath::Abs(ManualRollInput) > KINDA_SMALL_NUMBER)
     {
         DesiredRollRate = ManualRollInput * MaxRollSpeed;
+    }
+    else if (!bManualUseRollAlign)
+    {
+        DesiredRollRate = -ManualYawInput * ManualYawBankScale * MaxRollSpeed;
     }
     else if (bManualUseRollAlign && RollAlignMode != ERollAlignMode::Default)
     {

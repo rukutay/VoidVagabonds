@@ -48,7 +48,7 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
   - Yaw: **A/D**
   - Roll: **Q/E**
 - **Setup**: Create Input Actions + Mapping Context assets in Blueprint and assign them to `APlayerMainController` fields (`ThrottleAction`, `PitchAction`, `YawAction`, `RollAction`).
-- **Behavior**: On player possess, the previous AI controller resumes control on unpossess. Manual mode uses AI-style steering, and `AShip::bManualUseRollAlign` toggles roll-align in manual control (default true).
+- **Behavior**: On player possess, the previous AI controller resumes control on unpossess. Manual mode uses AI-style steering, `AShip::bManualUseRollAlign` toggles roll-align (default true), and `AShip::ManualYawBankScale` tunes yaw-driven banking when manual roll-align is disabled.
 
 ## Debugging / Profiling
 > TODO: Add Unreal Insights capture steps and standard `stat` command workflow once adopted for this project.

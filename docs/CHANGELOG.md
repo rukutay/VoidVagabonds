@@ -18,7 +18,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - NavStaticBig Blueprint helper to replace a HISM instance with a spawned actor using the same transform and mesh.
 - NavStaticBig near-field asteroid actor swap (timer-driven with enter/exit hysteresis) for full collision near the player; asteroids that wake physics remain actors and sleeping swaps now feed runtime navigation anchors.
 - Global navigation replanning with cached static obstacles.
-- Player manual ship controls (analog throttle, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess and manual roll-align toggle.
+- Player manual ship controls (analog throttle, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess, manual roll-align toggle, and ManualYawBankScale for yaw-driven banking when roll-align is disabled.
 
 ### Improved
 - Navigation avoidance stability and replan jittering for scale.

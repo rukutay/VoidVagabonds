@@ -147,6 +147,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|ManualControl", meta=(ToolTip="Allow roll alignment while in manual control."))
     bool bManualUseRollAlign = true;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|ManualControl", meta=(ClampMin="0.0", ToolTip="Yaw input bank scale when roll align is disabled."))
+    float ManualYawBankScale = 1.0f;
+
     // Roll alignment gains (only used when RollAlignMode != Default)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation", meta=(ClampMin="0.0", ToolTip="Roll alignment proportional gain."))
     float RollAlignKp = 2.0f;
