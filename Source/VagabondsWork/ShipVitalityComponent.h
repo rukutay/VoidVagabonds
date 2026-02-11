@@ -9,6 +9,7 @@
 
 // Forward declarations
 class AActor;
+enum class EShipPreset : uint8;
 
 UENUM(BlueprintType)
 enum class EDamageType : uint8
@@ -122,33 +123,36 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Ship|Vitality")
     FShipDamageResult ApplyDamage(const FShipDamageSpec& DamageSpec);
 
+    UFUNCTION(BlueprintCallable, Category = "Ship|Vitality|Preset")
+    void ApplyVitalityPreset(EShipPreset Preset);
+
     /** Maximum hull health points */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Vitality|Hull")
-    float HullHPMax = 1000.0f;
+    float HullHPMax = 150.0f;
 
     /** Current hull health points */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Vitality|Hull")
-    float HullHP = 1000.0f;
+    float HullHP = 150.0f;
 
     /** Maximum shield health points */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Vitality|Shield")
-    float ShieldHPMax = 500.0f;
+    float ShieldHPMax = 350.0f;
 
     /** Current shield health points */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Vitality|Shield")
-    float ShieldHP = 500.0f;
+    float ShieldHP = 350.0f;
 
     /** Rate at which shields recharge per second */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Vitality|Shield", meta = (ClampMin = "0.0"))
-    float ShieldRechargeRate = 50.0f;
+    float ShieldRechargeRate = 25.0f;
 
     /** Delay before shield recharge begins after taking damage (seconds) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Vitality|Shield", meta = (ClampMin = "0.0"))
-    float ShieldRechargeDelay = 3.0f;
+    float ShieldRechargeDelay = 5.0f;
 
     /** Interval between shield recharge ticks (seconds) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Vitality|Shield", meta = (ClampMin = "0.0"))
-    float ShieldRechargeTickInterval = 0.2f;
+    float ShieldRechargeTickInterval = 0.25f;
 
     /** Armor damage reduction factor (0..1, where 1 means full reduction) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ship|Vitality|Armor", meta = (ClampMin = "0.0", ClampMax = "1.0"))

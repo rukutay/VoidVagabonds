@@ -26,6 +26,8 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Navigation avoidance**: Dynamic ship avoidance uses repulsion at predicted closest approach with relative-speed prediction for high-speed safety.
 - **Navigation avoidance**: Dynamic/awakened asteroid actors (WorldDynamic) are included in neighbor avoidance queries.
 - **Navigation avoidance**: Local avoidance considers blocking PhysicsBody components using bounds-derived radii for non-ship obstacles.
+- Ship presets: `AShip` supports movement presets (Fighter/Interceptor/Gunship/Cruiser/Carrier) that also apply TorquePD rotation tuning on BeginPlay; disable `bApplyPresetOnBeginPlay` to keep manual BP edits.
+- Ship vitality: presets also tune hull/shield/recharge/armor values and reset current hull/shield to max when applied.
 - **Timers**: Prefer `FTimerHandle` updates; keep external modules tick-disabled.
 - **Naming**: Use Unreal prefixes (A/U/F/E), `b` prefix for booleans, `Cm` suffix for distances.
 - **Properties**: Use `UPROPERTY` with scoped categories (e.g., `Ship|Navigation`, `Aim|Speed`).
@@ -37,6 +39,7 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **NavStaticBig**: Asteroid generation is spline-driven, seeded, and uses width/height bounds with scale ranges.
 - **NavStaticBig**: View-based asteroid streaming with near/mid/far HISM tiers, per-tier density/instance budgets, and editor preview caps.
 - **NavStaticBig**: Organic spawn jitter/probability controls plus near-tier hit-to-dynamic-actor conversion.
+- **NavStaticBig**: Boundary spawns bias toward a sun-aligned plane with a 3–7 degree tilt for cohesive asteroid belts.
 - **NavStaticBig**: Incremental chunk-based streaming with hysteresis bands plus stratified random sampling (double-buffer fallback) to avoid visible blinking during movement. Chunk rebuilds only trigger when a chunk changes band or when streaming config changes. Streaming adds deterministic along-spline jitter, frame roll, distance/radial noise, micro-clusters, and per-candidate dropout (low-frequency modulation) for less grid-like placement; dropout also scales per-tier budgets for visible thinning. Per-chunk instance budgets prevent late spline sections from starving.
 - **NavStaticBig**: Blueprint helper can replace a HISM instance with a spawned actor using the same transform/mesh for manual swaps.
 - **NavStaticBig**: Near-field asteroid swap can replace near HISM instances with actors on a timer, using enter/exit hysteresis radii for stable collision/avoidance behavior; actors that wake physics remain actors (no HISM restore) and sleeping swaps feed runtime navigation anchors.

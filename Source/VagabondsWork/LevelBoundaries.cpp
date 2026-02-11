@@ -91,11 +91,33 @@ void ALevelBoundaries::NavStaticBig(TSubclassOf<ANavStaticBig> NavStaticBigClass
 	const float MinDistanceSq = MinDistance * MinDistance;
 	const int32 MaxAttempts = TargetCount * 20;
 	int32 Attempts = 0;
+	FVector PlaneNormal = FVector::UpVector;
+	if (bHasSun)
+	{
+		PlaneNormal = (SunLocation - Center).GetSafeNormal();
+		if (PlaneNormal.IsNearlyZero())
+		{
+			PlaneNormal = FVector::UpVector;
+		}
+	}
+	FVector PlaneAxisA = FVector::ZeroVector;
+	FVector PlaneAxisB = FVector::ZeroVector;
+	PlaneNormal.FindBestAxisVectors(PlaneAxisA, PlaneAxisB);
+	PlaneAxisA = PlaneAxisA.GetSafeNormal();
+	PlaneAxisB = PlaneAxisB.GetSafeNormal();
+	const float MinTiltDegrees = 3.0f;
+	const float MaxTiltDegrees = 7.0f;
 
 	while (SpawnedLocations.Num() < TargetCount && Attempts < MaxAttempts)
 	{
 		++Attempts;
-		const FVector Candidate = Center + FMath::VRand() * FMath::FRandRange(0.0f, SpawnRadius);
+		const float Radius = FMath::FRandRange(0.0f, SpawnRadius);
+		const float Angle = FMath::FRandRange(0.0f, 2.0f * PI);
+		const FVector PlaneOffset = PlaneAxisA * FMath::Cos(Angle) + PlaneAxisB * FMath::Sin(Angle);
+		const float TiltDegrees = FMath::FRandRange(MinTiltDegrees, MaxTiltDegrees);
+		const float TiltSign = (FMath::RandBool() ? 1.0f : -1.0f);
+		const FVector TiltOffset = PlaneNormal * FMath::Tan(FMath::DegreesToRadians(TiltDegrees)) * TiltSign;
+		const FVector Candidate = Center + (PlaneOffset + TiltOffset).GetSafeNormal() * Radius;
 
 		if (bHasSun && FVector::DistSquared(Candidate, SunLocation) < MinDistanceSq)
 		{

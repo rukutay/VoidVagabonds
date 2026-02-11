@@ -77,6 +77,18 @@ public:
     UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="Aim error dead zone in degrees."))
     float GetAimDeadZoneDeg() const { return AimDeadZoneDeg; }
 
+    UFUNCTION(BlueprintCallable, Category="Rotation", meta=(ToolTip="Apply torque PD tuning values."))
+    void SetTorqueTuning(
+        bool bEnableTorquePD,
+        float InTorqueKpPitch,
+        float InTorqueKpYaw,
+        float InTorqueKdPitch,
+        float InTorqueKdYaw,
+        float InMaxTorquePitch,
+        float InMaxTorqueYaw,
+        float InMaxTorqueRoll,
+        float InTorqueRollDamping);
+
 private:
     void HandleStuckCheck();
     void HandleSafetyMarginCheck();

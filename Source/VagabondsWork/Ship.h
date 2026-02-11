@@ -15,6 +15,16 @@ enum class ERollAlignMode : uint8
     BellyToTarget UMETA(DisplayName="Belly")  // ship -Up aligns to target direction
 };
 
+UENUM(BlueprintType)
+enum class EShipPreset : uint8
+{
+    Fighter     UMETA(DisplayName="Fighter"),
+    Interceptor UMETA(DisplayName="Interceptor"),
+    Gunship     UMETA(DisplayName="Gunship"),
+    Cruiser     UMETA(DisplayName="Cruiser"),
+    Carrier     UMETA(DisplayName="Carrier")
+};
+
 class AAIShipController;
 class AController;
 class UShipNavComponent;
@@ -99,6 +109,15 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="AI|Navigation", meta=(ToolTip="Get current target actor."))
     AActor* GetTargetActor() const { return TargetActor; }
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Preset", meta=(ToolTip="Preset for ship movement/rotation tuning."))
+    EShipPreset ShipPreset = EShipPreset::Fighter;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Preset", meta=(ToolTip="Apply the selected preset at BeginPlay."))
+    bool bApplyPresetOnBeginPlay = true;
+
+    UFUNCTION(BlueprintCallable, Category="Ship|Preset", meta=(ToolTip="Apply the current ship preset to movement/rotation values."))
+    void ApplyShipPreset();
 
     // ---------------- Controller ----------------
     

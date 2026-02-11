@@ -30,6 +30,28 @@ void AAIShipController::BeginPlay()
     }
 }
 
+void AAIShipController::SetTorqueTuning(
+    bool bEnableTorquePD,
+    float InTorqueKpPitch,
+    float InTorqueKpYaw,
+    float InTorqueKdPitch,
+    float InTorqueKdYaw,
+    float InMaxTorquePitch,
+    float InMaxTorqueYaw,
+    float InMaxTorqueRoll,
+    float InTorqueRollDamping)
+{
+    bUseTorquePD = bEnableTorquePD;
+    TorqueKpPitch = InTorqueKpPitch;
+    TorqueKpYaw = InTorqueKpYaw;
+    TorqueKdPitch = InTorqueKdPitch;
+    TorqueKdYaw = InTorqueKdYaw;
+    MaxTorquePitch = InMaxTorquePitch;
+    MaxTorqueYaw = InMaxTorqueYaw;
+    MaxTorqueRoll = InMaxTorqueRoll;
+    TorqueRollDamping = InTorqueRollDamping;
+}
+
 FVector AAIShipController::GetFocusLocation()
 {
     AShip* Ship = Cast<AShip>(GetPawn());

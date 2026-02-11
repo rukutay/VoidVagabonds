@@ -19,11 +19,14 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - NavStaticBig near-field asteroid actor swap (timer-driven with enter/exit hysteresis) for full collision near the player; asteroids that wake physics remain actors and sleeping swaps now feed runtime navigation anchors.
 - Global navigation replanning with cached static obstacles.
 - Player manual ship controls (analog throttle, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess, manual roll-align toggle, and ManualYawBankScale for yaw-driven banking when roll-align is disabled.
+- Ship presets for movement + TorquePD rotation tuning (Fighter/Interceptor/Gunship/Cruiser/Carrier) with Blueprint-selectable values.
+- Ship vitality presets now align with ship presets (hull/shield/recharge/armor) and reset current hull/shield to max on preset apply.
 
 ### Improved
 - Navigation avoidance stability and replan jittering for scale.
 - Ship navigation now forces replans on stuck/static-blocked states and always honors temp avoidance targets to prevent long stalls.
 - Unstuck recovery now reacquires blocking obstacles, enforces a minimum penetration scale for force, and aligns steering to escape targets to reduce stalls.
+- NavStaticBig spawns now bias to a sun-aligned plane with a small 3–7 degree tilt to keep asteroid belts cohesive.
 - Safety margin avoidance now ignores self overlaps/invalid obstacles, skips tangent escape when no target actor, suppresses safety checks after forced Nav fallback, and guards against invalid escape targets with debug reasons.
 - Dynamic ship avoidance now uses repulsion on predicted closest approach with relative-speed prediction to reduce high-speed head-on collisions.
 - Dynamic avoidance now includes awakened/dynamic asteroid actors (WorldDynamic) in neighbor queries.
