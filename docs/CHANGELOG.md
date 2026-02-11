@@ -53,6 +53,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Sun directional light now resolves tagged light + pawn every frame and applies rotation to the light component.
 - Sun light now prefers current ViewTargetActor each tick (falls back to player pawn).
 - External module line-of-sight uses a single forward sphere sweep with lead prediction and projectile radius.
+- External modules now reset PivotBase/PivotGun to local rotation (0,0,0) when no target is set, and only aim when TargetActor is valid.
 
 ### Removed
 - Roll aim functionality (removed to keep ship behavior stable).

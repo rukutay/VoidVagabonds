@@ -401,14 +401,33 @@ float AExternalModule::GetCurrentPitch() const
 
 void AExternalModule::UpdateAim()
 {
-	if (!TargetActor) return;
+	if (!TargetActor)
+	{
+		ReadyToShoot = false;
+		if (PivotBase)
+		{
+			PivotBase->SetRelativeRotation(FRotator::ZeroRotator);
+		}
+		if (PivotGun)
+		{
+			PivotGun->SetRelativeRotation(FRotator::ZeroRotator);
+		}
+		return;
+	}
 	const float Dt = (AimUpdateHz > 0) ? (1.f / AimUpdateHz) : 0.f;
 	AimStep(Dt);
 }
 
 void AExternalModule::AimStep(float Dt)
 {
-	if (!PivotBase || !PivotGun || !Muzzle || !TargetActor || Dt <= 0) return;
+	if (!PivotBase || !PivotGun || !Muzzle || Dt <= 0) return;
+	if (!TargetActor)
+	{
+		ReadyToShoot = false;
+		PivotBase->SetRelativeRotation(FRotator::ZeroRotator);
+		PivotGun->SetRelativeRotation(FRotator::ZeroRotator);
+		return;
+	}
 
 	ReadyToShoot = HasLineOfSightToTarget();
 
@@ -496,7 +515,7 @@ void AExternalModule::AimStep(float Dt)
 		const float NewPitch = FRotator::NormalizeAxis(CurrentPitch + Step);
 		PivotGun->SetRelativeRotation(FRotator(NewPitch, 0.f, 0.f));
 	}
-	
+
 	// Debug visualization
 	if (bDebugAim && GetWorld())
 	{
