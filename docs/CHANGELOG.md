@@ -6,6 +6,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 
 ## [Unreleased]
 ### Added
+- Player-facing marketing document for portfolio presentation (`docs/marketing.md`).
 - External ship module system (timer-driven aiming, tick disabled).
 - External module firing params (FireRate, SemiAutoShootsNumber, FireMode, ShootDelay) and Shoot API with safe muzzle spawn + semi-auto burst timing + damage override.
 - Toggleable debug logs for unstuck checks, steering source/heading, and nav target/avoidance decisions.

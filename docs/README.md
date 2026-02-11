@@ -64,3 +64,4 @@ See [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) for setup, build, and packaging
 - [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)
 - [CHANGELOG.md](CHANGELOG.md)
 - [VERSION_CHANGES.md](VERSION_CHANGES.md)
+- [marketing.md](marketing.md)

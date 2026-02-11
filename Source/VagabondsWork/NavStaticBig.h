@@ -213,6 +213,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Meshes")
 	UStaticMesh* FarAsteroidMesh = nullptr;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Meshes")
+	int32 MidAsteroidForcedLod = 2;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Meshes")
+	int32 FarAsteroidForcedLod = 3;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Spline")
 	float SplineRadiusOverride = 0.0f;
 
@@ -245,6 +251,7 @@ private:
 	void UpdateNearAsteroidActorSwap();
 	void CleanupNearSwapForComponent(UHierarchicalInstancedStaticMeshComponent* Component);
 	FVector GetStreamingViewLocation() const;
+	UStaticMesh* GetRandomAsteroidMesh(FRandomStream& RandomStream) const;
 	bool SpawnDynamicAsteroidFromInstance(UHierarchicalInstancedStaticMeshComponent* SourceHISM, int32 InstanceIndex,
 		const FVector& NormalImpulse, bool bApplyImpulse);
 	bool SpawnNearSwapAsteroidFromInstance(UHierarchicalInstancedStaticMeshComponent* SourceHISM, int32 InstanceIndex);

@@ -55,7 +55,7 @@ public:
         UPrimitiveComponent* OtherComp,
         int32 OtherBodyIndex);
 
-    // NAVIGATION_TODO_REMOVE
+    
     UFUNCTION(BlueprintCallable, Category="Ship|AI", meta=(ToolTip="Get current goal location for AI navigation."))
     FVector GetGoalLocation() const;
 
@@ -101,7 +101,7 @@ public:
     AActor* GetTargetActor() const { return TargetActor; }
 
     // ---------------- Controller ----------------
-    // NAVIGATION_TODO_REMOVE
+    
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|AI", meta=(AllowPrivateAccess="true", ToolTip="AI controller driving ship navigation/rotation."))
     AAIShipController* ShipController = nullptr;
 
@@ -113,31 +113,31 @@ public:
     UShipVitalityComponent* GetVitality() const { return Vitality; }
 
     // ---------------- AI Controls ----------------
-    // NAVIGATION_TODO_REMOVE
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Maximum pitch speed (deg/sec)."))
-    float MaxPitchSpeed = 6.f;   // deg/sec
+    float MaxPitchSpeed = 18.f;   // deg/sec
 
-    // NAVIGATION_TODO_REMOVE
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Maximum yaw speed (deg/sec)."))
     float MaxYawSpeed = 18.f;    // deg/sec
 
-    // NAVIGATION_TODO_REMOVE
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Pitch acceleration response."))
-    float PitchAccelSpeed = 6.f;
+    float PitchAccelSpeed = 8.f;
 
-    // NAVIGATION_TODO_REMOVE
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Yaw acceleration response."))
-    float YawAccelSpeed = 7.f;
+    float YawAccelSpeed = 15.f;
 
-    // NAVIGATION_TODO_REMOVE
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Maximum roll speed (deg/sec)."))
     float MaxRollSpeed = 20.f;   // deg/sec
 
-    // NAVIGATION_TODO_REMOVE
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Roll acceleration response."))
-    float RollAccelSpeed = 10.f;
+    float RollAccelSpeed = 15.f;
 
-    // NAVIGATION_TODO_REMOVE
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Maximum roll angle when banking (deg)."))
     float MaxRollAngle = 22.5f; // degrees
 
@@ -167,25 +167,25 @@ public:
     UShipVitalityComponent* Vitality = nullptr;
 
     // ---------------- Movement ----------------
-    // NAVIGATION_TODO_REMOVE
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement", meta=(ToolTip="Maximum forward force scalar."))
-    float MaxForwardForce = 500.f;
+    float MaxForwardForce = 950.f;
 
-    // NAVIGATION_TODO_REMOVE
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement", meta=(ToolTip="Minimum throttle applied when steering."))
     float MinThrottle = 0.15f;
 
-    // NAVIGATION_TODO_REMOVE
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement", meta=(ToolTip="Throttle interpolation speed."))
-    float ThrottleInterpSpeed = 2.5f;
+    float ThrottleInterpSpeed = 10.f;
 
-    // NAVIGATION_TODO_REMOVE
+    
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|AI|Movement", meta=(ToolTip="Current throttle value applied to thrust."))
     float CurrentThrottle = 0.f;
 
-    // NAVIGATION_TODO_REMOVE
+    
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement", meta=(ToolTip="Damping applied to lateral velocity."))
-    float LateralDamping = 2.5f;
+    float LateralDamping = 0.5f;
 
     // Soft Separation Settings
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Enable soft separation forces."))
@@ -198,7 +198,7 @@ public:
     float SoftSeparationMarginCm = 30.0f;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Base soft separation force strength."))
-    float SoftSeparationStrength = 40000.0f;
+    float SoftSeparationStrength = 50000.0f;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Maximum soft separation force clamp."))
     float SoftSeparationMaxForce = 90000.0f;
@@ -215,7 +215,7 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Manual Control State."))
     bool bManualControl = false;
 
-    // NAVIGATION_TODO_REMOVE
+    
     UFUNCTION(BlueprintCallable, meta=(ToolTip="Apply forward steering force toward target location."))
     void ApplySteeringForce(FVector TargetLocation, float DeltaTime, bool bOverrideThrottle = false, float ThrottleOverride = 0.f);
 

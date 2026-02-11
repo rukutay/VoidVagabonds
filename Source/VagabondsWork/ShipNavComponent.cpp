@@ -297,11 +297,15 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	{
 		FCollisionQueryParams TraceParams(SCENE_QUERY_STAT(ShipNavAvoidTrace), false, GetOwner());
 		const FVector TraceEnd = ShipPos + TraceDir * TraceDistance;
-		bTraceAvoidance = GetWorld()->LineTraceSingleByChannel(
+		const float TraceRadius = FMath::Max(ShipRadiusCm * ForwardTraceRadiusMultiplier, 10.0f);
+		const FCollisionShape TraceShape = FCollisionShape::MakeSphere(TraceRadius);
+		bTraceAvoidance = GetWorld()->SweepSingleByChannel(
 			TraceHit,
 			ShipPos,
 			TraceEnd,
+			FQuat::Identity,
 			ECC_GameTraceChannel3,
+			TraceShape,
 			TraceParams);
 		if (bTraceAvoidance && TraceHit.bBlockingHit)
 		{
@@ -318,6 +322,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			if (bDrawNavPath)
 			{
 				DrawDebugLine(GetWorld(), ShipPos, TraceEnd, FColor::Silver, false, 0.0f, 0, 1.0f);
+				DrawDebugSphere(GetWorld(), TraceEnd, TraceRadius, 12, FColor::Silver, false, 0.0f, 0, 0.8f);
 				DrawDebugPoint(GetWorld(), TraceHit.ImpactPoint, 10.0f, FColor::White, false, 0.0f, 0);
 				DrawDebugLine(GetWorld(), TraceHit.ImpactPoint,
 					TraceHit.ImpactPoint + TraceNormal * (ShipRadiusCm * 1.5f),

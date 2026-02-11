@@ -6,6 +6,9 @@
 #include "GameFramework/Actor.h"
 #include "LevelBoundaries.generated.h"
 
+class USphereComponent;
+class ANavStaticBig;
+
 UCLASS()
 class VAGABONDSWORK_API ALevelBoundaries : public AActor
 {
@@ -22,5 +25,11 @@ protected:
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Boundaries")
+	USphereComponent* Boudaries = nullptr;
+
+	UFUNCTION(BlueprintCallable, Category="Boundaries")
+	void NavStaticBig(TSubclassOf<ANavStaticBig> NavStaticBigClass, int32 MinNum, int32 MaxNum, float MinDistance);
 
 };
