@@ -20,6 +20,7 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Navigation forces replans on stuck/static-blocked states and honors temp avoidance targets to prevent stalls.
 - Unstuck recovery reacquires blocking obstacles, enforces minimum penetration scaling for force, and aligns steering to escape targets.
 - Safety margin avoidance filters self overlaps/invalid obstacles, avoids tangent escape when no target actor is set, suppresses safety checks after forced Nav fallback, and guards against invalid escape targets with debug reasons.
+- AI ships passively level roll only while moving forward to keep horizontal alignment without fighting steering.
 - Toggleable debug logs for unstuck checks, steering source/heading, and nav target/avoidance decisions.
 - Dynamic ship avoidance uses repulsion on predicted closest approach with relative-speed prediction for high-speed head-on safety.
 - Dynamic/awakened asteroid actors (WorldDynamic) are included in neighbor avoidance queries.
@@ -37,6 +38,7 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - NavStaticBig exposes a Blueprint helper to replace an HISM instance with a spawned actor using the same transform and mesh.
 - NavStaticBig can swap near-field HISM instances into real actors on a timer with enter/exit hysteresis for collision-ready local avoidance; actors that wake physics remain actors (no HISM restore) and sleeping swaps contribute navigation anchors for avoidance.
 - NavStaticBig boundary spawns bias to a sun-aligned plane with a subtle 3–7 degree tilt for cohesive asteroid belts.
+- LevelBoundaries can now spawn and stream runtime atmosphere actors (fog/stardust) with predictive placement, overlap-safe class checks, timed cadence, and a hard cap on active instances (Blueprint-configurable).
 - Player ship manual control (analog throttle, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess, optional roll-align toggle, and a ManualYawBankScale setting to tune yaw-driven banking when roll-align is disabled.
 - Ship movement presets (Fighter/Interceptor/Gunship/Cruiser/Carrier) that apply movement + TorquePD rotation tuning on BeginPlay, with Blueprint-tunable overrides.
 - Ship presets now also drive vitality tuning (hull/shield/recharge/armor) and reset spawn hull/shield to max on preset apply.

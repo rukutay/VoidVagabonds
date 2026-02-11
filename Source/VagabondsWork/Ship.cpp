@@ -42,17 +42,22 @@ void AShip::BeginPlay()
 {
     Super::BeginPlay();
 
-    if (bApplyPresetOnBeginPlay)
-    {
-        ApplyShipPreset();
-    }
-
     // NAVIGATION_TODO_REMOVE
     ShipController = Cast<AAIShipController>(GetController());
     if (!ShipController)
     {
         UE_LOG(LogTemp, Warning, TEXT("ShipController not found on %s"), *GetName());
         bLoggedMissingController = true;
+    }
+
+    if (bApplyPresetOnBeginPlay && ShipPreset != EShipPreset::Custom)
+    {
+        ApplyShipPreset();
+    }
+    else
+    {
+        SyncControllerTuningFromShip();
+        SyncManualTuningFromShip();
     }
 #if !UE_BUILD_SHIPPING
     UE_LOG(LogTemp, Log, TEXT("Ship %s DebugSteering=%s DebugOrbit=%s"),
@@ -62,8 +67,157 @@ void AShip::BeginPlay()
 #endif
 }
 
+#if WITH_EDITOR
+void AShip::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+    Super::PostEditChangeProperty(PropertyChangedEvent);
+
+    const FName PropertyName = PropertyChangedEvent.Property
+        ? PropertyChangedEvent.Property->GetFName()
+        : NAME_None;
+
+    if (PropertyName == GET_MEMBER_NAME_CHECKED(AShip, ShipPreset))
+    {
+        if (ShipPreset != EShipPreset::Custom)
+        {
+            ApplyShipPreset();
+            ShipPreset = EShipPreset::Custom;
+        }
+    }
+    else if (PropertyName == GET_MEMBER_NAME_CHECKED(AShip, MaxPitchSpeed)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, MaxYawSpeed)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, PitchAccelSpeed)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, YawAccelSpeed)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, MaxRollSpeed)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, RollAccelSpeed)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, MaxRollAngle)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, bUseTorquePD)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, ControllerTorqueKpPitch)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, ControllerTorqueKpYaw)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, ControllerTorqueKdPitch)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, ControllerTorqueKdYaw)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, ControllerMaxTorquePitch)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, ControllerMaxTorqueYaw)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, ControllerMaxTorqueRoll)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, ControllerTorqueRollDamping)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, RollAlignKp)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, RollAlignKd)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, MaxForwardForce)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, MinThrottle)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, ThrottleInterpSpeed)
+        || PropertyName == GET_MEMBER_NAME_CHECKED(AShip, LateralDamping))
+    {
+        SyncControllerTuningFromShip();
+        SyncManualTuningFromShip();
+    }
+}
+#endif
+
+FShipTuningSnapshot AShip::BuildTuningSnapshot() const
+{
+    FShipTuningSnapshot Snapshot;
+    Snapshot.MaxPitchSpeed = MaxPitchSpeed;
+    Snapshot.MaxYawSpeed = MaxYawSpeed;
+    Snapshot.PitchAccelSpeed = PitchAccelSpeed;
+    Snapshot.YawAccelSpeed = YawAccelSpeed;
+    Snapshot.MaxRollSpeed = MaxRollSpeed;
+    Snapshot.RollAccelSpeed = RollAccelSpeed;
+    Snapshot.MaxRollAngle = MaxRollAngle;
+    Snapshot.bUseTorquePD = bUseTorquePD;
+    Snapshot.TorqueKpPitch = ControllerTorqueKpPitch;
+    Snapshot.TorqueKpYaw = ControllerTorqueKpYaw;
+    Snapshot.TorqueKdPitch = ControllerTorqueKdPitch;
+    Snapshot.TorqueKdYaw = ControllerTorqueKdYaw;
+    Snapshot.MaxTorquePitch = ControllerMaxTorquePitch;
+    Snapshot.MaxTorqueYaw = ControllerMaxTorqueYaw;
+    Snapshot.MaxTorqueRoll = ControllerMaxTorqueRoll;
+    Snapshot.TorqueRollDamping = ControllerTorqueRollDamping;
+    Snapshot.RollAlignKp = RollAlignKp;
+    Snapshot.RollAlignKd = RollAlignKd;
+    Snapshot.MaxForwardForce = MaxForwardForce;
+    Snapshot.MinThrottle = MinThrottle;
+    Snapshot.ThrottleInterpSpeed = ThrottleInterpSpeed;
+    Snapshot.LateralDamping = LateralDamping;
+    return Snapshot;
+}
+
+void AShip::ApplyTuningSnapshot(const FShipTuningSnapshot& Snapshot)
+{
+    MaxPitchSpeed = Snapshot.MaxPitchSpeed;
+    MaxYawSpeed = Snapshot.MaxYawSpeed;
+    PitchAccelSpeed = Snapshot.PitchAccelSpeed;
+    YawAccelSpeed = Snapshot.YawAccelSpeed;
+    MaxRollSpeed = Snapshot.MaxRollSpeed;
+    RollAccelSpeed = Snapshot.RollAccelSpeed;
+    MaxRollAngle = Snapshot.MaxRollAngle;
+    bUseTorquePD = Snapshot.bUseTorquePD;
+    ControllerTorqueKpPitch = Snapshot.TorqueKpPitch;
+    ControllerTorqueKpYaw = Snapshot.TorqueKpYaw;
+    ControllerTorqueKdPitch = Snapshot.TorqueKdPitch;
+    ControllerTorqueKdYaw = Snapshot.TorqueKdYaw;
+    ControllerMaxTorquePitch = Snapshot.MaxTorquePitch;
+    ControllerMaxTorqueYaw = Snapshot.MaxTorqueYaw;
+    ControllerMaxTorqueRoll = Snapshot.MaxTorqueRoll;
+    ControllerTorqueRollDamping = Snapshot.TorqueRollDamping;
+    RollAlignKp = Snapshot.RollAlignKp;
+    RollAlignKd = Snapshot.RollAlignKd;
+    MaxForwardForce = Snapshot.MaxForwardForce;
+    MinThrottle = Snapshot.MinThrottle;
+    ThrottleInterpSpeed = Snapshot.ThrottleInterpSpeed;
+    LateralDamping = Snapshot.LateralDamping;
+    TuningSnapshot = Snapshot;
+}
+
+void AShip::SyncControllerTuningFromShip()
+{
+    TuningSnapshot = BuildTuningSnapshot();
+    ApplyControllerTuning();
+}
+
+void AShip::SyncManualTuningFromShip()
+{
+    bManualUseTorquePD = bUseTorquePD;
+    ManualTorqueKpPitch = ControllerTorqueKpPitch;
+    ManualTorqueKpYaw = ControllerTorqueKpYaw;
+    ManualTorqueKdPitch = ControllerTorqueKdPitch;
+    ManualTorqueKdYaw = ControllerTorqueKdYaw;
+    ManualMaxTorquePitch = ControllerMaxTorquePitch;
+    ManualMaxTorqueYaw = ControllerMaxTorqueYaw;
+    ManualTorqueRollDamping = ControllerTorqueRollDamping;
+    ManualMaxTorqueRoll = ControllerMaxTorqueRoll;
+
+    if (EnsureShipController())
+    {
+        ManualAimDeadZoneDeg = ShipController->GetAimDeadZoneDeg();
+    }
+}
+
+void AShip::ApplyControllerTuning()
+{
+    if (!EnsureShipController())
+    {
+        return;
+    }
+
+    ShipController->SetTorqueTuning(
+        bUseTorquePD,
+        ControllerTorqueKpPitch,
+        ControllerTorqueKpYaw,
+        ControllerTorqueKdPitch,
+        ControllerTorqueKdYaw,
+        ControllerMaxTorquePitch,
+        ControllerMaxTorqueYaw,
+        ControllerMaxTorqueRoll,
+        ControllerTorqueRollDamping);
+}
+
 void AShip::ApplyShipPreset()
 {
+    if (ShipPreset == EShipPreset::Custom)
+    {
+        return;
+    }
+
     float TorqueKpPitch = 18.f;
     float TorqueKpYaw = 22.f;
     float TorqueKdPitch = 6.f;
@@ -92,113 +246,111 @@ void AShip::ApplyShipPreset()
         }
         case EShipPreset::Interceptor:
         {
-            MaxForwardForce = 1100.f;
+            MaxForwardForce = 1050.f;
             MinThrottle = 0.17f;
             ThrottleInterpSpeed = 9.f;
-            LateralDamping = 0.58f;
-            MaxPitchSpeed = 16.f;
-            MaxYawSpeed = 16.f;
-            PitchAccelSpeed = 7.f;
-            YawAccelSpeed = 13.f;
-            MaxRollSpeed = 17.f;
-            RollAccelSpeed = 13.f;
+            LateralDamping = 0.6f;
+            MaxPitchSpeed = 17.f;
+            MaxYawSpeed = 17.f;
+            PitchAccelSpeed = 7.5f;
+            YawAccelSpeed = 13.5f;
+            MaxRollSpeed = 18.f;
+            RollAccelSpeed = 13.5f;
             MaxRollAngle = 20.f;
-            TorqueKpPitch = 16.f;
-            TorqueKpYaw = 20.f;
-            TorqueKdPitch = 5.5f;
-            TorqueKdYaw = 6.5f;
-            MaxTorquePitch = 0.9f;
-            MaxTorqueYaw = 0.9f;
-            MaxTorqueRoll = 0.9f;
-            TorqueRollDamping = 0.22f;
+            TorqueKpPitch = 15.f;
+            TorqueKpYaw = 19.f;
+            TorqueKdPitch = 5.f;
+            TorqueKdYaw = 6.f;
+            MaxTorquePitch = 0.85f;
+            MaxTorqueYaw = 0.85f;
+            MaxTorqueRoll = 0.85f;
+            TorqueRollDamping = 0.23f;
             break;
         }
         case EShipPreset::Gunship:
         {
-            MaxForwardForce = 750.f;
-            MinThrottle = 0.20f;
-            ThrottleInterpSpeed = 6.5f;
-            LateralDamping = 0.9f;
-            MaxPitchSpeed = 10.f;
-            MaxYawSpeed = 10.f;
-            PitchAccelSpeed = 4.5f;
-            YawAccelSpeed = 8.f;
-            MaxRollSpeed = 10.f;
-            RollAccelSpeed = 8.f;
-            MaxRollAngle = 14.f;
-            TorqueKpPitch = 12.f;
-            TorqueKpYaw = 14.f;
-            TorqueKdPitch = 4.5f;
-            TorqueKdYaw = 5.f;
-            MaxTorquePitch = 0.7f;
-            MaxTorqueYaw = 0.7f;
-            MaxTorqueRoll = 0.7f;
-            TorqueRollDamping = 0.25f;
+            MaxForwardForce = 700.f;
+            MinThrottle = 0.22f;
+            ThrottleInterpSpeed = 6.f;
+            LateralDamping = 1.0f;
+            MaxPitchSpeed = 8.5f;
+            MaxYawSpeed = 8.5f;
+            PitchAccelSpeed = 3.5f;
+            YawAccelSpeed = 6.f;
+            MaxRollSpeed = 8.5f;
+            RollAccelSpeed = 6.f;
+            MaxRollAngle = 12.f;
+            TorqueKpPitch = 9.f;
+            TorqueKpYaw = 10.5f;
+            TorqueKdPitch = 3.8f;
+            TorqueKdYaw = 4.2f;
+            MaxTorquePitch = 0.55f;
+            MaxTorqueYaw = 0.55f;
+            MaxTorqueRoll = 0.55f;
+            TorqueRollDamping = 0.3f;
             break;
         }
         case EShipPreset::Cruiser:
         {
-            MaxForwardForce = 650.f;
-            MinThrottle = 0.22f;
-            ThrottleInterpSpeed = 5.5f;
-            LateralDamping = 1.1f;
-            MaxPitchSpeed = 8.5f;
-            MaxYawSpeed = 8.5f;
-            PitchAccelSpeed = 4.f;
-            YawAccelSpeed = 7.f;
-            MaxRollSpeed = 8.5f;
-            RollAccelSpeed = 7.f;
-            MaxRollAngle = 12.f;
-            TorqueKpPitch = 10.f;
-            TorqueKpYaw = 12.f;
-            TorqueKdPitch = 4.f;
-            TorqueKdYaw = 4.5f;
-            MaxTorquePitch = 0.6f;
-            MaxTorqueYaw = 0.6f;
-            MaxTorqueRoll = 0.6f;
-            TorqueRollDamping = 0.28f;
+            MaxForwardForce = 520.f;
+            MinThrottle = 0.24f;
+            ThrottleInterpSpeed = 4.5f;
+            LateralDamping = 1.3f;
+            MaxPitchSpeed = 6.f;
+            MaxYawSpeed = 6.f;
+            PitchAccelSpeed = 2.8f;
+            YawAccelSpeed = 4.5f;
+            MaxRollSpeed = 6.f;
+            RollAccelSpeed = 4.5f;
+            MaxRollAngle = 9.5f;
+            TorqueKpPitch = 6.5f;
+            TorqueKpYaw = 7.5f;
+            TorqueKdPitch = 3.f;
+            TorqueKdYaw = 3.4f;
+            MaxTorquePitch = 0.4f;
+            MaxTorqueYaw = 0.4f;
+            MaxTorqueRoll = 0.4f;
+            TorqueRollDamping = 0.35f;
             break;
         }
         case EShipPreset::Carrier:
         {
-            MaxForwardForce = 520.f;
-            MinThrottle = 0.25f;
-            ThrottleInterpSpeed = 4.5f;
-            LateralDamping = 1.35f;
-            MaxPitchSpeed = 6.f;
-            MaxYawSpeed = 6.f;
-            PitchAccelSpeed = 3.f;
-            YawAccelSpeed = 5.5f;
-            MaxRollSpeed = 6.f;
-            RollAccelSpeed = 5.f;
-            MaxRollAngle = 9.f;
-            TorqueKpPitch = 8.f;
-            TorqueKpYaw = 10.f;
-            TorqueKdPitch = 3.5f;
-            TorqueKdYaw = 4.f;
-            MaxTorquePitch = 0.5f;
-            MaxTorqueYaw = 0.5f;
-            MaxTorqueRoll = 0.5f;
-            TorqueRollDamping = 0.3f;
+            MaxForwardForce = 430.f;
+            MinThrottle = 0.26f;
+            ThrottleInterpSpeed = 3.5f;
+            LateralDamping = 1.6f;
+            MaxPitchSpeed = 4.f;
+            MaxYawSpeed = 4.f;
+            PitchAccelSpeed = 2.f;
+            YawAccelSpeed = 3.2f;
+            MaxRollSpeed = 4.f;
+            RollAccelSpeed = 3.f;
+            MaxRollAngle = 7.f;
+            TorqueKpPitch = 4.5f;
+            TorqueKpYaw = 5.5f;
+            TorqueKdPitch = 2.4f;
+            TorqueKdYaw = 2.8f;
+            MaxTorquePitch = 0.28f;
+            MaxTorqueYaw = 0.28f;
+            MaxTorqueRoll = 0.28f;
+            TorqueRollDamping = 0.4f;
             break;
         }
         default:
             break;
     }
 
-    if (EnsureShipController())
-    {
-        ShipController->SetTorqueTuning(
-            true,
-            TorqueKpPitch,
-            TorqueKpYaw,
-            TorqueKdPitch,
-            TorqueKdYaw,
-            MaxTorquePitch,
-            MaxTorqueYaw,
-            MaxTorqueRoll,
-            TorqueRollDamping);
-    }
+    bUseTorquePD = true;
+    ControllerTorqueKpPitch = TorqueKpPitch;
+    ControllerTorqueKpYaw = TorqueKpYaw;
+    ControllerTorqueKdPitch = TorqueKdPitch;
+    ControllerTorqueKdYaw = TorqueKdYaw;
+    ControllerMaxTorquePitch = MaxTorquePitch;
+    ControllerMaxTorqueYaw = MaxTorqueYaw;
+    ControllerMaxTorqueRoll = MaxTorqueRoll;
+    ControllerTorqueRollDamping = TorqueRollDamping;
+    SyncControllerTuningFromShip();
+    SyncManualTuningFromShip();
 
     if (Vitality)
     {
@@ -534,11 +686,12 @@ void AShip::PossessedBy(AController* NewController)
     if (NewController && NewController->IsPlayerController())
     {
         StoredAIController = ShipController;
-        CacheManualRotationTuning(StoredAIController.Get());
+        SyncManualTuningFromShip();
         bManualControl = true;
     }
 
     ShipController = Cast<AAIShipController>(GetController());
+    SyncControllerTuningFromShip();
 }
 
 void AShip::UnPossessed()

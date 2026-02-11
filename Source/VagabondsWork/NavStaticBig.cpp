@@ -302,13 +302,15 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 	const float ClampedMidStart = FMath::Max(MidRangeStart, 0.0f);
 	const float ClampedMidEnd = FMath::Max(MidRangeEnd, ClampedMidStart);
 	const float ClampedFarStart = FMath::Max(FarRangeStart, ClampedMidEnd);
-	const float ClampedFarEnd = FMath::Max(FarRangeEnd, ClampedFarStart);
+	const bool bFarRangeUnlimited = FarRangeEnd <= 0.0f;
+	const float ClampedFarEnd = bFarRangeUnlimited ? ClampedFarStart : FMath::Max(FarRangeEnd, ClampedFarStart);
 	const float NearDensity = FMath::Max(DensityPer1000uu, 0.001f);
 	const float MidDensity = FMath::Max(MidDensityPer1000uu, 0.001f);
 	const float FarDensity = FMath::Max(FarDensityPer1000uu, 0.001f);
 	const float AdjustedMidStart = FMath::Max(ClampedMidStart + StreamingBandHysteresis, 0.0f);
 	const float AdjustedMidEnd = FMath::Max(ClampedMidEnd + StreamingBandHysteresis, AdjustedMidStart);
-	const float AdjustedFarEnd = FMath::Max(ClampedFarEnd + StreamingBandHysteresis, AdjustedMidEnd);
+	const float AdjustedFarEnd = bFarRangeUnlimited ? BIG_NUMBER
+		: FMath::Max(ClampedFarEnd + StreamingBandHysteresis, AdjustedMidEnd);
 	const float SeedStep = 1000.0f / FMath::Max3(NearDensity, MidDensity, FarDensity);
 	const float HalfWidth = FieldWidth * 0.5f;
 	const float HalfHeight = FieldHeight * 0.5f;
@@ -676,7 +678,8 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 					TargetHISM = Chunk->Mid;
 					SpawnChance = ClampedMidSpawn;
 				}
-				else if (DistanceToView <= AdjustedFarEnd && FarCount < EffectiveFarLimit && FarChunkCount < FarChunkBudget)
+				else if ((bFarRangeUnlimited || DistanceToView <= AdjustedFarEnd)
+					&& FarCount < EffectiveFarLimit && FarChunkCount < FarChunkBudget)
 				{
 					TargetHISM = Chunk->Far;
 					SpawnChance = ClampedFarSpawn;
@@ -868,7 +871,7 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 					SpawnChance = ClampedMidSpawn;
 				}
 			}
-			else if (DistanceToView <= ClampedFarEnd)
+			else if (bFarRangeUnlimited || DistanceToView <= ClampedFarEnd)
 			{
 				if (FarAdded < EffectiveFarLimit)
 				{

@@ -22,7 +22,80 @@ enum class EShipPreset : uint8
     Interceptor UMETA(DisplayName="Interceptor"),
     Gunship     UMETA(DisplayName="Gunship"),
     Cruiser     UMETA(DisplayName="Cruiser"),
-    Carrier     UMETA(DisplayName="Carrier")
+    Carrier     UMETA(DisplayName="Carrier"),
+    Custom      UMETA(DisplayName="Custom")
+};
+
+USTRUCT(BlueprintType)
+struct FShipTuningSnapshot
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float MaxPitchSpeed = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float MaxYawSpeed = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float PitchAccelSpeed = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float YawAccelSpeed = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float MaxRollSpeed = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float RollAccelSpeed = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float MaxRollAngle = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    bool bUseTorquePD = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float TorqueKpPitch = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float TorqueKpYaw = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float TorqueKdPitch = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float TorqueKdYaw = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float MaxTorquePitch = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float MaxTorqueYaw = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float MaxTorqueRoll = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float TorqueRollDamping = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float RollAlignKp = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float RollAlignKd = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float MaxForwardForce = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float MinThrottle = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float ThrottleInterpSpeed = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning")
+    float LateralDamping = 0.f;
 };
 
 class AAIShipController;
@@ -40,6 +113,9 @@ public:
 
 protected:
     virtual void BeginPlay() override;
+#if WITH_EDITOR
+    virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 public:
     virtual void Tick(float DeltaTime) override;
@@ -110,14 +186,17 @@ public:
     UFUNCTION(BlueprintCallable, Category="AI|Navigation", meta=(ToolTip="Get current target actor."))
     AActor* GetTargetActor() const { return TargetActor; }
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Preset", meta=(ToolTip="Preset for ship movement/rotation tuning."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Preset", meta=(ToolTip="Preset for ship movement/rotation tuning."))
     EShipPreset ShipPreset = EShipPreset::Fighter;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Preset", meta=(ToolTip="Apply the selected preset at BeginPlay."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Preset", meta=(ToolTip="Apply the selected preset at BeginPlay."))
     bool bApplyPresetOnBeginPlay = true;
 
-    UFUNCTION(BlueprintCallable, Category="Ship|Preset", meta=(ToolTip="Apply the current ship preset to movement/rotation values."))
+    UFUNCTION(BlueprintCallable, Category="Ship|Tuning|Preset", meta=(ToolTip="Apply the current ship preset to movement/rotation values."))
     void ApplyShipPreset();
+
+    UFUNCTION(BlueprintCallable, Category="Ship|Tuning|Controller", meta=(ToolTip="Apply ship controller tuning values to the AI controller."))
+    void ApplyControllerTuning();
 
     // ---------------- Controller ----------------
     
@@ -133,47 +212,74 @@ public:
 
     // ---------------- AI Controls ----------------
     
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Maximum pitch speed (deg/sec)."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Rotation", meta=(ToolTip="Maximum pitch speed (deg/sec)."))
     float MaxPitchSpeed = 18.f;   // deg/sec
 
     
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Maximum yaw speed (deg/sec)."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Rotation", meta=(ToolTip="Maximum yaw speed (deg/sec)."))
     float MaxYawSpeed = 18.f;    // deg/sec
 
     
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Pitch acceleration response."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Rotation", meta=(ToolTip="Pitch acceleration response."))
     float PitchAccelSpeed = 8.f;
 
     
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Yaw acceleration response."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Rotation", meta=(ToolTip="Yaw acceleration response."))
     float YawAccelSpeed = 15.f;
 
     
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Maximum roll speed (deg/sec)."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Rotation", meta=(ToolTip="Maximum roll speed (deg/sec)."))
     float MaxRollSpeed = 20.f;   // deg/sec
 
     
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Roll acceleration response."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Rotation", meta=(ToolTip="Roll acceleration response."))
     float RollAccelSpeed = 15.f;
 
     
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Rotation", meta=(ToolTip="Maximum roll angle when banking (deg)."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Rotation", meta=(ToolTip="Maximum roll angle when banking (deg)."))
     float MaxRollAngle = 22.5f; // degrees
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation", meta=(ToolTip="Roll alignment mode for AI rotation."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Controller", meta=(ToolTip="Use torque-based PD control in the AI controller."))
+    bool bUseTorquePD = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Controller", meta=(ToolTip="Torque PD pitch proportional gain."))
+    float ControllerTorqueKpPitch = 18.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Controller", meta=(ToolTip="Torque PD yaw proportional gain."))
+    float ControllerTorqueKpYaw = 22.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Controller", meta=(ToolTip="Torque PD pitch derivative gain."))
+    float ControllerTorqueKdPitch = 6.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Controller", meta=(ToolTip="Torque PD yaw derivative gain."))
+    float ControllerTorqueKdYaw = 7.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Controller", meta=(ToolTip="Torque PD max pitch torque clamp."))
+    float ControllerMaxTorquePitch = 1.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Controller", meta=(ToolTip="Torque PD max yaw torque clamp."))
+    float ControllerMaxTorqueYaw = 1.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Controller", meta=(ToolTip="Torque PD max roll torque clamp."))
+    float ControllerMaxTorqueRoll = 1.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Controller", meta=(ToolTip="Torque PD roll damping gain."))
+    float ControllerTorqueRollDamping = 0.2f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Rotation", meta=(ToolTip="Roll alignment mode for AI rotation."))
     ERollAlignMode RollAlignMode = ERollAlignMode::Default;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|ManualControl", meta=(ToolTip="Allow roll alignment while in manual control."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|ManualControl", meta=(ToolTip="Allow roll alignment while in manual control."))
     bool bManualUseRollAlign = true;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|ManualControl", meta=(ClampMin="0.0", ToolTip="Yaw input bank scale when roll align is disabled."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|ManualControl", meta=(ClampMin="0.0", ToolTip="Yaw input bank scale when roll align is disabled."))
     float ManualYawBankScale = 1.0f;
 
     // Roll alignment gains (only used when RollAlignMode != Default)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation", meta=(ClampMin="0.0", ToolTip="Roll alignment proportional gain."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Rotation", meta=(ClampMin="0.0", ToolTip="Roll alignment proportional gain."))
     float RollAlignKp = 2.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Rotation", meta=(ClampMin="0.0", ToolTip="Roll alignment derivative gain."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Rotation", meta=(ClampMin="0.0", ToolTip="Roll alignment derivative gain."))
     float RollAlignKd = 1.0f;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components", meta=(ToolTip="Root physics mesh for ship."))
@@ -190,24 +296,27 @@ public:
 
     // ---------------- Movement ----------------
     
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement", meta=(ToolTip="Maximum forward force scalar."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Movement", meta=(ToolTip="Maximum forward force scalar."))
     float MaxForwardForce = 950.f;
 
     
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement", meta=(ToolTip="Minimum throttle applied when steering."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Movement", meta=(ToolTip="Minimum throttle applied when steering."))
     float MinThrottle = 0.15f;
 
     
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement", meta=(ToolTip="Throttle interpolation speed."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Movement", meta=(ToolTip="Throttle interpolation speed."))
     float ThrottleInterpSpeed = 10.f;
 
     
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|AI|Movement", meta=(ToolTip="Current throttle value applied to thrust."))
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Tuning|Movement", meta=(ToolTip="Current throttle value applied to thrust."))
     float CurrentThrottle = 0.f;
 
     
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|AI|Movement", meta=(ToolTip="Damping applied to lateral velocity."))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Movement", meta=(ToolTip="Damping applied to lateral velocity."))
     float LateralDamping = 0.5f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Tuning", meta=(AllowPrivateAccess="true", ToolTip="Snapshot of ship tuning values."))
+    FShipTuningSnapshot TuningSnapshot;
 
     // Soft Separation Settings
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ship|SoftSeparation", meta=(ToolTip="Enable soft separation forces."))
@@ -256,6 +365,10 @@ private:
     void ApplyManualShipRotation(const FVector& TargetLocation, float DeltaTime);
     void ApplyManualTorqueControl(const FVector& TargetAngVelLocal, float DeltaTime);
     void CacheManualRotationTuning(const AAIShipController* PreviousController);
+    FShipTuningSnapshot BuildTuningSnapshot() const;
+    void ApplyTuningSnapshot(const FShipTuningSnapshot& Snapshot);
+    void SyncControllerTuningFromShip();
+    void SyncManualTuningFromShip();
 
     bool bLoggedMissingController = false;
 

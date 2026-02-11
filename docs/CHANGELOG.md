@@ -7,6 +7,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 ## [Unreleased]
 ### Added
 - Player-facing marketing document for portfolio presentation (`docs/marketing.md`).
+- LevelBoundaries runtime atmosphere spawning system (BP-configurable classes, predictive placement, overlap-safe class checks, timed cadence, and max-instance cap).
 - External ship module system (timer-driven aiming, tick disabled).
 - External module firing params (FireRate, SemiAutoShootsNumber, FireMode, ShootDelay) and Shoot API with safe muzzle spawn + semi-auto burst timing + damage override.
 - Toggleable debug logs for unstuck checks, steering source/heading, and nav target/avoidance decisions.
@@ -23,6 +24,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Ship vitality presets now align with ship presets (hull/shield/recharge/armor) and reset current hull/shield to max on preset apply.
 
 ### Improved
+- AI ships now passively level roll only while moving forward to keep horizontal alignment without fighting steering.
 - Navigation avoidance stability and replan jittering for scale.
 - Ship navigation now forces replans on stuck/static-blocked states and always honors temp avoidance targets to prevent long stalls.
 - Unstuck recovery now reacquires blocking obstacles, enforces a minimum penetration scale for force, and aligns steering to escape targets to reduce stalls.

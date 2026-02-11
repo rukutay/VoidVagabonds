@@ -206,4 +206,13 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category="Rotation|TorquePD", meta=(ToolTip="Max roll torque clamp (N*cm)."))
     float MaxTorqueRoll = 1.f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|RollLevel", meta=(ToolTip="Enable passive roll leveling when moving forward."))
+    bool bEnableForwardRollLevel = true;
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|RollLevel", meta=(ToolTip="Forward speed threshold (cm/s) to enable roll leveling."))
+    float ForwardRollLevelSpeedThreshold = 50.f;
+
+    UPROPERTY(EditDefaultsOnly, Category="Rotation|RollLevel", meta=(ToolTip="Multiplier for roll level PD gains."))
+    float ForwardRollLevelGainScale = 1.0f;
 };
