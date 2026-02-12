@@ -158,8 +158,22 @@ FVector2D UMapWidget::ProjectWorldToMap(const FVector& WorldLocation, float MapR
 		return FVector2D::ZeroVector;
 	}
 
-	const float NormalizedX = FMath::Clamp(WorldLocation.X / MapRadiusCm, -1.0f, 1.0f);
-	const float NormalizedY = FMath::Clamp(WorldLocation.Y / MapRadiusCm, -1.0f, 1.0f);
+	float X = WorldLocation.X;
+	float Y = WorldLocation.Y;
+
+	if (bSwapMapXY)
+	{
+		Swap(X, Y);
+	}
+
+	float NormalizedX = FMath::Clamp(X / MapRadiusCm, -1.0f, 1.0f);
+	float NormalizedY = FMath::Clamp(Y / MapRadiusCm, -1.0f, 1.0f);
+
+	if (bInvertMapY)
+	{
+		NormalizedY *= -1.0f;
+	}
+
 	return FVector2D(NormalizedX, NormalizedY);
 }
 

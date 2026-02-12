@@ -69,6 +69,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Map", meta = (ShowOnlyInnerProperties))
 	FMapSettings Settings;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Map|Debug")
+	bool bInvertMapY = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Map|Debug")
+	bool bSwapMapXY = false;
+
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
