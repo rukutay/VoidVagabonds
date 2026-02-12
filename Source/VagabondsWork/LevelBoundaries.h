@@ -87,6 +87,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Boundaries")
 	void NavStaticBig(TSubclassOf<ANavStaticBig> NavStaticBigClass, int32 MinNum, int32 MaxNum, float MinDistance);
 
+	UFUNCTION(BlueprintCallable, Category="Boundaries")
+	float GetBoundaryRadius() const;
+
 private:
 	void StartAtmosphereControl();
 	void HandleAtmosphereControlTick();

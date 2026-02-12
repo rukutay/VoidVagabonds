@@ -43,11 +43,17 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Ship movement presets (Fighter/Interceptor/Gunship/Cruiser/Carrier) that apply movement + TorquePD rotation tuning on BeginPlay, with Blueprint-tunable overrides.
 - Ship presets now also drive vitality tuning (hull/shield/recharge/armor) and reset spawn hull/shield to max on preset apply.
 - Sun directional light aims from the sun toward the current player pawn (auto-updating target).
+- UMG top-down map widget (UMapWidget) driven by LevelBoundaries radius; shows player ship (white) and NavStaticBig actors (purple).
 
 > TODO: Add any additional gameplay feature claims only after verifying them in code/docs with explicit evidence.
 
 ## Build / Run (current setup)
 See [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) for setup, build, and packaging steps.
+
+## Map Widget (Usage)
+- Create a Blueprint based on `UMapWidget` and design the UI (draw dots based on the `Markers` array).
+- Assign the Blueprint to `APlayerMainController.MapWidgetClass` in defaults (or your controller Blueprint).
+- Place an `ALevelBoundaries` actor in the level so the map radius can be resolved.
 
 ## Project Structure (key paths)
 - Module rules: `Source/VagabondsWork/VagabondsWork.Build.cs`

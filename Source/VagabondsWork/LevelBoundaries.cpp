@@ -459,3 +459,13 @@ void ALevelBoundaries::NavStaticBig(TSubclassOf<ANavStaticBig> NavStaticBigClass
 	}
 }
 
+float ALevelBoundaries::GetBoundaryRadius() const
+{
+	if (!Boudaries)
+	{
+		return 0.0f;
+	}
+
+	return Boudaries->GetScaledSphereRadius();
+}
+

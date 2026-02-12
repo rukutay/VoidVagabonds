@@ -1,135 +1,111 @@
 # Implementation Plan
 
 [Overview]
-Fix ship tuning propagation so torque-based AI rotation respects ship-level parameters, ship presets apply to all ship component systems, and player possession uses the same tuning values as AI control.
+Create a UMG top-down map widget that renders world-space points with the widget center mapped to world (0,0,0).
 
-The current ship tuning pipeline defines steering and torque values on `AShip`, but torque PD values are stored on `AAIShipController` defaults and only partially refreshed, and manual control caches values from an AI controller instance during possession. This creates cases where enabling torque PD in AI ignores tuned parameters and where ship preset changes do not fully re-apply to steering, movement, vitality, and manual control data. The plan introduces a single source of truth for ship tuning on `AShip`, ensures that both AI and player control consistently pull from those values, and applies ship presets in one flow that updates movement, rotation, controller torque, and vitality.
+The map must display a white dot for the player-possessed `AShip`, purple dots for all `ANavStaticBig` actors, and allow future expansion for other ship colors. The map radius is driven by the `ALevelBoundaries` root `USphereComponent::GetScaledSphereRadius()` so world positions map consistently to widget space. Because there are no existing UI widgets, the plan introduces a C++ `UUserWidget` subclass to gather map data (positions/colors) and a Blueprint to style and layout the visuals.
 
-The solution keeps existing patterns: tuning values remain `UPROPERTY` values on `AShip`, preset application stays in `AShip::ApplyShipPreset`, and control is timer-driven (no new per-tick heavy work). We will add explicit tuning sync points for AI controller and manual control, and ensure any tuning changes on ship-level propagate whenever a ship is possessed, unpossessed, or has presets applied.
+The solution keeps navigation rules in mind: no heavy per-tick logic. The widget will update map data on a timer (or in `NativeTick` with light iteration if acceptable) and expose a data array to Blueprint for rendering. Player controller will own the widget instance and add it to the viewport on BeginPlay.
 
 [Types]
-Introduce a struct for ship-wide tuning so all systems share one source of truth.
+Introduce data structures that represent map markers and optional map configuration.
 
-- `USTRUCT(BlueprintType) FShipTuningSnapshot`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float MaxPitchSpeed;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float MaxYawSpeed;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float PitchAccelSpeed;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float YawAccelSpeed;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float MaxRollSpeed;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float RollAccelSpeed;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float MaxRollAngle;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") bool bUseTorquePD;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float TorqueKpPitch;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float TorqueKpYaw;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float TorqueKdPitch;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float TorqueKdYaw;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float MaxTorquePitch;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float MaxTorqueYaw;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float MaxTorqueRoll;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float TorqueRollDamping;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float RollAlignKp;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float RollAlignKd;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float MaxForwardForce;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float MinThrottle;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float ThrottleInterpSpeed;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning") float LateralDamping;`
+- `USTRUCT(BlueprintType) FMapMarkerData`
+  - `UPROPERTY(BlueprintReadOnly, Category="Map") FVector2D MapPosition;` (normalized to map radius: -1..1 on each axis)
+  - `UPROPERTY(BlueprintReadOnly, Category="Map") FLinearColor Color;`
+  - `UPROPERTY(BlueprintReadOnly, Category="Map") float SizePx;` (optional per-marker size for Blueprint)
+  - `UPROPERTY(BlueprintReadOnly, Category="Map") TWeakObjectPtr<AActor> SourceActor;` (optional for future extensions)
 
-`AShip` will own a `FShipTuningSnapshot` field and keep it synchronized with existing `UPROPERTY` values to minimize risk. This allows explicit copying to AI controller and manual control data.
+- `USTRUCT(BlueprintType) FMapSettings`
+  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Map") float DefaultMarkerSizePx = 6.0f;`
+  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Map") FLinearColor PlayerColor = FLinearColor::White;`
+  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Map") FLinearColor NavStaticBigColor = FLinearColor(0.6f, 0.2f, 0.8f, 1.0f);`
 
 [Files]
-Modify ship and controller sources to synchronize tuning across AI and player control, plus update preset flows.
-
-- Existing files to modify:
-  - `Source/VagabondsWork/Ship.h`
-    - Add `FShipTuningSnapshot` definition and `GetTuningSnapshot()` / `ApplyTuningSnapshot()` helpers.
-    - Add helpers to push tuning into AI controller and manual control caches.
-  - `Source/VagabondsWork/Ship.cpp`
-    - Implement snapshot creation and application.
-    - Ensure `ApplyShipPreset` updates snapshot, controller tuning, manual caches, and vitality.
-    - Ensure `PossessedBy` and `UnPossessed` refresh manual tuning from ship data.
-    - Ensure `PostEditChangeProperty` updates snapshot + controller tuning for any tuning-related edits.
-  - `Source/VagabondsWork/AIShipController.h`
-    - Add setter for roll-align gains if needed to avoid reading from ship directly during torque PD path.
-    - Confirm torque tuning setters cover all PD parameters and max clamps.
-  - `Source/VagabondsWork/AIShipController.cpp`
-    - Ensure ApplyShipRotation uses controller values after ship sync, not defaults.
-  - `Source/VagabondsWork/ShipVitalityComponent.h/.cpp`
-    - Confirm preset-driven vitality stays in sync (no new types). No changes unless snapshot addition needs a helper.
+Create map widget classes and update controller + build configuration for UMG.
 
 - New files to create:
-  - None.
+  - `Source/VagabondsWork/MapWidget.h`
+    - Declare `UMapWidget` (C++ `UUserWidget`) plus `FMapMarkerData`, `FMapSettings`.
+  - `Source/VagabondsWork/MapWidget.cpp`
+    - Implement marker collection, world-to-map projection, and timer-driven updates.
+
+- Existing files to modify:
+  - `Source/VagabondsWork/VagabondsWork.Build.cs`
+    - Add `UMG`, `Slate`, and `SlateCore` module dependencies.
+  - `Source/VagabondsWork/PlayerMainController.h`
+    - Add `UPROPERTY(EditAnywhere)` for `TSubclassOf<UMapWidget>` and `UMapWidget* MapWidgetInstance`.
+  - `Source/VagabondsWork/PlayerMainController.cpp`
+    - Instantiate and add the map widget to viewport in `BeginPlay`.
+  - `Source/VagabondsWork/LevelBoundaries.h`
+    - Expose a `BlueprintCallable` getter for `GetBoundaryRadius()` to return `Boudaries->GetScaledSphereRadius()` (optional, if direct access is needed).
 
 - Files to delete/move:
   - None.
 
 - Configuration updates:
-  - None.
+  - None beyond `Build.cs` module dependencies.
 
 [Functions]
-Add snapshot and tuning sync helpers for AI and player control.
+Add map widget collection and projection helpers.
 
-- New functions in `Source/VagabondsWork/Ship.h/.cpp`:
-  - `FShipTuningSnapshot BuildTuningSnapshot() const;`
-    - Reads current `AShip` tuning UPROPERTY values.
-  - `void ApplyTuningSnapshot(const FShipTuningSnapshot& Snapshot);`
-    - Writes snapshot values back to `AShip` tuning fields.
-  - `void SyncControllerTuningFromShip();`
-    - Wraps `ApplyControllerTuning()` plus any extra roll-align-related sync needed for AI.
-  - `void SyncManualTuningFromShip();`
-    - Sets `bManualUseTorquePD`, torque PD gains/clamps, dead zone, roll align gains from ship-level fields.
+- New functions in `Source/VagabondsWork/MapWidget.h/.cpp`:
+  - `UFUNCTION(BlueprintCallable, Category="Map") void RefreshMarkers();`
+    - Collect current markers and update `Markers` array.
+  - `UFUNCTION(BlueprintPure, Category="Map") float GetMapRadiusCm() const;`
+    - Resolve `ALevelBoundaries` actor and return `Boudaries->GetScaledSphereRadius()`.
+  - `FVector2D ProjectWorldToMap(const FVector& WorldLocation, float MapRadiusCm) const;`
+    - Convert world `X/Y` into normalized map coordinates centered at `(0,0)`.
+  - `void CollectPlayerMarker(TArray<FMapMarkerData>& OutMarkers) const;`
+    - Use `GetOwningPlayerPawn()` and cast to `AShip` for player marker.
+  - `void CollectNavStaticBigMarkers(TArray<FMapMarkerData>& OutMarkers) const;`
+    - Iterate `ANavStaticBig` actors and add purple markers.
 
 - Modified functions:
-  - `AShip::ApplyShipPreset()`
-    - After preset values are applied, call `SyncControllerTuningFromShip()` and `SyncManualTuningFromShip()`, then `Vitality->ApplyVitalityPreset(ShipPreset)`.
-  - `AShip::ApplyControllerTuning()`
-    - Ensure all torque PD values (Kp, Kd, max torque clamps, roll damping, roll align gains) reach the controller.
-  - `AShip::BeginPlay()`
-    - If preset applied, sync manual + controller tuning after the preset; if not, sync directly from ship fields.
-  - `AShip::PossessedBy()` / `AShip::UnPossessed()`
-    - Use `SyncManualTuningFromShip()` when entering manual control so player uses ship-level tuning (not stale controller defaults).
-  - `AShip::PostEditChangeProperty()`
-    - Extend to handle tuning-related properties by re-syncing controller and manual tuning when changes happen in editor.
+  - `APlayerMainController::BeginPlay()`
+    - Create `MapWidgetInstance` with `CreateWidget<UMapWidget>` and add to viewport.
 
 - Removed functions:
   - None.
 
 [Classes]
-Update the ship and controller classes for unified tuning.
-
-- Modified classes:
-  - `AShip` (`Source/VagabondsWork/Ship.h/.cpp`)
-    - Add tuning snapshot helpers.
-    - Ensure preset + tuning changes propagate to AI controller, manual control, and vitality.
-  - `AAIShipController` (`Source/VagabondsWork/AIShipController.h/.cpp`)
-    - Ensure torque PD fields are fully set from `AShip` and not left at defaults.
+Introduce a map widget class and update player controller usage.
 
 - New classes:
-  - None.
+  - `UMapWidget` (`Source/VagabondsWork/MapWidget.h/.cpp`)
+    - Inherits `UUserWidget`.
+    - Owns `TArray<FMapMarkerData> Markers` and `FMapSettings Settings`.
+    - Timer-driven updates using `FTimerHandle` on `NativeConstruct` and `NativeDestruct`.
+
+- Modified classes:
+  - `APlayerMainController` (`Source/VagabondsWork/PlayerMainController.h/.cpp`)
+    - Add widget class/property and spawn instance.
+  - `ALevelBoundaries` (`Source/VagabondsWork/LevelBoundaries.h/.cpp`)
+    - Provide `GetBoundaryRadius()` helper if direct access to sphere radius is needed by widget.
 
 - Removed classes:
   - None.
 
 [Dependencies]
-No new external dependencies; only internal struct additions and UE headers already present.
+Add UMG-related modules for the new widget.
 
-- Likely include adjustments in `Ship.h` for new struct definitions (no new modules).
-- `VagabondsWork.Build.cs` changes: none.
+- `Source/VagabondsWork/VagabondsWork.Build.cs`
+  - Add `UMG`, `Slate`, `SlateCore` to `PublicDependencyModuleNames`.
 
 [Testing]
-Use PIE with AI and player possession to validate tuning propagation.
+Validate the map widget in PIE.
 
-- Test requirements:
-  - With AI control and `bUseTorquePD=true`, confirm torque Kp/Kd, clamps, and roll damping affect rotation response.
-  - Change `ShipPreset` on a placed ship and confirm movement/rotation values change and vitality preset applies.
-  - Adjust ship-level tuning values in editor (or at runtime via blueprint) and verify AI controller reflects changes.
-  - Possess a ship as player and verify manual rotation uses same torque PD values as AI.
-  - Unpossess and verify AI continues to use updated tuning.
+- Create a Blueprint based on `UMapWidget` and set it in `APlayerMainController` defaults.
+- Verify the map center corresponds to world (0,0,0) and points move correctly with world positions.
+- Confirm the player ship shows as a white dot.
+- Confirm all `ANavStaticBig` actors show as purple dots.
+- Adjust `ALevelBoundaries` sphere radius and ensure map scaling updates.
 
 [Implementation Order]
-Implement tuning snapshot and sync, then apply across preset and possession flows.
+Implement the widget, wire it up, and validate in PIE.
 
-1. Add `FShipTuningSnapshot` to `Ship.h` and implement build/apply helpers in `Ship.cpp`.
-2. Add `SyncControllerTuningFromShip()` and `SyncManualTuningFromShip()` and integrate them into `BeginPlay`, `ApplyShipPreset`, and possession logic.
-3. Ensure `ApplyControllerTuning()` covers all torque PD values and updates controller state properly.
-4. Update `PostEditChangeProperty` to re-sync when tuning values change.
-5. Validate in PIE with AI + player possession flows.
+1. Add `UMG`, `Slate`, `SlateCore` to `VagabondsWork.Build.cs`.
+2. Create `UMapWidget` and marker structs with refresh/projection helpers.
+3. Update `APlayerMainController` to spawn the map widget at BeginPlay.
+4. Add `ALevelBoundaries` radius accessor if needed for clean widget access.
+5. Build Blueprint styling and validate in PIE.

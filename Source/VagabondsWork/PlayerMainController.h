@@ -9,6 +9,7 @@
 class UInputMappingContext;
 class UInputAction;
 struct FInputActionValue;
+class UMapWidget;
 
 /**
  * 
@@ -32,6 +33,12 @@ protected:
 private:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputMappingContext* ShipMappingContext = nullptr;
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UMapWidget> MapWidgetClass;
+
+	UPROPERTY(Transient)
+	UMapWidget* MapWidgetInstance = nullptr;
 
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* ThrottleAction = nullptr;

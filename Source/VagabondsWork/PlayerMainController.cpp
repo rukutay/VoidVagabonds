@@ -7,6 +7,7 @@
 #include "InputActionValue.h"
 #include "Ship.h"
 #include "Engine/LocalPlayer.h"
+#include "MapWidget.h"
 
 void APlayerMainController::BeginPlay()
 {
@@ -20,6 +21,15 @@ void APlayerMainController::BeginPlay()
             {
                 Subsystem->AddMappingContext(ShipMappingContext, 1);
             }
+        }
+    }
+
+    if (MapWidgetClass && !MapWidgetInstance)
+    {
+        MapWidgetInstance = CreateWidget<UMapWidget>(this, MapWidgetClass);
+        if (MapWidgetInstance)
+        {
+            MapWidgetInstance->AddToViewport();
         }
     }
 }

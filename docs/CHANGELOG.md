@@ -7,6 +7,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 ## [Unreleased]
 ### Added
 - Player-facing marketing document for portfolio presentation (`docs/marketing.md`).
+- UMG top-down map widget (UMapWidget) with marker data for player ship + NavStaticBig and a LevelBoundaries-driven map radius.
 - LevelBoundaries runtime atmosphere spawning system (BP-configurable classes, predictive placement, overlap-safe class checks, timed cadence, and max-instance cap).
 - External ship module system (timer-driven aiming, tick disabled).
 - External module firing params (FireRate, SemiAutoShootsNumber, FireMode, ShootDelay) and Shoot API with safe muzzle spawn + semi-auto burst timing + damage override.
