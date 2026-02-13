@@ -9,6 +9,7 @@
 #include "Engine/LocalPlayer.h"
 #include "MapWidget.h"
 #include "PlayerSpectator.h"
+#include "GameFramework/SpringArmComponent.h"
 
 void APlayerMainController::BeginPlay()
 {
@@ -189,11 +190,15 @@ void APlayerMainController::SwitchToPawn(APawn* PawnToControl)
     {
         if (CachedSpectatorPawn.IsValid())
         {
-            if (AShip* Ship = Cast<AShip>(GetPawn()))
-            {
-                CachedSpectatorPawn->SyncToTransform(Ship->GetShipCameraTransform());
-                CachedSpectatorPawn->SetCameraBoomLength(0.0f);
-            }
+			if (APawn* CurrentPawn = GetPawn())
+			{
+				const USpringArmComponent* CurrentArm = CurrentPawn->FindComponentByClass<USpringArmComponent>();
+				const FTransform CameraTransform = CurrentArm
+					? CurrentArm->GetSocketTransform(USpringArmComponent::SocketName)
+					: CurrentPawn->GetActorTransform();
+				CachedSpectatorPawn->SyncToTransform(CameraTransform);
+				CachedSpectatorPawn->SetCameraBoomLength(0.0f);
+			}
             CachedSpectatorPawn->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
             Possess(CachedSpectatorPawn.Get());
         }
@@ -208,5 +213,53 @@ void APlayerMainController::SwitchToPawn(APawn* PawnToControl)
     }
 
     Possess(PawnToControl);
+}
+
+void APlayerMainController::LookAtActor(AActor* LookAt)
+{
+	APlayerSpectator* SpectatorPawn = CachedSpectatorPawn.Get();
+	if (!SpectatorPawn)
+	{
+		SpectatorPawn = Cast<APlayerSpectator>(GetPawn());
+		CachedSpectatorPawn = SpectatorPawn;
+	}
+	if (!SpectatorPawn)
+	{
+		return;
+	}
+
+	if (LookAt)
+	{
+		const FRotator CurrentRotation = SpectatorPawn->GetActorRotation();
+		const FVector CurrentScale = SpectatorPawn->GetActorScale3D();
+		SpectatorPawn->SyncToTransform(FTransform(CurrentRotation, LookAt->GetActorLocation(), CurrentScale));
+		SpectatorPawn->AttachToActor(LookAt, FAttachmentTransformRules::KeepWorldTransform);
+		if (USceneComponent* RootComponent = SpectatorPawn->GetRootComponent())
+		{
+			RootComponent->SetUsingAbsoluteRotation(true);
+		}
+		Possess(SpectatorPawn);
+
+		if (const USpringArmComponent* LookAtArm = LookAt->FindComponentByClass<USpringArmComponent>())
+		{
+			SpectatorPawn->SetCameraBoomLength(LookAtArm->TargetArmLength);
+		}
+		return;
+	}
+
+	if (AActor* AttachedActor = SpectatorPawn->GetAttachParentActor())
+	{
+		const USpringArmComponent* AttachedArm = AttachedActor->FindComponentByClass<USpringArmComponent>();
+		const FTransform CameraTransform = AttachedArm
+			? AttachedArm->GetSocketTransform(USpringArmComponent::SocketName)
+			: AttachedActor->GetActorTransform();
+		SpectatorPawn->SyncToTransform(CameraTransform);
+		SpectatorPawn->SetCameraBoomLength(0.0f);
+		SpectatorPawn->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		if (USceneComponent* RootComponent = SpectatorPawn->GetRootComponent())
+		{
+			RootComponent->SetUsingAbsoluteRotation(false);
+		}
+	}
 }
 

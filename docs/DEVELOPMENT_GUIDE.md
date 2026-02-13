@@ -73,6 +73,7 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Controller binding**: Assign `SwitchControlAction` on `APlayerMainController`.
 - **Blueprint hook**: Implement `OnSwitchControlRequested` in your controller BP to pick the target pawn and call `SwitchToPawn(TargetPawn)`.
 - **Behavior**: Switching back to spectator snaps to the ship camera transform and resets the spectator boom length to 0 for a smoother transition.
+- **Spectator LookAt**: Call `LookAtActor(AActor* LookAt)` to attach the spectator to any actor; the spectator copies the target's spring-arm length when present and uses the spring-arm socket transform for soft detachment when `LookAt` is null.
 
 ## Map Widget Setup (UMapWidget)
 - Create a Widget Blueprint based on `UMapWidget` and render dots using the `Markers` array (normalized -1..1 positions).

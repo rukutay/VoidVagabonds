@@ -66,6 +66,7 @@ See [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) for setup, build, and packaging
 - Assign `SwitchControlAction` on `APlayerMainController`.
 - Implement `OnSwitchControlRequested` in a controller Blueprint to pick the target pawn and call `SwitchToPawn(TargetPawn)`.
 - Switching from ship back to spectator snaps the spectator to the ship camera transform and resets the spectator boom length to 0 for a smoother transition.
+- Use `LookAtActor(AActor* LookAt)` to attach the spectator to any actor and match its spring-arm length when present; passing `None` detaches softly using the attached actor’s spring-arm socket transform.
 
 ## Project Structure (key paths)
 - Module rules: `Source/VagabondsWork/VagabondsWork.Build.cs`

@@ -10,6 +10,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Player spectator pawn with Enhanced Input setup, smooth mouse look, and axis-based movement.
 - Ship camera boom + camera components (spring arm) with exposed camera transform helper.
 - Possession swap flow (spectator ↔ ship) with input action hook and Blueprint-callable switch helper.
+- Blueprint-callable `LookAtActor` helper for spectator attachment to any actor with spring-arm length sync and soft detach behavior.
 - UMG top-down map widget (UMapWidget) with marker data for player ship + NavStaticBig and a LevelBoundaries-driven map radius.
 - LevelBoundaries runtime atmosphere spawning system (BP-configurable classes, predictive placement, overlap-safe class checks, timed cadence, and max-instance cap).
 - External ship module system (timer-driven aiming, tick disabled).

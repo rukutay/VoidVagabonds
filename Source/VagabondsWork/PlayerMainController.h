@@ -10,6 +10,7 @@ class UInputMappingContext;
 class UInputAction;
 struct FInputActionValue;
 class UMapWidget;
+class AActor;
 
 /**
  * 
@@ -27,6 +28,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SwitchToPawn(APawn* PawnToControl);
+
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void LookAtActor(AActor* LookAt);
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Input")
 	void OnSwitchControlRequested();
