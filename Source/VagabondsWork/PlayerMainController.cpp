@@ -295,6 +295,23 @@ void APlayerMainController::LookAtActor(AActor* LookAt)
 		return;
 	}
 
+	if (LookAt && LookAt == SpectatorPawn->GetAttachParentActor())
+	{
+		const USpringArmComponent* SpectatorArm = SpectatorPawn->FindComponentByClass<USpringArmComponent>();
+		const FTransform CameraTransform = SpectatorArm
+			? SpectatorArm->GetSocketTransform(USpringArmComponent::SocketName)
+			: SpectatorPawn->GetActorTransform();
+		SpectatorPawn->SetCameraBoomLength(0.0f);
+		SpectatorPawn->SyncToTransform(FTransform(CameraTransform.GetRotation(), CameraTransform.GetLocation(), FVector::OneVector));
+		SpectatorPawn->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		if (USceneComponent* RootComponent = SpectatorPawn->GetRootComponent())
+		{
+			RootComponent->SetUsingAbsoluteRotation(false);
+		}
+		Possess(SpectatorPawn);
+		return;
+	}
+
 	if (LookAt)
 	{
 		const FRotator CurrentRotation = SpectatorPawn->GetActorRotation();
@@ -316,12 +333,12 @@ void APlayerMainController::LookAtActor(AActor* LookAt)
 
 	if (AActor* AttachedActor = SpectatorPawn->GetAttachParentActor())
 	{
-		const USpringArmComponent* AttachedArm = AttachedActor->FindComponentByClass<USpringArmComponent>();
-		const FTransform CameraTransform = AttachedArm
-			? AttachedArm->GetSocketTransform(USpringArmComponent::SocketName)
-			: AttachedActor->GetActorTransform();
-		SpectatorPawn->SyncToTransform(CameraTransform);
+		const USpringArmComponent* SpectatorArm = SpectatorPawn->FindComponentByClass<USpringArmComponent>();
+		const FTransform CameraTransform = SpectatorArm
+			? SpectatorArm->GetSocketTransform(USpringArmComponent::SocketName)
+			: SpectatorPawn->GetActorTransform();
 		SpectatorPawn->SetCameraBoomLength(0.0f);
+		SpectatorPawn->SyncToTransform(FTransform(CameraTransform.GetRotation(), CameraTransform.GetLocation(), FVector::OneVector));
 		SpectatorPawn->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 		if (USceneComponent* RootComponent = SpectatorPawn->GetRootComponent())
 		{
