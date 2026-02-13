@@ -52,7 +52,6 @@ protected:
 	void UpdateCameraReset();
 	void ClearCameraReset();
 	void BeginLookAtAttachBlend(AActor* LookAt);
-	void BeginLookAtDetachBlend();
 	void UpdateLookAtAttachBlend();
 	void ClearLookAtAttachBlend();
 	bool IsLookInputAllowed() const;

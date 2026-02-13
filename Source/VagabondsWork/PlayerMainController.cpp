@@ -226,6 +226,21 @@ void APlayerMainController::HandleToggleCursorInput(const FInputActionValue& Val
 void APlayerMainController::HandleLookOverrideInput(const FInputActionValue& Value)
 {
     bLookOverrideHeld = Value.Get<bool>();
+
+    if (bLookOverrideHeld)
+    {
+        SetInputMode(FInputModeGameOnly());
+    }
+    else if (bCursorVisibleMode)
+    {
+        FInputModeGameAndUI InputMode;
+        InputMode.SetHideCursorDuringCapture(false);
+        SetInputMode(InputMode);
+    }
+    else
+    {
+        SetInputMode(FInputModeGameOnly());
+    }
 }
 
 void APlayerMainController::UpdateShipRotationInput()
@@ -349,54 +364,9 @@ void APlayerMainController::BeginLookAtAttachBlend(AActor* LookAt)
 		return;
 	}
 
-	GetWorldTimerManager().SetTimer(LookAtAttachBlendHandle, this, &APlayerMainController::UpdateLookAtAttachBlend, 0.02f, true);
+	GetWorldTimerManager().SetTimer(LookAtAttachBlendHandle, this, &APlayerMainController::UpdateLookAtAttachBlend, 0.005f, true);
 }
 
-void APlayerMainController::BeginLookAtDetachBlend()
-{
-	APlayerSpectator* SpectatorPawn = CachedSpectatorPawn.Get();
-	if (!SpectatorPawn)
-	{
-		return;
-	}
-
-	ClearLookAtAttachBlend();
-
-	LookAtAttachTargetActor = nullptr;
-	LookAtAttachBlendElapsed = 0.0f;
-	bLookAtAttachBlendActive = true;
-	bLookAtAttachBlendIsAttach = false;
-
-	if (SpectatorPawn->GetAttachParentActor())
-	{
-		SpectatorPawn->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-	}
-
-	if (USceneComponent* RootComponent = SpectatorPawn->GetRootComponent())
-	{
-		RootComponent->SetUsingAbsoluteRotation(false);
-	}
-
-	const USpringArmComponent* SpectatorArm = SpectatorPawn->FindComponentByClass<USpringArmComponent>();
-	const FTransform StartCameraTransform = SpectatorArm
-		? SpectatorArm->GetSocketTransform(USpringArmComponent::SocketName)
-		: SpectatorPawn->GetActorTransform();
-	LookAtAttachStartTransform = FTransform(StartCameraTransform.GetRotation(), StartCameraTransform.GetLocation(), FVector::OneVector);
-	LookAtAttachStartCameraLocation = StartCameraTransform.GetLocation();
-	LookAtAttachTargetCameraLocation = LookAtAttachStartCameraLocation;
-	LookAtAttachStartArmLength = SpectatorPawn->GetCameraBoomLength();
-	LookAtAttachTargetArmLength = 0.0f;
-	SpectatorPawn->SyncToTransform(LookAtAttachStartTransform);
-
-	if (LookAtAttachBlendDuration <= 0.0f)
-	{
-		LookAtAttachBlendElapsed = LookAtAttachBlendDuration;
-		UpdateLookAtAttachBlend();
-		return;
-	}
-
-	GetWorldTimerManager().SetTimer(LookAtAttachBlendHandle, this, &APlayerMainController::UpdateLookAtAttachBlend, 0.02f, true);
-}
 
 void APlayerMainController::UpdateLookAtAttachBlend()
 {
@@ -407,7 +377,7 @@ void APlayerMainController::UpdateLookAtAttachBlend()
 
 	APlayerSpectator* SpectatorPawn = CachedSpectatorPawn.Get();
 	AActor* TargetActor = LookAtAttachTargetActor.Get();
-	if (!SpectatorPawn || (bLookAtAttachBlendIsAttach && !TargetActor))
+	if (!SpectatorPawn || !TargetActor)
 	{
 		ClearLookAtAttachBlend();
 		return;
@@ -417,7 +387,7 @@ void APlayerMainController::UpdateLookAtAttachBlend()
 	LookAtAttachBlendElapsed += DeltaSeconds;
 	const float Duration = FMath::Max(LookAtAttachBlendDuration, 0.0f);
 	const float Alpha = Duration > 0.0f
-		? FMath::Clamp(LookAtAttachBlendElapsed / Duration, 0.0f, 1.0f)
+		? FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp(LookAtAttachBlendElapsed / Duration, 0.0f, 1.0f))
 		: 1.0f;
 	const float NewArmLength = FMath::Lerp(LookAtAttachStartArmLength, LookAtAttachTargetArmLength, Alpha);
 	SpectatorPawn->SetCameraBoomLength(NewArmLength);
@@ -429,20 +399,17 @@ void APlayerMainController::UpdateLookAtAttachBlend()
 	{
 		SpectatorPawn->SetCameraBoomLength(LookAtAttachTargetArmLength);
 		SpectatorPawn->SyncToTransform(FTransform(NewRotation, LookAtAttachTargetCameraLocation, FVector::OneVector));
-		if (bLookAtAttachBlendIsAttach)
-		{
-			SpectatorPawn->AttachToActor(TargetActor, FAttachmentTransformRules::KeepWorldTransform);
-			if (USceneComponent* RootComponent = SpectatorPawn->GetRootComponent())
-			{
-				RootComponent->SetUsingAbsoluteRotation(true);
-			}
-			Possess(SpectatorPawn);
+	SpectatorPawn->AttachToActor(TargetActor, FAttachmentTransformRules::KeepWorldTransform);
+	if (USceneComponent* RootComponent = SpectatorPawn->GetRootComponent())
+	{
+		RootComponent->SetUsingAbsoluteRotation(true);
+	}
+	Possess(SpectatorPawn);
 
-			if (const USpringArmComponent* LookAtArm = TargetActor->FindComponentByClass<USpringArmComponent>())
-			{
-				SpectatorPawn->SetCameraBoomLength(LookAtArm->TargetArmLength);
-			}
-		}
+	if (const USpringArmComponent* LookAtArm = TargetActor->FindComponentByClass<USpringArmComponent>())
+	{
+		SpectatorPawn->SetCameraBoomLength(LookAtArm->TargetArmLength);
+	}
 		ClearLookAtAttachBlend();
 	}
 }
@@ -517,7 +484,18 @@ void APlayerMainController::LookAtActor(AActor* LookAt)
 
 	if (LookAt && LookAt == SpectatorPawn->GetAttachParentActor())
 	{
-		BeginLookAtDetachBlend();
+		const USpringArmComponent* SpectatorArm = SpectatorPawn->FindComponentByClass<USpringArmComponent>();
+		const FTransform CameraTransform = SpectatorArm
+			? SpectatorArm->GetSocketTransform(USpringArmComponent::SocketName)
+			: SpectatorPawn->GetActorTransform();
+		SpectatorPawn->SetCameraBoomLength(0.0f);
+		SpectatorPawn->SyncToTransform(FTransform(CameraTransform.GetRotation(), CameraTransform.GetLocation(), FVector::OneVector));
+		SpectatorPawn->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		if (USceneComponent* RootComponent = SpectatorPawn->GetRootComponent())
+		{
+			RootComponent->SetUsingAbsoluteRotation(false);
+		}
+		Possess(SpectatorPawn);
 		return;
 	}
 
@@ -529,7 +507,17 @@ void APlayerMainController::LookAtActor(AActor* LookAt)
 
 	if (AActor* AttachedActor = SpectatorPawn->GetAttachParentActor())
 	{
-		BeginLookAtDetachBlend();
+		const USpringArmComponent* SpectatorArm = SpectatorPawn->FindComponentByClass<USpringArmComponent>();
+		const FTransform CameraTransform = SpectatorArm
+			? SpectatorArm->GetSocketTransform(USpringArmComponent::SocketName)
+			: SpectatorPawn->GetActorTransform();
+		SpectatorPawn->SetCameraBoomLength(0.0f);
+		SpectatorPawn->SyncToTransform(FTransform(CameraTransform.GetRotation(), CameraTransform.GetLocation(), FVector::OneVector));
+		SpectatorPawn->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		if (USceneComponent* RootComponent = SpectatorPawn->GetRootComponent())
+		{
+			RootComponent->SetUsingAbsoluteRotation(false);
+		}
 	}
 }
 
