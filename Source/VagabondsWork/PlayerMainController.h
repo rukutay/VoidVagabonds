@@ -60,6 +60,9 @@ protected:
 	void BeginSpectatorRollReset(class APlayerSpectator* SpectatorPawn);
 	void UpdateSpectatorRollReset();
 	void ClearSpectatorRollReset();
+	void BeginShipCameraFollow();
+	void UpdateShipCameraFollow();
+	void ClearShipCameraFollow();
 	FTransform GetPawnCameraTransform(APawn* Pawn) const;
 	bool IsLookInputAllowed() const;
 
@@ -136,6 +139,7 @@ private:
 	float SpectatorRollResetElapsed = 0.0f;
 	FRotator SpectatorRollResetStartRotation = FRotator::ZeroRotator;
 	TWeakObjectPtr<APlayerSpectator> SpectatorRollResetPawn;
+	FTimerHandle ShipCameraFollowHandle;
 
 	float CachedPitchInput = 0.f;
 	float CachedYawInput = 0.f;
