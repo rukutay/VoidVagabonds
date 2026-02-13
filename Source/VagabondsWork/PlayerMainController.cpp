@@ -6,6 +6,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "Ship.h"
+#include "Camera/CameraComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "MapWidget.h"
 #include "PlayerSpectator.h"
@@ -422,6 +423,174 @@ void APlayerMainController::ClearLookAtAttachBlend()
 	LookAtAttachTargetActor = nullptr;
 }
 
+FTransform APlayerMainController::GetPawnCameraTransform(APawn* Pawn) const
+{
+	if (!Pawn)
+	{
+		return FTransform::Identity;
+	}
+
+	if (const USpringArmComponent* Arm = Pawn->FindComponentByClass<USpringArmComponent>())
+	{
+		const FTransform CameraTransform = Arm->GetSocketTransform(USpringArmComponent::SocketName);
+		return FTransform(CameraTransform.GetRotation(), CameraTransform.GetLocation(), FVector::OneVector);
+	}
+
+	if (const UCameraComponent* Camera = Pawn->FindComponentByClass<UCameraComponent>())
+	{
+		const FTransform CameraTransform = Camera->GetComponentTransform();
+		return FTransform(CameraTransform.GetRotation(), CameraTransform.GetLocation(), FVector::OneVector);
+	}
+
+	const FTransform ActorTransform = Pawn->GetActorTransform();
+	return FTransform(ActorTransform.GetRotation(), ActorTransform.GetLocation(), FVector::OneVector);
+}
+
+void APlayerMainController::BeginSwitchToPawnBlend(APawn* PawnToControl)
+{
+	APlayerSpectator* SpectatorPawn = CachedSpectatorPawn.Get();
+	if (!SpectatorPawn)
+	{
+		SpectatorPawn = Cast<APlayerSpectator>(GetPawn());
+		CachedSpectatorPawn = SpectatorPawn;
+	}
+	if (!SpectatorPawn || !PawnToControl)
+	{
+		return;
+	}
+
+	ClearSwitchToPawnBlend();
+
+	if (SpectatorPawn->GetAttachParentActor())
+	{
+		SpectatorPawn->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+	}
+	if (USceneComponent* RootComponent = SpectatorPawn->GetRootComponent())
+	{
+		RootComponent->SetUsingAbsoluteRotation(false);
+	}
+
+	SwitchToPawnBlendTargetPawn = PawnToControl;
+	SwitchToPawnBlendStartTransform = GetPawnCameraTransform(SpectatorPawn);
+	SwitchToPawnBlendTargetTransform = GetPawnCameraTransform(PawnToControl);
+	SwitchToPawnBlendElapsed = 0.0f;
+	bSwitchToPawnBlendActive = true;
+	SpectatorPawn->SyncToTransform(SwitchToPawnBlendStartTransform);
+
+	if (LookAtAttachBlendDuration <= 0.0f)
+	{
+		UpdateSwitchToPawnBlend();
+		return;
+	}
+
+	GetWorldTimerManager().SetTimer(SwitchToPawnBlendHandle, this, &APlayerMainController::UpdateSwitchToPawnBlend, 0.005f, true);
+}
+
+void APlayerMainController::UpdateSwitchToPawnBlend()
+{
+	if (!bSwitchToPawnBlendActive)
+	{
+		return;
+	}
+
+	APlayerSpectator* SpectatorPawn = CachedSpectatorPawn.Get();
+	APawn* TargetPawn = SwitchToPawnBlendTargetPawn.Get();
+	if (!SpectatorPawn || !TargetPawn)
+	{
+		ClearSwitchToPawnBlend();
+		return;
+	}
+
+	const float DeltaSeconds = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f;
+	SwitchToPawnBlendElapsed += DeltaSeconds;
+	const float Duration = FMath::Max(LookAtAttachBlendDuration, 0.0f);
+	const float Alpha = Duration > 0.0f
+		? FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp(SwitchToPawnBlendElapsed / Duration, 0.0f, 1.0f))
+		: 1.0f;
+	const FVector NewLocation = FMath::Lerp(SwitchToPawnBlendStartTransform.GetLocation(), SwitchToPawnBlendTargetTransform.GetLocation(), Alpha);
+	const FQuat NewRotation = FQuat::Slerp(SwitchToPawnBlendStartTransform.GetRotation(), SwitchToPawnBlendTargetTransform.GetRotation(), Alpha);
+	SpectatorPawn->SyncToTransform(FTransform(NewRotation, NewLocation, FVector::OneVector));
+
+	if (Alpha >= 1.0f - KINDA_SMALL_NUMBER)
+	{
+		SpectatorPawn->SyncToTransform(SwitchToPawnBlendTargetTransform);
+		ClearSwitchToPawnBlend();
+		Possess(TargetPawn);
+		if (TargetPawn->IsA<AShip>())
+		{
+			ClearCameraReset();
+			CachedPitchInput = 0.0f;
+			CachedYawInput = 0.0f;
+			CachedRollInput = 0.0f;
+			UpdateShipRotationInput();
+			SetControlRotation(SwitchToPawnBlendTargetTransform.GetRotation().Rotator());
+		}
+	}
+}
+
+void APlayerMainController::ClearSwitchToPawnBlend()
+{
+	GetWorldTimerManager().ClearTimer(SwitchToPawnBlendHandle);
+	bSwitchToPawnBlendActive = false;
+	SwitchToPawnBlendElapsed = 0.0f;
+	SwitchToPawnBlendTargetPawn = nullptr;
+}
+
+void APlayerMainController::BeginSpectatorRollReset(APlayerSpectator* SpectatorPawn)
+{
+	if (!SpectatorPawn)
+	{
+		return;
+	}
+
+	ClearSpectatorRollReset();
+	SpectatorRollResetPawn = SpectatorPawn;
+	SpectatorRollResetStartRotation = SpectatorPawn->GetActorRotation();
+	SpectatorRollResetElapsed = 0.0f;
+
+	if (LookAtAttachBlendDuration <= 0.0f)
+	{
+		UpdateSpectatorRollReset();
+		return;
+	}
+
+	GetWorldTimerManager().SetTimer(SpectatorRollResetHandle, this, &APlayerMainController::UpdateSpectatorRollReset, 0.005f, true);
+}
+
+void APlayerMainController::UpdateSpectatorRollReset()
+{
+	APlayerSpectator* SpectatorPawn = SpectatorRollResetPawn.Get();
+	if (!SpectatorPawn)
+	{
+		ClearSpectatorRollReset();
+		return;
+	}
+
+	const float DeltaSeconds = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f;
+	SpectatorRollResetElapsed += DeltaSeconds;
+	const float Duration = FMath::Max(LookAtAttachBlendDuration, 0.0f);
+	const float Alpha = Duration > 0.0f
+		? FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp(SpectatorRollResetElapsed / Duration, 0.0f, 1.0f))
+		: 1.0f;
+	FRotator NewRotation = SpectatorRollResetStartRotation;
+	NewRotation.Roll = FMath::Lerp(SpectatorRollResetStartRotation.Roll, 0.0f, Alpha);
+	SpectatorPawn->SyncToTransform(FTransform(NewRotation.Quaternion(), SpectatorPawn->GetActorLocation(), FVector::OneVector));
+
+	if (Alpha >= 1.0f - KINDA_SMALL_NUMBER)
+	{
+		NewRotation.Roll = 0.0f;
+		SpectatorPawn->SyncToTransform(FTransform(NewRotation.Quaternion(), SpectatorPawn->GetActorLocation(), FVector::OneVector));
+		ClearSpectatorRollReset();
+	}
+}
+
+void APlayerMainController::ClearSpectatorRollReset()
+{
+	GetWorldTimerManager().ClearTimer(SpectatorRollResetHandle);
+	SpectatorRollResetElapsed = 0.0f;
+	SpectatorRollResetPawn = nullptr;
+}
+
 void APlayerMainController::SwitchToPawn(APawn* PawnToControl)
 {
     if (!PawnToControl)
@@ -429,21 +598,26 @@ void APlayerMainController::SwitchToPawn(APawn* PawnToControl)
         return;
     }
 
+	ClearSwitchToPawnBlend();
+	ClearSpectatorRollReset();
+	ClearLookAtAttachBlend();
+
     if (PawnToControl == GetPawn())
     {
         if (CachedSpectatorPawn.IsValid())
         {
 			if (APawn* CurrentPawn = GetPawn())
 			{
-				const USpringArmComponent* CurrentArm = CurrentPawn->FindComponentByClass<USpringArmComponent>();
-				const FTransform CameraTransform = CurrentArm
-					? CurrentArm->GetSocketTransform(USpringArmComponent::SocketName)
-					: CurrentPawn->GetActorTransform();
+				const FTransform CameraTransform = GetPawnCameraTransform(CurrentPawn);
 				CachedSpectatorPawn->SyncToTransform(CameraTransform);
-				CachedSpectatorPawn->SetCameraBoomLength(0.0f);
 			}
             CachedSpectatorPawn->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			if (USceneComponent* RootComponent = CachedSpectatorPawn->GetRootComponent())
+			{
+				RootComponent->SetUsingAbsoluteRotation(false);
+			}
             Possess(CachedSpectatorPawn.Get());
+			BeginSpectatorRollReset(CachedSpectatorPawn.Get());
         }
         return;
     }
@@ -451,11 +625,20 @@ void APlayerMainController::SwitchToPawn(APawn* PawnToControl)
     if (APlayerSpectator* SpectatorPawn = Cast<APlayerSpectator>(GetPawn()))
     {
         CachedSpectatorPawn = SpectatorPawn;
-        SpectatorPawn->SyncToTransform(PawnToControl->GetActorTransform());
-        SpectatorPawn->AttachToActor(PawnToControl, FAttachmentTransformRules::KeepWorldTransform);
+        BeginSwitchToPawnBlend(PawnToControl);
+		return;
     }
 
     Possess(PawnToControl);
+	if (PawnToControl->IsA<AShip>())
+	{
+		ClearCameraReset();
+		CachedPitchInput = 0.0f;
+		CachedYawInput = 0.0f;
+		CachedRollInput = 0.0f;
+		UpdateShipRotationInput();
+		SetControlRotation(PawnToControl->GetActorRotation());
+	}
 }
 
 void APlayerMainController::LookAtActor(AActor* LookAt)

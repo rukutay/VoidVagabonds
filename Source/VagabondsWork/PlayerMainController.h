@@ -54,6 +54,13 @@ protected:
 	void BeginLookAtAttachBlend(AActor* LookAt);
 	void UpdateLookAtAttachBlend();
 	void ClearLookAtAttachBlend();
+	void BeginSwitchToPawnBlend(APawn* PawnToControl);
+	void UpdateSwitchToPawnBlend();
+	void ClearSwitchToPawnBlend();
+	void BeginSpectatorRollReset(class APlayerSpectator* SpectatorPawn);
+	void UpdateSpectatorRollReset();
+	void ClearSpectatorRollReset();
+	FTransform GetPawnCameraTransform(APawn* Pawn) const;
 	bool IsLookInputAllowed() const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
@@ -119,6 +126,16 @@ private:
 	float LookAtAttachBlendElapsed = 0.0f;
 	bool bLookAtAttachBlendActive = false;
 	bool bLookAtAttachBlendIsAttach = false;
+	FTimerHandle SwitchToPawnBlendHandle;
+	FTransform SwitchToPawnBlendStartTransform;
+	FTransform SwitchToPawnBlendTargetTransform;
+	float SwitchToPawnBlendElapsed = 0.0f;
+	bool bSwitchToPawnBlendActive = false;
+	TWeakObjectPtr<APawn> SwitchToPawnBlendTargetPawn;
+	FTimerHandle SpectatorRollResetHandle;
+	float SpectatorRollResetElapsed = 0.0f;
+	FRotator SpectatorRollResetStartRotation = FRotator::ZeroRotator;
+	TWeakObjectPtr<APlayerSpectator> SpectatorRollResetPawn;
 
 	float CachedPitchInput = 0.f;
 	float CachedYawInput = 0.f;
