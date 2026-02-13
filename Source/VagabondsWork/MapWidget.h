@@ -9,6 +9,15 @@
 class ALevelBoundaries;
 class ANavStaticBig;
 
+UENUM(BlueprintType)
+enum class EMapMarkerType : uint8
+{
+	Sun,
+	Ship,
+	NavStaticBigPlanet,
+	NavStaticBigStation
+};
+
 USTRUCT(BlueprintType)
 struct FMapMarkerData
 {
@@ -16,6 +25,9 @@ struct FMapMarkerData
 
 	UPROPERTY(BlueprintReadOnly, Category = "Map")
 	FVector2D MapPosition = FVector2D::ZeroVector;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Map")
+	EMapMarkerType MarkerType = EMapMarkerType::Ship;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Map")
 	FLinearColor Color = FLinearColor::White;

@@ -96,6 +96,7 @@ void UMapWidget::CollectPlayerShipMarkers(TArray<FMapMarkerData>& OutMarkers) co
 
 		FMapMarkerData Marker;
 		Marker.MapPosition = ProjectWorldToMap(Ship->GetActorLocation(), MapRadius);
+		Marker.MarkerType = EMapMarkerType::Ship;
 		Marker.Color = (Ship == PossessedPawn) ? Settings.PossessedShipColor : Settings.TaggedPlayerShipColor;
 		Marker.SizePx = Settings.DefaultMarkerSizePx;
 		Marker.SourceActor = Ship;
@@ -119,6 +120,7 @@ void UMapWidget::CollectSunMarker(TArray<FMapMarkerData>& OutMarkers) const
 
 	FMapMarkerData Marker;
 	Marker.MapPosition = FVector2D::ZeroVector;
+	Marker.MarkerType = EMapMarkerType::Sun;
 	Marker.Color = Settings.SunColor;
 	Marker.SizePx = Settings.DefaultMarkerSizePx;
 	Marker.SourceActor = SunActor;
@@ -144,6 +146,9 @@ void UMapWidget::CollectNavStaticBigMarkers(TArray<FMapMarkerData>& OutMarkers) 
 
 		FMapMarkerData Marker;
 		Marker.MapPosition = ProjectWorldToMap(NavActor->GetActorLocation(), MapRadius);
+		Marker.MarkerType = NavActor->ActorHasTag(TEXT("station"))
+			? EMapMarkerType::NavStaticBigStation
+			: EMapMarkerType::NavStaticBigPlanet;
 		Marker.Color = Settings.NavStaticBigColor;
 		Marker.SizePx = Settings.DefaultMarkerSizePx;
 		Marker.SourceActor = NavActor;
