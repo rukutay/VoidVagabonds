@@ -522,7 +522,7 @@ void APlayerMainController::UpdateSwitchToPawnBlend()
 			CachedYawInput = 0.0f;
 			CachedRollInput = 0.0f;
 			UpdateShipRotationInput();
-			SetControlRotation(GetPawnCameraTransform(TargetPawn).GetRotation().Rotator());
+			SetControlRotation(TargetPawn->GetActorRotation());
 		}
 	}
 }
@@ -659,8 +659,8 @@ void APlayerMainController::SwitchToPawn(APawn* PawnToControl)
 		CachedYawInput = 0.0f;
 		CachedRollInput = 0.0f;
 		UpdateShipRotationInput();
-			BeginShipCameraFollow();
-		SetControlRotation(GetPawnCameraTransform(PawnToControl).GetRotation().Rotator());
+		SetControlRotation(PawnToControl->GetActorRotation());
+		BeginShipCameraFollow();
 	}
 }
 
