@@ -8,6 +8,8 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 ### Added
 - Player-facing marketing document for portfolio presentation (`docs/marketing.md`).
 - Player spectator pawn with Enhanced Input setup, smooth mouse look, and axis-based movement.
+- Ship camera boom + camera components (spring arm) with exposed camera transform helper.
+- Possession swap flow (spectator ↔ ship) with input action hook and Blueprint-callable switch helper.
 - UMG top-down map widget (UMapWidget) with marker data for player ship + NavStaticBig and a LevelBoundaries-driven map radius.
 - LevelBoundaries runtime atmosphere spawning system (BP-configurable classes, predictive placement, overlap-safe class checks, timed cadence, and max-instance cap).
 - External ship module system (timer-driven aiming, tick disabled).
@@ -56,6 +58,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Sun light now prefers current ViewTargetActor each tick (falls back to player pawn).
 - External module line-of-sight uses a single forward sphere sweep with lead prediction and projectile radius.
 - External modules now reset PivotBase/PivotGun to local rotation (0,0,0) when no target is set, and only aim when TargetActor is valid.
+- Spectator return now snaps to ship camera transform and resets spectator boom length for a smoother handoff.
 
 ### Removed
 - Roll aim functionality (removed to keep ship behavior stable).

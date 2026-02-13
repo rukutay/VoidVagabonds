@@ -58,8 +58,14 @@ See [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) for setup, build, and packaging
 ## Spectator Pawn (Setup)
 - Create input actions `IA_SpectatorMove` (Vector3) and `IA_SpectatorLook` (Vector2).
 - Create mapping context `IMC_Spectator` and bind WASD + Space/Ctrl for movement and mouse delta for look.
-- Assign the mapping context and actions on a BP derived from `APlayerSpectator`.
+- Assign the mapping context and actions on a BP derived from `APlayerMainController` (spectator input is bound on the controller).
 - Movement uses the pawn forward/right/up axes; mouse look smoothly rotates with pitch clamps.
+
+## Possession Swap (Spectator ↔ Ship)
+- Create input action `IA_SwitchControl` (Bool) and map it in your input mapping context.
+- Assign `SwitchControlAction` on `APlayerMainController`.
+- Implement `OnSwitchControlRequested` in a controller Blueprint to pick the target pawn and call `SwitchToPawn(TargetPawn)`.
+- Switching from ship back to spectator snaps the spectator to the ship camera transform and resets the spectator boom length to 0 for a smoother transition.
 
 ## Project Structure (key paths)
 - Module rules: `Source/VagabondsWork/VagabondsWork.Build.cs`

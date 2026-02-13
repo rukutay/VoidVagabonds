@@ -63,10 +63,16 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
   - Move X/Y to **WASD** (X = forward/back, Y = right/left).
   - Move Z to **Space/Ctrl** (up/down).
   - Look X/Y to mouse delta.
-- **Assign assets**: In a BP derived from `APlayerSpectator`, set `SpectatorMappingContext`, `MoveAction`, and `LookAction`.
+- **Assign assets**: In a BP derived from `APlayerMainController`, set `SpectatorMappingContext`, `SpectatorMoveAction`, and `SpectatorLookAction`.
 - **Movement**: Movement input is applied along the pawn's forward/right/up vectors, so rotation affects travel direction.
 - **Rotation**: Mouse look drives a smoothed target rotation (`RotationInterpSpeed`) and pitch clamps (`PitchClampMin/Max`).
 - **Tuning**: Adjust `MaxSpeed`, `Acceleration`, `Deceleration`, `LookSensitivity`, `RotationInterpSpeed`, and pitch clamps on the pawn defaults.
+
+## Possession Swap (Spectator ↔ Ship)
+- **Input Action**: Create `IA_SwitchControl` (Bool) and map it in your input mapping context.
+- **Controller binding**: Assign `SwitchControlAction` on `APlayerMainController`.
+- **Blueprint hook**: Implement `OnSwitchControlRequested` in your controller BP to pick the target pawn and call `SwitchToPawn(TargetPawn)`.
+- **Behavior**: Switching back to spectator snaps to the ship camera transform and resets the spectator boom length to 0 for a smoother transition.
 
 ## Map Widget Setup (UMapWidget)
 - Create a Widget Blueprint based on `UMapWidget` and render dots using the `Markers` array (normalized -1..1 positions).
