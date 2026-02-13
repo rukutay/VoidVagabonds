@@ -160,7 +160,15 @@ void APlayerMainController::HandleSpectatorLookInput(const FInputActionValue& Va
     if (APlayerSpectator* Spectator = Cast<APlayerSpectator>(GetPawn()))
     {
         Spectator->ApplyLookInput(Value);
+		return;
     }
+
+	if (Cast<AShip>(GetPawn()))
+	{
+		const FVector2D LookAxis = Value.Get<FVector2D>();
+		AddYawInput(LookAxis.X);
+		AddPitchInput(-LookAxis.Y);
+	}
 }
 
 void APlayerMainController::HandleSwitchControlInput(const FInputActionValue& Value)

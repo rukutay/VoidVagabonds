@@ -77,6 +77,10 @@ void APlayerSpectator::ApplyMoveInput(const FInputActionValue& Value)
 	{
 		return;
 	}
+	if (GetAttachParentActor())
+	{
+		return;
+	}
 
 	const FVector Forward = GetActorForwardVector();
 	const FVector Right = GetActorRightVector();
