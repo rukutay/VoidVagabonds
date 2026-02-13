@@ -102,6 +102,8 @@ class AAIShipController;
 class AController;
 class UShipNavComponent;
 class UShipVitalityComponent;
+class USpringArmComponent;
+class UCameraComponent;
 
 UCLASS()
 class VAGABONDSWORK_API AShip : public APawn
@@ -110,6 +112,12 @@ class VAGABONDSWORK_API AShip : public APawn
 
 public:
     AShip();
+
+    UFUNCTION(BlueprintCallable, Category="Ship|Camera")
+    float GetCameraBoomLength() const;
+
+    UFUNCTION(BlueprintCallable, Category="Ship|Camera")
+    FTransform GetShipCameraTransform() const;
 
 protected:
     virtual void BeginPlay() override;
@@ -284,6 +292,15 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components", meta=(ToolTip="Root physics mesh for ship."))
     UStaticMeshComponent* ShipBase = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components", meta=(ToolTip="Camera boom for ship view."))
+    USpringArmComponent* CameraBoom = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components", meta=(ToolTip="Ship camera."))
+    UCameraComponent* ShipCamera = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Camera", meta=(ClampMin="0.0", ToolTip="Ship camera boom length."))
+    float CameraBoomLength = 700.0f;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components", meta=(ToolTip="Collision sphere used for radius checks."))
     USphereComponent* ShipRadius = nullptr;

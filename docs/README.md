@@ -55,6 +55,12 @@ See [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) for setup, build, and packaging
 - Assign the Blueprint to `APlayerMainController.MapWidgetClass` in defaults (or your controller Blueprint).
 - Place an `ALevelBoundaries` actor in the level so the map radius can be resolved.
 
+## Spectator Pawn (Setup)
+- Create input actions `IA_SpectatorMove` (Vector3) and `IA_SpectatorLook` (Vector2).
+- Create mapping context `IMC_Spectator` and bind WASD + Space/Ctrl for movement and mouse delta for look.
+- Assign the mapping context and actions on a BP derived from `APlayerSpectator`.
+- Movement uses the pawn forward/right/up axes; mouse look smoothly rotates with pitch clamps.
+
 ## Project Structure (key paths)
 - Module rules: `Source/VagabondsWork/VagabondsWork.Build.cs`
 - Game target: `Source/VagabondsWork.Target.cs`

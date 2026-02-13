@@ -1,111 +1,80 @@
 # Implementation Plan
 
 [Overview]
-Create a UMG top-down map widget that renders world-space points with the widget center mapped to world (0,0,0).
+Implement a new PlayerSpectator pawn class with a sphere-rooted camera rig and spectator-style movement, and set it as the default pawn with dedicated Enhanced Input actions/context.
 
-The map must display a white dot for the player-possessed `AShip`, purple dots for all `ANavStaticBig` actors, and allow future expansion for other ship colors. The map radius is driven by the `ALevelBoundaries` root `USphereComponent::GetScaledSphereRadius()` so world positions map consistently to widget space. Because there are no existing UI widgets, the plan introduces a C++ `UUserWidget` subclass to gather map data (positions/colors) and a Blueprint to style and layout the visuals.
-
-The solution keeps navigation rules in mind: no heavy per-tick logic. The widget will update map data on a timer (or in `NativeTick` with light iteration if acceptable) and expose a data array to Blueprint for rendering. Player controller will own the widget instance and add it to the viewport on BeginPlay.
+The new pawn will mirror UE SpectatorPawn movement by using FloatingPawnMovement with tuned acceleration/deceleration and input bindings for movement and look, while keeping collision disabled on the root sphere for a free-fly camera. It will also add smooth mouse-driven rotation to orbit around the root sphere, keeping the spring arm/camera setup aligned with controller input. The game mode will be updated to use the new pawn as the default player pawn, and a new input mapping context/actions will be referenced from the spectator pawn for runtime binding.
 
 [Types]
-Introduce data structures that represent map markers and optional map configuration.
+Add a new APawn-derived type for spectator control with component and input references.
 
-- `USTRUCT(BlueprintType) FMapMarkerData`
-  - `UPROPERTY(BlueprintReadOnly, Category="Map") FVector2D MapPosition;` (normalized to map radius: -1..1 on each axis)
-  - `UPROPERTY(BlueprintReadOnly, Category="Map") FLinearColor Color;`
-  - `UPROPERTY(BlueprintReadOnly, Category="Map") float SizePx;` (optional per-marker size for Blueprint)
-  - `UPROPERTY(BlueprintReadOnly, Category="Map") TWeakObjectPtr<AActor> SourceActor;` (optional for future extensions)
-
-- `USTRUCT(BlueprintType) FMapSettings`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Map") float DefaultMarkerSizePx = 6.0f;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Map") FLinearColor PlayerColor = FLinearColor::White;`
-  - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Map") FLinearColor NavStaticBigColor = FLinearColor(0.6f, 0.2f, 0.8f, 1.0f);`
+- `APlayerSpectator` (Source/VagabondsWork/PlayerSpectator.h/.cpp)
+  - Components:
+    - `USphereComponent* RootSphere` (RootComponent; collision disabled)
+    - `USpringArmComponent* CameraBoom` (attached to RootSphere)
+    - `UCameraComponent* SpectatorCamera` (attached to CameraBoom)
+    - `UFloatingPawnMovement* Movement` (configured like SpectatorPawn)
+  - Input references:
+    - `UInputMappingContext* SpectatorMappingContext` (EditAnywhere)
+    - `UInputAction* MoveAction` (EditAnywhere)
+    - `UInputAction* LookAction` (EditAnywhere)
+    - optional speed modifier actions if required (e.g., sprint/slow) - confirm with mapping assets
+  - Tuning properties:
+    - `float MaxSpeed` (EditAnywhere, defaults to spectator-like speed)
+    - `float Acceleration` (EditAnywhere)
+    - `float Deceleration` (EditAnywhere)
+    - `float LookSensitivity` (EditAnywhere)
+    - `float PitchClampMin/Max` (EditAnywhere for camera pitch limits)
 
 [Files]
-Create map widget classes and update controller + build configuration for UMG.
+Create a new spectator pawn class and update game mode default pawn binding.
 
-- New files to create:
-  - `Source/VagabondsWork/MapWidget.h`
-    - Declare `UMapWidget` (C++ `UUserWidget`) plus `FMapMarkerData`, `FMapSettings`.
-  - `Source/VagabondsWork/MapWidget.cpp`
-    - Implement marker collection, world-to-map projection, and timer-driven updates.
-
-- Existing files to modify:
-  - `Source/VagabondsWork/VagabondsWork.Build.cs`
-    - Add `UMG`, `Slate`, and `SlateCore` module dependencies.
-  - `Source/VagabondsWork/PlayerMainController.h`
-    - Add `UPROPERTY(EditAnywhere)` for `TSubclassOf<UMapWidget>` and `UMapWidget* MapWidgetInstance`.
-  - `Source/VagabondsWork/PlayerMainController.cpp`
-    - Instantiate and add the map widget to viewport in `BeginPlay`.
-  - `Source/VagabondsWork/LevelBoundaries.h`
-    - Expose a `BlueprintCallable` getter for `GetBoundaryRadius()` to return `Boudaries->GetScaledSphereRadius()` (optional, if direct access is needed).
-
-- Files to delete/move:
-  - None.
-
-- Configuration updates:
-  - None beyond `Build.cs` module dependencies.
+- New files:
+  - `Source/VagabondsWork/PlayerSpectator.h` — declaration of the spectator pawn, components, and input handlers.
+  - `Source/VagabondsWork/PlayerSpectator.cpp` — component setup, input bindings, movement, and smooth rotation.
+- Modified files:
+  - `Source/VagabondsWork/VagabondsWorkGameMode.cpp` — set `DefaultPawnClass` to `APlayerSpectator` (or a BP derived from it if requested).
+  - `Source/VagabondsWork/VagabondsWorkGameMode.h` — include forward declaration if needed (or rely on include in cpp).
+- No file deletions or moves.
+- Config updates: none unless you want default input mapping assets referenced in config instead of via BP defaults.
 
 [Functions]
-Add map widget collection and projection helpers.
+Add spectator input handlers and update game mode constructor.
 
-- New functions in `Source/VagabondsWork/MapWidget.h/.cpp`:
-  - `UFUNCTION(BlueprintCallable, Category="Map") void RefreshMarkers();`
-    - Collect current markers and update `Markers` array.
-  - `UFUNCTION(BlueprintPure, Category="Map") float GetMapRadiusCm() const;`
-    - Resolve `ALevelBoundaries` actor and return `Boudaries->GetScaledSphereRadius()`.
-  - `FVector2D ProjectWorldToMap(const FVector& WorldLocation, float MapRadiusCm) const;`
-    - Convert world `X/Y` into normalized map coordinates centered at `(0,0)`.
-  - `void CollectPlayerMarker(TArray<FMapMarkerData>& OutMarkers) const;`
-    - Use `GetOwningPlayerPawn()` and cast to `AShip` for player marker.
-  - `void CollectNavStaticBigMarkers(TArray<FMapMarkerData>& OutMarkers) const;`
-    - Iterate `ANavStaticBig` actors and add purple markers.
-
+- New functions (PlayerSpectator):
+  - `void Move(const FInputActionValue& Value);` — handle 2D movement input, convert to forward/right/up vectors.
+  - `void Look(const FInputActionValue& Value);` — apply smooth yaw/pitch input and clamp pitch.
+  - `virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;` — bind Enhanced Input actions.
+  - `virtual void NotifyControllerChanged() override;` — add mapping context to local player subsystem.
 - Modified functions:
-  - `APlayerMainController::BeginPlay()`
-    - Create `MapWidgetInstance` with `CreateWidget<UMapWidget>` and add to viewport.
-
-- Removed functions:
-  - None.
+  - `AVagabondsWorkGameMode::AVagabondsWorkGameMode()` — replace default pawn with PlayerSpectator class.
+- No function removals.
 
 [Classes]
-Introduce a map widget class and update player controller usage.
+Introduce a new pawn class and update game mode default pawn choice.
 
-- New classes:
-  - `UMapWidget` (`Source/VagabondsWork/MapWidget.h/.cpp`)
-    - Inherits `UUserWidget`.
-    - Owns `TArray<FMapMarkerData> Markers` and `FMapSettings Settings`.
-    - Timer-driven updates using `FTimerHandle` on `NativeConstruct` and `NativeDestruct`.
-
+- New class:
+  - `APlayerSpectator` (inherits `APawn`), with root sphere, spring arm, camera, floating movement, and Enhanced Input.
 - Modified classes:
-  - `APlayerMainController` (`Source/VagabondsWork/PlayerMainController.h/.cpp`)
-    - Add widget class/property and spawn instance.
-  - `ALevelBoundaries` (`Source/VagabondsWork/LevelBoundaries.h/.cpp`)
-    - Provide `GetBoundaryRadius()` helper if direct access to sphere radius is needed by widget.
-
-- Removed classes:
-  - None.
+  - `AVagabondsWorkGameMode` — constructor sets default pawn to `APlayerSpectator` (or its BP if specified).
+- No class removals.
 
 [Dependencies]
-Add UMG-related modules for the new widget.
-
-- `Source/VagabondsWork/VagabondsWork.Build.cs`
-  - Add `UMG`, `Slate`, `SlateCore` to `PublicDependencyModuleNames`.
+No new module dependencies required beyond existing Engine + EnhancedInput modules.
 
 [Testing]
-Validate the map widget in PIE.
+Validate in-editor by possessing the new pawn, confirming camera orbit + free movement, and verifying input bindings.
 
-- Create a Blueprint based on `UMapWidget` and set it in `APlayerMainController` defaults.
-- Verify the map center corresponds to world (0,0,0) and points move correctly with world positions.
-- Confirm the player ship shows as a white dot.
-- Confirm all `ANavStaticBig` actors show as purple dots.
-- Adjust `ALevelBoundaries` sphere radius and ensure map scaling updates.
+- Manual tests:
+  - PIE: verify pawn spawns as default and camera can yaw/pitch smoothly around RootSphere.
+  - Movement: WASD (or mapped inputs) moves in camera-relative directions with acceleration/deceleration similar to SpectatorPawn.
+  - Pitch clamp: camera pitch stays within expected limits.
+  - Collision: RootSphere has no collision responses.
 
 [Implementation Order]
-Implement the widget, wire it up, and validate in PIE.
+Implement the new pawn class first, then wire it into the game mode and validate input assets in editor.
 
-1. Add `UMG`, `Slate`, `SlateCore` to `VagabondsWork.Build.cs`.
-2. Create `UMapWidget` and marker structs with refresh/projection helpers.
-3. Update `APlayerMainController` to spawn the map widget at BeginPlay.
-4. Add `ALevelBoundaries` radius accessor if needed for clean widget access.
-5. Build Blueprint styling and validate in PIE.
+1. Create `APlayerSpectator` header/cpp with component setup and movement configuration.
+2. Add Enhanced Input bindings and mapping context setup on controller change.
+3. Update `AVagabondsWorkGameMode` default pawn class to `APlayerSpectator`.
+4. Verify input assets in editor and run PIE to confirm behavior.

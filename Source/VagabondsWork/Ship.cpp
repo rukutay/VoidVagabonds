@@ -1,10 +1,12 @@
 #include "Ship.h"
 #include "AIShipController.h"
+#include "Camera/CameraComponent.h"
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "ShipNavComponent.h"
 #include "ShipVitalityComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 
 AShip::AShip()
 {
@@ -24,6 +26,15 @@ AShip::AShip()
     ShipRadius = CreateDefaultSubobject<USphereComponent>(TEXT("ShipRadius"));
     ShipRadius->SetupAttachment(ShipBase);
 
+    CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
+    CameraBoom->SetupAttachment(ShipBase);
+    CameraBoom->TargetArmLength = CameraBoomLength;
+    CameraBoom->bUsePawnControlRotation = true;
+
+    ShipCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ShipCamera"));
+    ShipCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
+    ShipCamera->bUsePawnControlRotation = false;
+
     ShipNav = CreateDefaultSubobject<UShipNavComponent>(TEXT("ShipNav"));
 
     Vitality = CreateDefaultSubobject<UShipVitalityComponent>(TEXT("Vitality"));
@@ -36,6 +47,21 @@ AShip::AShip()
 
     ShipRadius->OnComponentBeginOverlap.AddDynamic(this, &AShip::HandleShipRadiusBeginOverlap);
     ShipRadius->OnComponentEndOverlap.AddDynamic(this, &AShip::HandleShipRadiusEndOverlap);
+}
+
+float AShip::GetCameraBoomLength() const
+{
+    return CameraBoom ? CameraBoom->TargetArmLength : CameraBoomLength;
+}
+
+FTransform AShip::GetShipCameraTransform() const
+{
+    if (ShipCamera)
+    {
+        return ShipCamera->GetComponentTransform();
+    }
+
+    return GetActorTransform();
 }
 
 void AShip::BeginPlay()

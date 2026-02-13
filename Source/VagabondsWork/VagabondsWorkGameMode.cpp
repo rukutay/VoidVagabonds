@@ -1,10 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "VagabondsWorkGameMode.h"
-#include "VagabondsWorkCharacter.h"
+#include "PlayerSpectator.h"
 #include "DrawDebugHelpers.h"
 #include "EngineUtils.h"
-#include "UObject/ConstructorHelpers.h"
 #include "Algo/Reverse.h"
 #include "Math/NumericLimits.h"
 
@@ -27,12 +26,7 @@ namespace
 
 AVagabondsWorkGameMode::AVagabondsWorkGameMode()
 {
-	// set default pawn class to our Blueprinted character
-	static ConstructorHelpers::FClassFinder<APawn> PlayerPawnBPClass(TEXT("/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter"));
-	if (PlayerPawnBPClass.Class != NULL)
-	{
-		DefaultPawnClass = PlayerPawnBPClass.Class;
-	}
+	DefaultPawnClass = APlayerSpectator::StaticClass();
 
 	// Enable tick for refreshing moving static obstacles
 	PrimaryActorTick.bCanEverTick = true;

@@ -55,6 +55,19 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Setup**: Create Input Actions + Mapping Context assets in Blueprint and assign them to `APlayerMainController` fields (`ThrottleAction`, `PitchAction`, `YawAction`, `RollAction`).
 - **Behavior**: On player possess, the previous AI controller resumes control on unpossess. Manual mode uses AI-style steering, `AShip::bManualUseRollAlign` toggles roll-align (default true), and `AShip::ManualYawBankScale` tunes yaw-driven banking when manual roll-align is disabled.
 
+## Player Spectator Setup
+- **Input Actions (Enhanced Input)**:
+  - `IA_SpectatorMove` (Value: Vector3)
+  - `IA_SpectatorLook` (Value: Vector2)
+- **Mapping Context**: Create `IMC_Spectator` and bind:
+  - Move X/Y to **WASD** (X = forward/back, Y = right/left).
+  - Move Z to **Space/Ctrl** (up/down).
+  - Look X/Y to mouse delta.
+- **Assign assets**: In a BP derived from `APlayerSpectator`, set `SpectatorMappingContext`, `MoveAction`, and `LookAction`.
+- **Movement**: Movement input is applied along the pawn's forward/right/up vectors, so rotation affects travel direction.
+- **Rotation**: Mouse look drives a smoothed target rotation (`RotationInterpSpeed`) and pitch clamps (`PitchClampMin/Max`).
+- **Tuning**: Adjust `MaxSpeed`, `Acceleration`, `Deceleration`, `LookSensitivity`, `RotationInterpSpeed`, and pitch clamps on the pawn defaults.
+
 ## Map Widget Setup (UMapWidget)
 - Create a Widget Blueprint based on `UMapWidget` and render dots using the `Markers` array (normalized -1..1 positions).
 - Assign the Blueprint to `APlayerMainController.MapWidgetClass` in defaults (or your controller Blueprint).
