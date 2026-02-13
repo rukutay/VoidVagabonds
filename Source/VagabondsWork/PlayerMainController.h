@@ -45,6 +45,13 @@ protected:
 	void HandleSwitchControlInput(const FInputActionValue& Value);
 	void UpdateShipRotationInput();
 	void UpdateShipMappingContext(APawn* InPawn);
+	void ScheduleCameraReset();
+	void BeginCameraReset();
+	void UpdateCameraReset();
+	void ClearCameraReset();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	float CameraResetDelay = 1.0f;
 
 private:
 	UPROPERTY(EditAnywhere, Category = "Input")
@@ -82,6 +89,10 @@ private:
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<class APlayerSpectator> CachedSpectatorPawn;
+
+	FTimerHandle CameraResetDelayHandle;
+	FTimerHandle CameraResetInterpHandle;
+	bool bCameraResetActive = false;
 
 	float CachedPitchInput = 0.f;
 	float CachedYawInput = 0.f;

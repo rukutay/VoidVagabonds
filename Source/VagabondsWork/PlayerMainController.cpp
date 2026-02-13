@@ -10,6 +10,7 @@
 #include "MapWidget.h"
 #include "PlayerSpectator.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "TimerManager.h"
 
 void APlayerMainController::BeginPlay()
 {
@@ -31,6 +32,7 @@ void APlayerMainController::OnPossess(APawn* InPawn)
 {
     Super::OnPossess(InPawn);
 
+    ClearCameraReset();
     if (APlayerSpectator* SpectatorPawn = Cast<APlayerSpectator>(InPawn))
     {
         CachedSpectatorPawn = SpectatorPawn;
@@ -42,6 +44,7 @@ void APlayerMainController::OnUnPossess()
 {
     Super::OnUnPossess();
 
+    ClearCameraReset();
     UpdateShipMappingContext(nullptr);
 }
 
@@ -166,8 +169,13 @@ void APlayerMainController::HandleSpectatorLookInput(const FInputActionValue& Va
 	if (Cast<AShip>(GetPawn()))
 	{
 		const FVector2D LookAxis = Value.Get<FVector2D>();
+		if (!LookAxis.IsNearlyZero())
+		{
+			ClearCameraReset();
+			ScheduleCameraReset();
+		}
 		AddYawInput(LookAxis.X);
-		AddPitchInput(-LookAxis.Y);
+		AddPitchInput(LookAxis.Y);
 	}
 }
 
@@ -185,6 +193,57 @@ void APlayerMainController::UpdateShipRotationInput()
     {
         Ship->SetManualRotationInput(CachedPitchInput, CachedYawInput, CachedRollInput);
     }
+}
+
+void APlayerMainController::ScheduleCameraReset()
+{
+	if (CameraResetDelay <= 0.0f)
+	{
+		BeginCameraReset();
+		return;
+	}
+
+	GetWorldTimerManager().SetTimer(CameraResetDelayHandle, this, &APlayerMainController::BeginCameraReset, CameraResetDelay, false);
+}
+
+void APlayerMainController::BeginCameraReset()
+{
+	if (bCameraResetActive || !Cast<AShip>(GetPawn()))
+	{
+		return;
+	}
+
+	bCameraResetActive = true;
+	GetWorldTimerManager().SetTimer(CameraResetInterpHandle, this, &APlayerMainController::UpdateCameraReset, 0.02f, true);
+}
+
+void APlayerMainController::UpdateCameraReset()
+{
+	AShip* Ship = Cast<AShip>(GetPawn());
+	if (!Ship)
+	{
+		ClearCameraReset();
+		return;
+	}
+
+	const FRotator TargetRotation = Ship->GetActorRotation();
+	const FRotator CurrentRotation = GetControlRotation();
+	const float DeltaSeconds = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f;
+	const FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaSeconds, 5.0f);
+	SetControlRotation(NewRotation);
+
+	if (NewRotation.Equals(TargetRotation, 0.1f))
+	{
+		SetControlRotation(TargetRotation);
+		ClearCameraReset();
+	}
+}
+
+void APlayerMainController::ClearCameraReset()
+{
+	GetWorldTimerManager().ClearTimer(CameraResetDelayHandle);
+	GetWorldTimerManager().ClearTimer(CameraResetInterpHandle);
+	bCameraResetActive = false;
 }
 
 void APlayerMainController::SwitchToPawn(APawn* PawnToControl)
