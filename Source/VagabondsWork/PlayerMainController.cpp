@@ -522,7 +522,7 @@ void APlayerMainController::UpdateSwitchToPawnBlend()
 			CachedYawInput = 0.0f;
 			CachedRollInput = 0.0f;
 			UpdateShipRotationInput();
-			SetControlRotation(TargetPawn->GetActorRotation());
+			SetControlRotation(GetPawnCameraTransform(TargetPawn).GetRotation().Rotator());
 		}
 	}
 }
@@ -593,6 +593,7 @@ void APlayerMainController::ClearSpectatorRollReset()
 void APlayerMainController::BeginShipCameraFollow()
 {
 	ClearShipCameraFollow();
+	UpdateShipCameraFollow();
 	GetWorldTimerManager().SetTimer(ShipCameraFollowHandle, this, &APlayerMainController::UpdateShipCameraFollow, 0.005f, true);
 }
 
@@ -605,7 +606,7 @@ void APlayerMainController::UpdateShipCameraFollow()
 		return;
 	}
 
-	SetControlRotation(Ship->GetActorRotation());
+	SetControlRotation(GetPawnCameraTransform(Ship).GetRotation().Rotator());
 }
 
 void APlayerMainController::ClearShipCameraFollow()
@@ -659,7 +660,7 @@ void APlayerMainController::SwitchToPawn(APawn* PawnToControl)
 		CachedYawInput = 0.0f;
 		CachedRollInput = 0.0f;
 		UpdateShipRotationInput();
-		SetControlRotation(PawnToControl->GetActorRotation());
+		SetControlRotation(GetPawnCameraTransform(PawnToControl).GetRotation().Rotator());
 		BeginShipCameraFollow();
 	}
 }
