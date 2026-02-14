@@ -490,6 +490,7 @@ void APlayerMainController::UpdateSwitchToPawnBlend()
 	if (!bSwitchToPawnBlendActive)
 	{
 		return;
+		
 	}
 
 	APlayerSpectator* SpectatorPawn = CachedSpectatorPawn.Get();
