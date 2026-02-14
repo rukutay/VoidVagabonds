@@ -6,6 +6,27 @@
 #include "GameFramework/PlayerController.h"
 #include "VagabondsWorkGameMode.h"
 
+static void BeginHISMBatch(UHierarchicalInstancedStaticMeshComponent* HISM)
+{
+	if (!HISM)
+	{
+		return;
+	}
+
+	HISM->bAutoRebuildTreeOnInstanceChanges = false;
+}
+
+static void EndHISMBatch(UHierarchicalInstancedStaticMeshComponent* HISM)
+{
+	if (!HISM)
+	{
+		return;
+	}
+
+	HISM->BuildTreeIfOutdated(false, true);
+	HISM->MarkRenderStateDirty();
+}
+
 // Sets default values
 ANavStaticBig::ANavStaticBig()
 {
@@ -22,21 +43,27 @@ ANavStaticBig::ANavStaticBig()
 
 	AsteroidHISM = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("AsteroidHISM"));
 	AsteroidHISM->SetupAttachment(BodyMesh);
+	AsteroidHISM->bAutoRebuildTreeOnInstanceChanges = false;
 
 	AsteroidHISMAlt = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("AsteroidHISMAlt"));
 	AsteroidHISMAlt->SetupAttachment(BodyMesh);
+	AsteroidHISMAlt->bAutoRebuildTreeOnInstanceChanges = false;
 
 	AsteroidMidHISM = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("AsteroidMidHISM"));
 	AsteroidMidHISM->SetupAttachment(BodyMesh);
+	AsteroidMidHISM->bAutoRebuildTreeOnInstanceChanges = false;
 
 	AsteroidMidHISMAlt = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("AsteroidMidHISMAlt"));
 	AsteroidMidHISMAlt->SetupAttachment(BodyMesh);
+	AsteroidMidHISMAlt->bAutoRebuildTreeOnInstanceChanges = false;
 
 	AsteroidFarHISM = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("AsteroidFarHISM"));
 	AsteroidFarHISM->SetupAttachment(BodyMesh);
+	AsteroidFarHISM->bAutoRebuildTreeOnInstanceChanges = false;
 
 	AsteroidFarHISMAlt = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("AsteroidFarHISMAlt"));
 	AsteroidFarHISMAlt->SetupAttachment(BodyMesh);
+	AsteroidFarHISMAlt->bAutoRebuildTreeOnInstanceChanges = false;
 
 	PlaneRadius->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	AsteroidHISM->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -383,9 +410,15 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 
 	if (InstanceLimit == 0 || UpdateLimit == 0)
 	{
+		BeginHISMBatch(AsteroidHISM);
+		BeginHISMBatch(AsteroidMidHISM);
+		BeginHISMBatch(AsteroidFarHISM);
 		AsteroidHISM->ClearInstances();
 		AsteroidMidHISM->ClearInstances();
 		AsteroidFarHISM->ClearInstances();
+		EndHISMBatch(AsteroidHISM);
+		EndHISMBatch(AsteroidMidHISM);
+		EndHISMBatch(AsteroidFarHISM);
 		return;
 	}
 
@@ -548,6 +581,7 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 			NewComp->SetupAttachment(BodyMesh);
 			NewComp->RegisterComponent();
 			NewComp->SetStaticMesh(Mesh);
+			NewComp->bAutoRebuildTreeOnInstanceChanges = false;
 			NewComp->ForcedLodModel = ForcedLod;
 			NewComp->SetCollisionEnabled(bCollision ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
 			NewComp->SetNotifyRigidBodyCollision(bCollision);
@@ -599,6 +633,9 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 				continue;
 			}
 			Chunk->LastBand = DesiredBand;
+			BeginHISMBatch(Chunk->Near);
+			BeginHISMBatch(Chunk->Mid);
+			BeginHISMBatch(Chunk->Far);
 			if (Chunk->Near)
 			{
 				CleanupNearSwapForComponent(Chunk->Near);
@@ -785,6 +822,9 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 
 				AddInstanceWithOptionalCluster(InstanceLocation);
 			}
+			EndHISMBatch(Chunk->Near);
+			EndHISMBatch(Chunk->Mid);
+			EndHISMBatch(Chunk->Far);
 		}
 
 		return;
@@ -796,6 +836,13 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 	UHierarchicalInstancedStaticMeshComponent* NearVisible = bUseAltStreamBuffer ? AsteroidHISM : AsteroidHISMAlt;
 	UHierarchicalInstancedStaticMeshComponent* MidVisible = bUseAltStreamBuffer ? AsteroidMidHISM : AsteroidMidHISMAlt;
 	UHierarchicalInstancedStaticMeshComponent* FarVisible = bUseAltStreamBuffer ? AsteroidFarHISM : AsteroidFarHISMAlt;
+
+	BeginHISMBatch(NearTarget);
+	BeginHISMBatch(MidTarget);
+	BeginHISMBatch(FarTarget);
+	BeginHISMBatch(NearVisible);
+	BeginHISMBatch(MidVisible);
+	BeginHISMBatch(FarVisible);
 
 	CleanupNearSwapForComponent(NearTarget);
 	CleanupNearSwapForComponent(NearVisible);
@@ -1009,6 +1056,12 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 	NearVisible->ClearInstances();
 	MidVisible->ClearInstances();
 	FarVisible->ClearInstances();
+	EndHISMBatch(NearTarget);
+	EndHISMBatch(MidTarget);
+	EndHISMBatch(FarTarget);
+	EndHISMBatch(NearVisible);
+	EndHISMBatch(MidVisible);
+	EndHISMBatch(FarVisible);
 	bUseAltStreamBuffer = !bUseAltStreamBuffer;
 }
 
