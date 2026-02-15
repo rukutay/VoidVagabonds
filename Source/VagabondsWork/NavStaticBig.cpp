@@ -113,7 +113,7 @@ void ANavStaticBig::BeginPlay()
 		GetWorldTimerManager().SetTimer(StreamingTimerHandle, this, &ANavStaticBig::UpdateAsteroidStreaming, StreamingUpdateInterval, true);
 	}
 
-	if (bEnableNearActorSwap && NearActorSwapInterval > 0.0f)
+	if (bEnableNearActorSwap && NearActorSwapInterval > 0.0f && !bEnableStreaming)
 	{
 		UpdateNearAsteroidActorSwap();
 		GetWorldTimerManager().SetTimer(NearSwapTimerHandle, this, &ANavStaticBig::UpdateNearAsteroidActorSwap, NearActorSwapInterval, true);
@@ -428,20 +428,39 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 	const float RawStart = CenterDistance - EffectiveStreamingRadius;
 	const float RawEnd = CenterDistance + EffectiveStreamingRadius;
 	const bool bClosedLoop = FieldSpline->IsClosedLoop();
+	const float EffectiveChunkLength = (StreamingChunkLength > 0.0f) ? StreamingChunkLength : 5000.0f;
 
-	if (StreamingChunkLength > 0.0f)
+	if (EffectiveChunkLength > 0.0f)
 	{
 		LastStreamingViewLocation = ViewLocation;
-		const float ChunkLength = FMath::Max(StreamingChunkLength, 500.0f);
+		const float ChunkLength = FMath::Max(EffectiveChunkLength, 500.0f);
 		const int32 ChunkCount = FMath::Max(1, FMath::CeilToInt(SplineLength / ChunkLength));
-		const float AddRadius = EffectiveStreamingRadius + StreamingBandHysteresis;
-		const float RemoveRadius = FMath::Max(EffectiveStreamingRadius - StreamingBandHysteresis, 0.0f);
+		const float ChunkBandHysteresis = FMath::Max(StreamingBandHysteresis, 0.0f) * 2.0f;
+		const float AddRadius = EffectiveStreamingRadius + ChunkBandHysteresis;
+		const float RemoveRadius = FMath::Max(EffectiveStreamingRadius - ChunkBandHysteresis, 0.0f);
 		const float AddStart = CenterDistance - AddRadius;
 		const float AddEnd = CenterDistance + AddRadius;
 		const float RemoveStart = CenterDistance - RemoveRadius;
 		const float RemoveEnd = CenterDistance + RemoveRadius;
 		TSet<int32> DesiredChunks;
 		TSet<int32> KeepChunks;
+		const bool bSpawnNearActors = bEnableNearActorSwap && DynamicAsteroidClass;
+		auto CountNearSwapActorsForComponent = [&](UHierarchicalInstancedStaticMeshComponent* Component)
+		{
+			int32 Count = 0;
+			if (!Component)
+			{
+				return Count;
+			}
+			for (const TPair<TWeakObjectPtr<AActor>, FNearSwapEntry>& Entry : ActiveNearSwapActors)
+			{
+				if (Entry.Value.SourceHISM.IsValid() && Entry.Value.SourceHISM.Get() == Component)
+				{
+					++Count;
+				}
+			}
+			return Count;
+		};
 
 		auto AddChunkRange = [&](float StartDistance, float EndDistance, TSet<int32>& OutSet)
 		{
@@ -543,36 +562,17 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 				FarCount += Chunk.Far->GetInstanceCount();
 			}
 		}
-
-		auto GetChunkBand = [&](float DistanceToView, int32 PreviousBand)
+		if (bSpawnNearActors)
 		{
-			const float Hysteresis = FMath::Max(StreamingBandHysteresis, 0.0f);
-			if (PreviousBand == 0)
+			for (const TPair<TWeakObjectPtr<AActor>, FNearSwapEntry>& Entry : ActiveNearSwapActors)
 			{
-				return (DistanceToView > ClampedMidStart + Hysteresis) ? 1 : 0;
-			}
-			if (PreviousBand == 1)
-			{
-				if (DistanceToView < FMath::Max(ClampedMidStart - Hysteresis, 0.0f))
+				if (Entry.Value.SourceHISM.IsValid()
+					&& StreamingChunkComponents.Contains(Entry.Value.SourceHISM.Get()))
 				{
-					return 0;
+					++NearCount;
 				}
-				return (DistanceToView > ClampedMidEnd + Hysteresis) ? 2 : 1;
 			}
-			if (PreviousBand == 2)
-			{
-				return (DistanceToView < FMath::Max(ClampedMidEnd - Hysteresis, 0.0f)) ? 1 : 2;
-			}
-			if (DistanceToView <= ClampedMidStart)
-			{
-				return 0;
-			}
-			if (DistanceToView <= ClampedMidEnd)
-			{
-				return 1;
-			}
-			return 2;
-		};
+		}
 
 		auto CreateChunkComponent = [&](const FString& BaseName, int32 ChunkIndex, UStaticMesh* Mesh, bool bCollision, int32 ForcedLod)
 		{
@@ -611,8 +611,8 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 				}
 				FStreamingChunk NewChunk;
 				NewChunk.Near = CreateChunkComponent(TEXT("AsteroidChunkNear"), ChunkIndex, ChunkMesh, bEnableNearCollision, 0);
-				NewChunk.Mid = CreateChunkComponent(TEXT("AsteroidChunkMid"), ChunkIndex, ChunkMesh, false, ClampedMidForcedLod);
-				NewChunk.Far = CreateChunkComponent(TEXT("AsteroidChunkFar"), ChunkIndex, ChunkMesh, false, ClampedFarForcedLod);
+				NewChunk.Mid = nullptr;
+				NewChunk.Far = nullptr;
 				ActiveStreamingChunks.Add(ChunkIndex, NewChunk);
 				Chunk = ActiveStreamingChunks.Find(ChunkIndex);
 			}
@@ -626,8 +626,8 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 			const float ChunkCenter = FMath::Clamp(ChunkStart + (ChunkLength * 0.5f), 0.0f, SplineLength);
 			const FVector ChunkLocation = FieldSpline->GetLocationAtDistanceAlongSpline(ChunkCenter, ESplineCoordinateSpace::World);
 			const float ChunkDistanceToView = FVector::Dist(ChunkLocation, ViewLocation);
-			const int32 DesiredBand = GetChunkBand(ChunkDistanceToView, Chunk->LastBand);
-			const bool bNeedsRebuild = bStreamingConfigChanged || Chunk->LastBand == INDEX_NONE || DesiredBand != Chunk->LastBand;
+			const int32 DesiredBand = 0;
+			const bool bNeedsRebuild = bStreamingConfigChanged || Chunk->LastBand == INDEX_NONE;
 			if (!bNeedsRebuild)
 			{
 				continue;
@@ -638,8 +638,12 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 			BeginHISMBatch(Chunk->Far);
 			if (Chunk->Near)
 			{
+				const int32 ExistingNearInstances = Chunk->Near->GetInstanceCount();
+				const int32 NearActorsToRemove = bSpawnNearActors
+					? CountNearSwapActorsForComponent(Chunk->Near)
+					: 0;
 				CleanupNearSwapForComponent(Chunk->Near);
-				NearCount = FMath::Max(NearCount - Chunk->Near->GetInstanceCount(), 0);
+				NearCount = FMath::Max(NearCount - (ExistingNearInstances + NearActorsToRemove), 0);
 				Chunk->Near->ClearInstances();
 			}
 			if (Chunk->Mid)
@@ -665,7 +669,7 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 			int32 FarChunkCount = 0;
 			for (int32 CandidateIndex = 0; CandidateIndex < CandidateCount; ++CandidateIndex)
 			{
-				if (NearCount >= NearLimit && MidCount >= MidLimit && FarCount >= FarLimit)
+				if (NearCount >= EffectiveNearLimit)
 				{
 					break;
 				}
@@ -705,21 +709,11 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 				const float DistanceToView = FVector::Dist(InstanceLocation, ViewLocation);
 				UHierarchicalInstancedStaticMeshComponent* TargetHISM = nullptr;
 				float SpawnChance = 0.0f;
-				if (DistanceToView <= AdjustedMidStart && NearCount < EffectiveNearLimit && NearChunkCount < NearChunkBudget)
+				if ((bFarRangeUnlimited || DistanceToView <= AdjustedFarEnd)
+					&& NearCount < EffectiveNearLimit && NearChunkCount < NearChunkBudget)
 				{
 					TargetHISM = Chunk->Near;
 					SpawnChance = ClampedNearSpawn;
-				}
-				else if (DistanceToView <= AdjustedMidEnd && MidCount < EffectiveMidLimit && MidChunkCount < MidChunkBudget)
-				{
-					TargetHISM = Chunk->Mid;
-					SpawnChance = ClampedMidSpawn;
-				}
-				else if ((bFarRangeUnlimited || DistanceToView <= AdjustedFarEnd)
-					&& FarCount < EffectiveFarLimit && FarChunkCount < FarChunkBudget)
-				{
-					TargetHISM = Chunk->Far;
-					SpawnChance = ClampedFarSpawn;
 				}
 
 				if (!TargetHISM)
@@ -775,19 +769,7 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 					const int32 ExtraCount = CandidateStream.RandRange(1, ClampedClusterMaxExtra);
 					for (int32 ExtraIndex = 0; ExtraIndex < ExtraCount; ++ExtraIndex)
 					{
-						if (NearCount >= EffectiveNearLimit && MidCount >= EffectiveMidLimit && FarCount >= EffectiveFarLimit)
-						{
-							break;
-						}
-						if (TargetHISM == Chunk->Near && NearChunkCount >= NearChunkBudget)
-						{
-							break;
-						}
-						if (TargetHISM == Chunk->Mid && MidChunkCount >= MidChunkBudget)
-						{
-							break;
-						}
-						if (TargetHISM == Chunk->Far && FarChunkCount >= FarChunkBudget)
+						if (NearCount >= EffectiveNearLimit || NearChunkCount >= NearChunkBudget)
 						{
 							break;
 						}
@@ -825,6 +807,11 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 			EndHISMBatch(Chunk->Near);
 			EndHISMBatch(Chunk->Mid);
 			EndHISMBatch(Chunk->Far);
+		}
+
+		if (bEnableNearActorSwap)
+		{
+			UpdateNearAsteroidActorSwap();
 		}
 
 		return;
@@ -1063,6 +1050,11 @@ void ANavStaticBig::UpdateAsteroidStreaming()
 	EndHISMBatch(MidVisible);
 	EndHISMBatch(FarVisible);
 	bUseAltStreamBuffer = !bUseAltStreamBuffer;
+
+	if (bEnableNearActorSwap)
+	{
+		UpdateNearAsteroidActorSwap();
+	}
 }
 
 void ANavStaticBig::OnAsteroidHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
@@ -1108,6 +1100,7 @@ void ANavStaticBig::UpdateNearAsteroidActorSwap()
 {
 	if (!bEnableNearActorSwap || !DynamicAsteroidClass)
 	{
+		ActiveNearSwapActors.Reset();
 		if (UWorld* World = GetWorld())
 		{
 			if (AVagabondsWorkGameMode* GameMode = World->GetAuthGameMode<AVagabondsWorkGameMode>())
@@ -1117,7 +1110,6 @@ void ANavStaticBig::UpdateNearAsteroidActorSwap()
 		}
 		return;
 	}
-
 	const FVector ViewLocation = GetStreamingViewLocation();
 	const float EnterRadius = FMath::Max(NearActorSwapEnterRadius, 0.0f);
 	const float ExitRadius = FMath::Max(NearActorSwapExitRadius, EnterRadius);
@@ -1194,13 +1186,13 @@ void ANavStaticBig::UpdateNearAsteroidActorSwap()
 			continue;
 		}
 		const FNearSwapEntry& SwapEntry = Entry.Value;
+		if (SwapEntry.bBecameDynamic)
+		{
+			continue;
+		}
 		if (!SwapEntry.SourceHISM.IsValid())
 		{
 			ActorsToRestore.Add(Entry.Key);
-			continue;
-		}
-		if (SwapEntry.bBecameDynamic)
-		{
 			continue;
 		}
 		const float DistSq = FVector::DistSquared(ViewLocation, Actor->GetActorLocation());
@@ -1258,14 +1250,40 @@ void ANavStaticBig::CleanupNearSwapForComponent(UHierarchicalInstancedStaticMesh
 		return;
 	}
 
+	const FVector ViewLocation = GetStreamingViewLocation();
+	const float EnterRadius = FMath::Max(NearActorSwapEnterRadius, 0.0f);
+	const float ExitRadius = FMath::Max(NearActorSwapExitRadius, EnterRadius);
+	const float ExitRadiusSq = ExitRadius * ExitRadius;
+
 	TArray<TWeakObjectPtr<AActor>> ActorsToRestore;
-	for (const TPair<TWeakObjectPtr<AActor>, FNearSwapEntry>& Entry : ActiveNearSwapActors)
+	for (TPair<TWeakObjectPtr<AActor>, FNearSwapEntry>& Entry : ActiveNearSwapActors)
 	{
-		const FNearSwapEntry& SwapEntry = Entry.Value;
-		if (SwapEntry.SourceHISM == Component)
+		FNearSwapEntry& SwapEntry = Entry.Value;
+		if (SwapEntry.SourceHISM != Component)
+		{
+			continue;
+		}
+		AActor* Actor = Entry.Key.Get();
+		if (!Actor)
 		{
 			ActorsToRestore.Add(Entry.Key);
+			continue;
 		}
+		if (SwapEntry.bBecameDynamic)
+		{
+			continue;
+		}
+		if (ExitRadius > 0.0f)
+		{
+			const float DistSq = FVector::DistSquared(ViewLocation, Actor->GetActorLocation());
+			if (DistSq <= ExitRadiusSq)
+			{
+				SwapEntry.bBecameDynamic = true;
+				SwapEntry.SourceHISM = nullptr;
+				continue;
+			}
+		}
+		ActorsToRestore.Add(Entry.Key);
 	}
 
 	for (const TWeakObjectPtr<AActor>& ActorPtr : ActorsToRestore)
@@ -1312,7 +1330,7 @@ bool ANavStaticBig::SpawnDynamicAsteroidFromInstance(UHierarchicalInstancedStati
 	const FVector SpawnScale = InstanceTransform.GetScale3D();
 
 	FActorSpawnParameters SpawnParams;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	AActor* SpawnedAsteroid = GetWorld()->SpawnActor<AActor>(DynamicAsteroidClass, SpawnLocation, SpawnRotation, SpawnParams);
 	if (!SpawnedAsteroid)
 	{
@@ -1368,7 +1386,7 @@ bool ANavStaticBig::SpawnNearSwapAsteroidFromInstance(UHierarchicalInstancedStat
 	const FVector SpawnScale = InstanceTransform.GetScale3D();
 
 	FActorSpawnParameters SpawnParams;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	AActor* SpawnedAsteroid = GetWorld()->SpawnActor<AActor>(DynamicAsteroidClass, SpawnLocation, SpawnRotation, SpawnParams);
 	if (!SpawnedAsteroid)
 	{
