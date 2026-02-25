@@ -8,6 +8,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "EngineUtils.h"
 #include "Components/LightComponentBase.h"
+#include "MarkerComponent.h"
 
 static bool ComputeDir(const FVector& From, const FVector& To, FVector& OutDir)
 {
@@ -33,6 +34,9 @@ ASun::ASun()
 	SunMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	SunMesh->SetGenerateOverlapEvents(false);
 	SunMesh->SetCastShadow(false);
+
+	MarkerComponent = CreateDefaultSubobject<UMarkerComponent>(TEXT("MarkerComponent"));
+	MarkerComponent->MarkerType = EMarkerType::Star;
 }
 
 void ASun::Tick(float DeltaTime)

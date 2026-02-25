@@ -11,6 +11,7 @@ class UInputAction;
 struct FInputActionValue;
 class UMapWidget;
 class AActor;
+class AShip;
 
 /**
  * 
@@ -71,6 +72,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	float LookAtAttachBlendDuration = 0.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	TWeakObjectPtr<AShip> LastPossessedShip;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interface")
+	AActor* FocusActor;
 
 private:
 	UPROPERTY(EditAnywhere, Category = "Input")
@@ -115,6 +120,7 @@ private:
 	UPROPERTY(Transient)
 	TWeakObjectPtr<class APlayerSpectator> CachedSpectatorPawn;
 
+
 	FTimerHandle CameraResetDelayHandle;
 	FTimerHandle CameraResetInterpHandle;
 	bool bCameraResetActive = false;
@@ -144,6 +150,6 @@ private:
 	float CachedPitchInput = 0.f;
 	float CachedYawInput = 0.f;
 	float CachedRollInput = 0.f;
-	bool bCursorVisibleMode = false;
+	bool bCursorVisibleMode = true;
 	bool bLookOverrideHeld = false;
 };

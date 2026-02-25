@@ -11,6 +11,8 @@
 #include "TimerManager.h"
 #include "NavStaticBig.generated.h"
 
+class UMarkerComponent;
+
 UCLASS()
 class VAGABONDSWORK_API ANavStaticBig : public AActor
 {
@@ -30,6 +32,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Planet")
 	UStaticMeshComponent* BodyMesh = nullptr;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Planet")
+	UMarkerComponent* MarkerComponent = nullptr;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField")
 	USphereComponent* PlaneRadius = nullptr;
 
@@ -38,21 +43,6 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AsteroidField")
 	UHierarchicalInstancedStaticMeshComponent* AsteroidHISM = nullptr;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AsteroidField")
-	UHierarchicalInstancedStaticMeshComponent* AsteroidHISMAlt = nullptr;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AsteroidField")
-	UHierarchicalInstancedStaticMeshComponent* AsteroidMidHISM = nullptr;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AsteroidField")
-	UHierarchicalInstancedStaticMeshComponent* AsteroidMidHISMAlt = nullptr;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AsteroidField")
-	UHierarchicalInstancedStaticMeshComponent* AsteroidFarHISM = nullptr;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AsteroidField")
-	UHierarchicalInstancedStaticMeshComponent* AsteroidFarHISMAlt = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Config")
 	float FieldWidth = 2000.0f;
@@ -70,31 +60,7 @@ public:
 	float StreamingRadius = 20000.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
-	float MidRangeStart = 8000.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
-	float MidRangeEnd = 16000.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
-	float MidDensityPer1000uu = 6.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
-	float FarRangeStart = 16000.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
-	float FarRangeEnd = 30000.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
-	float FarDensityPer1000uu = 1.5f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
 	float NearSpawnProbability = 1.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
-	float MidSpawnProbability = 0.8f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
-	float FarSpawnProbability = 0.6f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
 	float StepJitterMin = 0.6f;
@@ -154,12 +120,6 @@ public:
 	int32 MaxNearInstances = 12000;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
-	int32 MaxMidInstances = 6000;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
-	int32 MaxFarInstances = 4000;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
 	int32 MaxInstancesPerUpdate = 5000;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Streaming")
@@ -207,18 +167,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Meshes")
 	TArray<UStaticMesh*> AsteroidMeshes;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Meshes")
-	UStaticMesh* MidAsteroidMesh = nullptr;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Meshes")
-	UStaticMesh* FarAsteroidMesh = nullptr;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Meshes")
-	int32 MidAsteroidForcedLod = 2;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Meshes")
-	int32 FarAsteroidForcedLod = 3;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Spline")
 	float SplineRadiusOverride = 0.0f;
 
@@ -242,8 +190,6 @@ private:
 	struct FStreamingChunk
 	{
 		UHierarchicalInstancedStaticMeshComponent* Near = nullptr;
-		UHierarchicalInstancedStaticMeshComponent* Mid = nullptr;
-		UHierarchicalInstancedStaticMeshComponent* Far = nullptr;
 		int32 LastBand = INDEX_NONE;
 	};
 
@@ -273,7 +219,6 @@ private:
 	FTimerHandle StreamingTimerHandle;
 	FTimerHandle NearSwapTimerHandle;
 	int32 ActiveDynamicAsteroids = 0;
-	bool bUseAltStreamBuffer = false;
 	float LastStreamingCenterDistance = -1.0f;
 	uint32 LastStreamingConfigHash = 0;
 	TMap<int32, FStreamingChunk> ActiveStreamingChunks;

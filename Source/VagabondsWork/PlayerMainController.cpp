@@ -8,6 +8,7 @@
 #include "Ship.h"
 #include "Camera/CameraComponent.h"
 #include "Engine/LocalPlayer.h"
+#include "EngineUtils.h"
 #include "MapWidget.h"
 #include "PlayerSpectator.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -17,7 +18,35 @@ void APlayerMainController::BeginPlay()
 {
     Super::BeginPlay();
 
+	bShowMouseCursor = bCursorVisibleMode;
+	if (bCursorVisibleMode)
+	{
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
+		SetInputMode(InputMode);
+	}
+	else
+	{
+		SetInputMode(FInputModeGameOnly());
+	}
+
     UpdateShipMappingContext(GetPawn());
+
+	LastPossessedShip = nullptr;
+	for (TActorIterator<AShip> It(GetWorld()); It; ++It)
+	{
+		AShip* Ship = *It;
+		if (!IsValid(Ship))
+		{
+			continue;
+		}
+
+		if (Ship->ActorHasTag(TEXT("player")) || Ship->ActorHasTag(TEXT("main")))
+		{
+			LastPossessedShip = Ship;
+			break;
+		}
+	}
 
     if (MapWidgetClass && !MapWidgetInstance)
     {
@@ -136,6 +165,7 @@ void APlayerMainController::SetupInputComponent()
     if (LookOverrideAction)
     {
         EnhancedInputComponent->BindAction(LookOverrideAction, ETriggerEvent::Started, this, &APlayerMainController::HandleLookOverrideInput);
+        EnhancedInputComponent->BindAction(LookOverrideAction, ETriggerEvent::Triggered, this, &APlayerMainController::HandleLookOverrideInput);
         EnhancedInputComponent->BindAction(LookOverrideAction, ETriggerEvent::Completed, this, &APlayerMainController::HandleLookOverrideInput);
     }
 }
@@ -229,16 +259,19 @@ void APlayerMainController::HandleLookOverrideInput(const FInputActionValue& Val
 
     if (bLookOverrideHeld)
     {
+        bShowMouseCursor = false;
         SetInputMode(FInputModeGameOnly());
     }
     else if (bCursorVisibleMode)
     {
+        bShowMouseCursor = true;
         FInputModeGameAndUI InputMode;
         InputMode.SetHideCursorDuringCapture(false);
         SetInputMode(InputMode);
     }
     else
     {
+        bShowMouseCursor = false;
         SetInputMode(FInputModeGameOnly());
     }
 }
@@ -260,7 +293,22 @@ void APlayerMainController::UpdateShipRotationInput()
 
 bool APlayerMainController::IsLookInputAllowed() const
 {
-    return !bCursorVisibleMode || bLookOverrideHeld;
+	if (Cast<AShip>(GetPawn()))
+	{
+		return true;
+	}
+
+	if (Cast<APlayerSpectator>(GetPawn()))
+	{
+		if (CachedSpectatorPawn.IsValid() && CachedSpectatorPawn->GetAttachParentActor())
+		{
+			return bLookOverrideHeld;
+		}
+
+		return true;
+	}
+
+	return bLookOverrideHeld;
 }
 
 void APlayerMainController::ScheduleCameraReset()
@@ -621,6 +669,11 @@ void APlayerMainController::SwitchToPawn(APawn* PawnToControl)
     {
         return;
     }
+
+	if (AShip* ShipToControl = Cast<AShip>(PawnToControl))
+	{
+		LastPossessedShip = ShipToControl;
+	}
 
 	ClearSwitchToPawnBlend();
 	ClearSpectatorRollReset();

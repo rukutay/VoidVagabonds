@@ -9,6 +9,7 @@
 #include "Sun.generated.h"
 
 class UStaticMeshComponent;
+class UMarkerComponent;
 
 UCLASS()
 class VAGABONDSWORK_API ASun : public AActor
@@ -74,6 +75,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Sun|Visual")
 	UStaticMeshComponent* SunMesh = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Sun|Visual")
+	UMarkerComponent* MarkerComponent = nullptr;
 
 private:
 	FTimerHandle LightingTimer;

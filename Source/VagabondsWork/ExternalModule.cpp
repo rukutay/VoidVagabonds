@@ -12,6 +12,7 @@
 #include "CollisionShape.h"
 #include "Projectile.h"
 #include "GameFramework/Actor.h"
+#include "MarkerComponent.h"
 
 static float ClampAngleAroundCenterDeg(float CenterDeg, float DesiredDeg, float LimitDeg)
 {
@@ -106,6 +107,9 @@ AExternalModule::AExternalModule()
 	ProjectileSphere->SetupAttachment(PivotGun);
 	ProjectileSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ProjectileSphere->SetHiddenInGame(true);
+
+	MarkerComponent = CreateDefaultSubobject<UMarkerComponent>(TEXT("MarkerComponent"));
+	MarkerComponent->MarkerType = EMarkerType::Component;
 
 	// Set default config values
 	TargetActor = nullptr;

@@ -5,6 +5,7 @@
 #include "NavStaticBig.h"
 #include "Ship.h"
 #include "Sun.h"
+#include "MarkerComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
@@ -96,7 +97,10 @@ void UMapWidget::CollectPlayerShipMarkers(TArray<FMapMarkerData>& OutMarkers) co
 
 		FMapMarkerData Marker;
 		Marker.MapPosition = ProjectWorldToMap(Ship->GetActorLocation(), MapRadius);
-		Marker.MarkerType = EMapMarkerType::Ship;
+		if (const UMarkerComponent* MarkerComponent = Ship->FindComponentByClass<UMarkerComponent>())
+		{
+			Marker.MarkerType = MarkerComponent->MarkerType;
+		}
 		Marker.Color = (Ship == PossessedPawn) ? Settings.PossessedShipColor : Settings.TaggedPlayerShipColor;
 		Marker.SizePx = Settings.DefaultMarkerSizePx;
 		Marker.SourceActor = Ship;
@@ -120,7 +124,10 @@ void UMapWidget::CollectSunMarker(TArray<FMapMarkerData>& OutMarkers) const
 
 	FMapMarkerData Marker;
 	Marker.MapPosition = FVector2D::ZeroVector;
-	Marker.MarkerType = EMapMarkerType::Sun;
+	if (const UMarkerComponent* MarkerComponent = SunActor->FindComponentByClass<UMarkerComponent>())
+	{
+		Marker.MarkerType = MarkerComponent->MarkerType;
+	}
 	Marker.Color = Settings.SunColor;
 	Marker.SizePx = Settings.DefaultMarkerSizePx;
 	Marker.SourceActor = SunActor;
@@ -146,9 +153,10 @@ void UMapWidget::CollectNavStaticBigMarkers(TArray<FMapMarkerData>& OutMarkers) 
 
 		FMapMarkerData Marker;
 		Marker.MapPosition = ProjectWorldToMap(NavActor->GetActorLocation(), MapRadius);
-		Marker.MarkerType = NavActor->ActorHasTag(TEXT("station"))
-			? EMapMarkerType::NavStaticBigStation
-			: EMapMarkerType::NavStaticBigPlanet;
+		if (const UMarkerComponent* MarkerComponent = NavActor->FindComponentByClass<UMarkerComponent>())
+		{
+			Marker.MarkerType = MarkerComponent->MarkerType;
+		}
 		Marker.Color = Settings.NavStaticBigColor;
 		Marker.SizePx = Settings.DefaultMarkerSizePx;
 		Marker.SourceActor = NavActor;

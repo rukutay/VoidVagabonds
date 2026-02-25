@@ -6,6 +6,7 @@
 #include "Engine/Engine.h"
 #include "ShipNavComponent.h"
 #include "ShipVitalityComponent.h"
+#include "MarkerComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 
 AShip::AShip()
@@ -38,6 +39,9 @@ AShip::AShip()
     ShipNav = CreateDefaultSubobject<UShipNavComponent>(TEXT("ShipNav"));
 
     Vitality = CreateDefaultSubobject<UShipVitalityComponent>(TEXT("Vitality"));
+
+    MarkerComponent = CreateDefaultSubobject<UMarkerComponent>(TEXT("MarkerComponent"));
+    MarkerComponent->MarkerType = EMarkerType::Ship;
 
     // NAVIGATION_TODO_REMOVE
     ShipRadius->SetCollisionEnabled(ECollisionEnabled::QueryOnly);

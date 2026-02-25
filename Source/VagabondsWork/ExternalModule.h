@@ -10,6 +10,7 @@
 class USceneComponent;
 class UStaticMeshComponent;
 class AProjectile;
+class UMarkerComponent;
 
 UENUM(BlueprintType)
 enum class EExternalModuleFireMode : uint8
@@ -54,6 +55,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
 	USphereComponent* ProjectileSphere;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UMarkerComponent* MarkerComponent;
 
 	// Targeting - Visible and editable in Details panel and BP defaults
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim", meta = (ToolTip = "Target actor for aiming"))
