@@ -4,19 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "MarkerComponent.h"
 #include "MapWidget.generated.h"
 
 class ALevelBoundaries;
 class ANavStaticBig;
-
-UENUM(BlueprintType)
-enum class EMapMarkerType : uint8
-{
-	Sun,
-	Ship,
-	NavStaticBigPlanet,
-	NavStaticBigStation
-};
 
 USTRUCT(BlueprintType)
 struct FMapMarkerData
@@ -27,7 +19,7 @@ struct FMapMarkerData
 	FVector2D MapPosition = FVector2D::ZeroVector;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Map")
-	EMapMarkerType MarkerType = EMapMarkerType::Ship;
+	EMarkerType MarkerType = EMarkerType::Ship;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Map")
 	FLinearColor Color = FLinearColor::White;

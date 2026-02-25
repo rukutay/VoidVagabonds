@@ -28,7 +28,7 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Physics-driven thrust + yaw/pitch rotation for ship steering.
 - Static obstacle caching handled by the game mode; nav component requests replans.
 - Timer-driven external module aiming (tick disabled); when no target is set, module pivots reset to local rotation (0,0,0) and aiming stops until a target is provided.
-- External module LOS uses a single forward sphere sweep with lead prediction and projectile radius.
+- External module LOS uses a single forward sphere sweep with lead prediction and projectile radius; readiness now also accepts direct target alignment (not just predicted AimLoc).
 - External module firing supports single/auto/semi-auto modes with safe muzzle spawn and burst timing derived from FireRate, with per-shot damage override and ShootDelay spacing.
 - NavStaticBig supports asteroid field configuration scaffolding (spline, plane radius, HISM, generation params).
 - NavStaticBig can build circular splines from plane radius scaling or an explicit override.

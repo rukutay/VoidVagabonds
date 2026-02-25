@@ -57,7 +57,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Sun directional light rotation now updates every frame and forces Movable mobility for runtime updates.
 - Sun directional light now resolves tagged light + pawn every frame and applies rotation to the light component.
 - Sun light now prefers current ViewTargetActor each tick (falls back to player pawn).
-- External module line-of-sight uses a single forward sphere sweep with lead prediction and projectile radius.
+- External module line-of-sight uses a single forward sphere sweep with lead prediction and projectile radius; readiness now also accepts direct target alignment (not just predicted AimLoc).
 - External modules now reset PivotBase/PivotGun to local rotation (0,0,0) when no target is set, and only aim when TargetActor is valid.
 - Spectator return now snaps to ship camera transform and resets spectator boom length for a smoother handoff.
 

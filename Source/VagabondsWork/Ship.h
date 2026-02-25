@@ -104,6 +104,7 @@ class UShipNavComponent;
 class UShipVitalityComponent;
 class USpringArmComponent;
 class UCameraComponent;
+class UMarkerComponent;
 
 UCLASS()
 class VAGABONDSWORK_API AShip : public APawn
@@ -189,7 +190,7 @@ public:
     bool bDebugOrbit = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Navigation|Debug", meta=(DisplayName="Debug Steering", ToolTip="Log steering target source and heading."))
-    bool bDebugSteering = true;
+    bool bDebugSteering = false;
 
     UFUNCTION(BlueprintCallable, Category="AI|Navigation", meta=(ToolTip="Get current target actor."))
     AActor* GetTargetActor() const { return TargetActor; }
@@ -310,6 +311,9 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components", meta=(ToolTip="Ship health/shield component."))
     UShipVitalityComponent* Vitality = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components", meta=(ToolTip="Marker type component for map widget."))
+    UMarkerComponent* MarkerComponent = nullptr;
 
     // ---------------- Movement ----------------
     

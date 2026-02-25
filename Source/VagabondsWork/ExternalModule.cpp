@@ -12,6 +12,7 @@
 #include "CollisionShape.h"
 #include "Projectile.h"
 #include "GameFramework/Actor.h"
+#include "MarkerComponent.h"
 
 static float ClampAngleAroundCenterDeg(float CenterDeg, float DesiredDeg, float LimitDeg)
 {
@@ -107,6 +108,9 @@ AExternalModule::AExternalModule()
 	ProjectileSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ProjectileSphere->SetHiddenInGame(true);
 
+	MarkerComponent = CreateDefaultSubobject<UMarkerComponent>(TEXT("MarkerComponent"));
+	MarkerComponent->MarkerType = EMarkerType::Component;
+
 	// Set default config values
 	TargetActor = nullptr;
 	bAutoAim = true;
@@ -179,7 +183,8 @@ bool AExternalModule::HasLineOfSightToTarget() const
     const FVector MuzzleLoc = Muzzle->GetComponentLocation();
 
     // --- AimLoc (prediction) ---
-    FVector AimLoc = TargetActor->GetActorLocation();
+    const FVector TargetLoc = TargetActor->GetActorLocation();
+    FVector AimLoc = TargetLoc;
     if (bUseLeadPrediction && ProjectileInitialSpeed > 1.f)
     {
         const FVector TargetVel = TargetActor->GetVelocity(); // works for moving actors; fallback is 0
@@ -188,39 +193,8 @@ bool AExternalModule::HasLineOfSightToTarget() const
         AimLoc += TargetVel * Time;
     }
 
-    // Optional range gate (cheap)
-    if (EffectiveRange > 0.f && FVector::DistSquared(MuzzleLoc, AimLoc) > FMath::Square(EffectiveRange))
-    {
-        return false;
-    }
-
-    const FVector ToAim = (AimLoc - GunLoc);
-    const float ToAimLenSq = ToAim.SizeSquared();
-    if (ToAimLenSq < 1.f) return true;
-
-    // --- Ensure trace goes "through muzzle" (gun forward check) ---
-    // Muzzle must lie close to the segment GunLoc -> AimLoc and in front of GunLoc.
-    const FVector ToMuzzle = (MuzzleLoc - GunLoc);
-    const float ToMuzzleLenSq = ToMuzzle.SizeSquared();
-    if (ToMuzzleLenSq < 1.f) return false;
-
-    const FVector Dir = ToAim.GetSafeNormal();
-    const float MuzzleProj = FVector::DotProduct(ToMuzzle, Dir);
-    if (MuzzleProj <= 0.f) return false; // muzzle behind start relative to firing dir
-
-    // Perpendicular distance from muzzle to firing line
-    const FVector ClosestPointOnLine = GunLoc + Dir * MuzzleProj;
-    const float MuzzleLineDistSq = FVector::DistSquared(MuzzleLoc, ClosestPointOnLine);
-
-    // Tolerance: small fraction of projectile radius (or a small constant if sphere missing)
     const float Radius = ProjectileSphere->GetScaledSphereRadius();
-    const float ThroughTol = FMath::Max(2.f, Radius * 0.25f);
-    if (MuzzleLineDistSq > FMath::Square(ThroughTol))
-    {
-        return false; // not aimed "through" muzzle yet
-    }
 
-    // --- Sphere sweep LOS ---
     FCollisionQueryParams Params(SCENE_QUERY_STAT(ExternalModule_LOS_Sweep), false);
     Params.AddIgnoredActor(this);
     if (AActor* OwnerActor = GetOwner())
@@ -230,19 +204,61 @@ bool AExternalModule::HasLineOfSightToTarget() const
 
     const FCollisionShape Sphere = FCollisionShape::MakeSphere(Radius);
 
-    auto SweepBlocked = [&](ECollisionChannel Channel) -> bool
+    auto HasClearShotToLoc = [&](const FVector& ShotLoc) -> bool
     {
-        FHitResult Hit;
-        const bool bHit = GetWorld()->SweepSingleByChannel(Hit, GunLoc, AimLoc, FQuat::Identity, Channel, Sphere, Params);
-        if (!bHit) return false; // clear on this channel
-        return Hit.GetActor() != TargetActor; // only target is allowed
+        // Optional range gate (cheap)
+        if (EffectiveRange > 0.f && FVector::DistSquared(MuzzleLoc, ShotLoc) > FMath::Square(EffectiveRange))
+        {
+            return false;
+        }
+
+        const FVector ToAim = (ShotLoc - GunLoc);
+        const float ToAimLenSq = ToAim.SizeSquared();
+        if (ToAimLenSq < 1.f) return true;
+
+        // --- Ensure trace goes "through muzzle" (gun forward check) ---
+        // Muzzle must lie close to the segment GunLoc -> ShotLoc and in front of GunLoc.
+        const FVector ToMuzzle = (MuzzleLoc - GunLoc);
+        const float ToMuzzleLenSq = ToMuzzle.SizeSquared();
+        if (ToMuzzleLenSq < 1.f) return false;
+
+        const FVector Dir = ToAim.GetSafeNormal();
+        const float MuzzleProj = FVector::DotProduct(ToMuzzle, Dir);
+        if (MuzzleProj <= 0.f) return false; // muzzle behind start relative to firing dir
+
+        // Perpendicular distance from muzzle to firing line
+        const FVector ClosestPointOnLine = GunLoc + Dir * MuzzleProj;
+        const float MuzzleLineDistSq = FVector::DistSquared(MuzzleLoc, ClosestPointOnLine);
+
+        // Tolerance: small fraction of projectile radius (or a small constant if sphere missing)
+        const float ThroughTol = FMath::Max(2.f, Radius * 0.25f);
+        if (MuzzleLineDistSq > FMath::Square(ThroughTol))
+        {
+            return false; // not aimed "through" muzzle yet
+        }
+
+        auto SweepBlocked = [&](ECollisionChannel Channel) -> bool
+        {
+            FHitResult Hit;
+            const bool bHit = GetWorld()->SweepSingleByChannel(Hit, GunLoc, ShotLoc, FQuat::Identity, Channel, Sphere, Params);
+            if (!bHit) return false; // clear on this channel
+            return Hit.GetActor() != TargetActor; // only target is allowed
+        };
+
+        if (SweepBlocked(ECC_GameTraceChannel2)) return false;
+        if (SweepBlocked(ECC_Pawn))              return false;
+        if (SweepBlocked(ECC_PhysicsBody))       return false;
+
+        return true;
     };
 
-    if (SweepBlocked(ECC_GameTraceChannel2)) return false;
-    if (SweepBlocked(ECC_Pawn))              return false;
-    if (SweepBlocked(ECC_PhysicsBody))       return false;
+    if (HasClearShotToLoc(AimLoc)) return true;
+    if (bUseLeadPrediction && !AimLoc.Equals(TargetLoc, 0.01f))
+    {
+        return HasClearShotToLoc(TargetLoc);
+    }
 
-    return true;
+    return false;
 }
 
 float AExternalModule::GetProjectileCollisionRadius(TSubclassOf<AProjectile> ProjectileClass) const
