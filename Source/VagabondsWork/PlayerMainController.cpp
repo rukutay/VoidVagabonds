@@ -13,6 +13,54 @@
 #include "PlayerSpectator.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "TimerManager.h"
+#include "UObject/UnrealType.h"
+
+namespace
+{
+	bool TryGetTargetArmLengthFromActor(const AActor* Actor, float& OutArmLength)
+	{
+		if (!Actor)
+		{
+			return false;
+		}
+
+		if (const USpringArmComponent* Arm = Actor->FindComponentByClass<USpringArmComponent>())
+		{
+			OutArmLength = Arm->TargetArmLength;
+			return true;
+		}
+
+		TInlineComponentArray<UActorComponent*> Components;
+		Actor->GetComponents(Components);
+		for (const UActorComponent* Component : Components)
+		{
+			if (!Component)
+			{
+				continue;
+			}
+
+			if (const FFloatProperty* TargetArmLengthProp = FindFProperty<FFloatProperty>(Component->GetClass(), TEXT("TargetArmLength")))
+			{
+				if (const float* Value = TargetArmLengthProp->ContainerPtrToValuePtr<float>(Component))
+				{
+					OutArmLength = *Value;
+					return true;
+				}
+			}
+
+			if (const FFloatProperty* ArmLengthProp = FindFProperty<FFloatProperty>(Component->GetClass(), TEXT("ArmLength")))
+			{
+				if (const float* Value = ArmLengthProp->ContainerPtrToValuePtr<float>(Component))
+				{
+					OutArmLength = *Value;
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+}
 
 void APlayerMainController::BeginPlay()
 {
@@ -386,17 +434,14 @@ void APlayerMainController::BeginLookAtAttachBlend(AActor* LookAt)
 		RootComponent->SetUsingAbsoluteRotation(false);
 	}
 
-	const USpringArmComponent* SpectatorArm = SpectatorPawn->FindComponentByClass<USpringArmComponent>();
-	const FTransform StartCameraTransform = SpectatorArm
-		? SpectatorArm->GetSocketTransform(USpringArmComponent::SocketName)
-		: SpectatorPawn->GetActorTransform();
-	LookAtAttachStartTransform = FTransform(StartCameraTransform.GetRotation(), StartCameraTransform.GetLocation(), FVector::OneVector);
+	const FTransform SpectatorActorTransform = SpectatorPawn->GetActorTransform();
+	LookAtAttachStartTransform = FTransform(SpectatorActorTransform.GetRotation(), SpectatorActorTransform.GetLocation(), FVector::OneVector);
 	LookAtAttachStartCameraLocation = SpectatorPawn->GetActorLocation();
 	LookAtAttachTargetCameraLocation = LookAt->GetActorLocation();
 	LookAtAttachStartArmLength = SpectatorPawn->GetCameraBoomLength();
-	if (const USpringArmComponent* TargetArm = LookAt->FindComponentByClass<USpringArmComponent>())
+	if (TryGetTargetArmLengthFromActor(LookAt, LookAtAttachTargetArmLength))
 	{
-		LookAtAttachTargetArmLength = TargetArm->TargetArmLength;
+		
 	}
 	else
 	{
@@ -437,6 +482,11 @@ void APlayerMainController::UpdateLookAtAttachBlend()
 	const float Alpha = Duration > 0.0f
 		? FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp(LookAtAttachBlendElapsed / Duration, 0.0f, 1.0f))
 		: 1.0f;
+	LookAtAttachTargetCameraLocation = TargetActor->GetActorLocation();
+	if (TryGetTargetArmLengthFromActor(TargetActor, LookAtAttachTargetArmLength))
+	{
+		
+	}
 	const float NewArmLength = FMath::Lerp(LookAtAttachStartArmLength, LookAtAttachTargetArmLength, Alpha);
 	SpectatorPawn->SetCameraBoomLength(NewArmLength);
 	const FVector NewLocation = FMath::Lerp(LookAtAttachStartCameraLocation, LookAtAttachTargetCameraLocation, Alpha);
@@ -454,9 +504,9 @@ void APlayerMainController::UpdateLookAtAttachBlend()
 	}
 	Possess(SpectatorPawn);
 
-	if (const USpringArmComponent* LookAtArm = TargetActor->FindComponentByClass<USpringArmComponent>())
+	if (TryGetTargetArmLengthFromActor(TargetActor, LookAtAttachTargetArmLength))
 	{
-		SpectatorPawn->SetCameraBoomLength(LookAtArm->TargetArmLength);
+		SpectatorPawn->SetCameraBoomLength(LookAtAttachTargetArmLength);
 	}
 		ClearLookAtAttachBlend();
 	}
