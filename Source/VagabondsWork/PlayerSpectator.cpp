@@ -112,6 +112,12 @@ void APlayerSpectator::SetCameraBoomLength(float NewLength)
 	if (CameraBoom)
 	{
 		CameraBoom->TargetArmLength = NewLength;
+		CameraBoom->UpdateComponentToWorld();
+		CameraBoom->UpdateChildTransforms();
+		if (SpectatorCamera)
+		{
+			SpectatorCamera->UpdateComponentToWorld();
+		}
 	}
 }
 
