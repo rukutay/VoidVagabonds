@@ -461,6 +461,8 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
     float PitchErrDz = (FMath::Abs(PitchErr) < AimDeadZoneDeg) ? 0.f : PitchErr;
     float YawErrDz   = (FMath::Abs(YawErr)   < AimDeadZoneDeg) ? 0.f : YawErr;
 
+    const float DesiredYawRateForBank = FMath::Clamp(YawErrDz * 0.55f, -Ship->MaxYawSpeed, Ship->MaxYawSpeed);
+
     // --- Torque PD branch ---
     if (bUseTorquePD)
     {
@@ -511,7 +513,13 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
         float TorqueRoll = 0.f;
         if (Ship->RollAlignMode == ERollAlignMode::Default)
         {
-            float RollLevelErrRad = 0.f;
+            const float YawRateNorm = (Ship->MaxYawSpeed > KINDA_SMALL_NUMBER)
+                ? (DesiredYawRateForBank / Ship->MaxYawSpeed)
+                : 0.0f;
+            const float RollTargetRad = -YawRateNorm * Ship->YawBankScale * Ship->MaxRollSpeed * (PI / 180.f);
+            const float RollErrRad = RollTargetRad - CurAngVelLocalRad.X;
+            TorqueRoll = (Ix * (TorqueKpPitch * RollErrRad)) - (Ix * (TorqueRollDamping * CurAngVelLocalRad.X));
+
             bool bApplyForwardRollLevel = false;
             if (bEnableForwardRollLevel)
             {
@@ -534,17 +542,12 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
                 const FVector CurrentUpLocal(0.f, 0.f, 1.f);
                 const float CrossX = FVector::CrossProduct(CurrentUpLocal, DesiredUpLocal).X;
                 const float DotUD = FVector::DotProduct(CurrentUpLocal, DesiredUpLocal);
-                RollLevelErrRad = FMath::Atan2(CrossX, DotUD);
+                const float RollLevelErrRad = FMath::Atan2(CrossX, DotUD);
 
                 const float RollKp = Ship->RollAlignKp * ForwardRollLevelGainScale;
                 const float RollKd = Ship->RollAlignKd * ForwardRollLevelGainScale;
                 const float AlphaRoll = (RollKp * RollLevelErrRad) - (RollKd * CurAngVelLocalRad.X);
-                TorqueRoll = Ix * AlphaRoll;
-            }
-            else
-            {
-                // Old behavior: damping only
-                TorqueRoll = -Ix * (TorqueRollDamping * CurAngVelLocalRad.X);
+                TorqueRoll += Ix * AlphaRoll;
             }
         }
         else
@@ -573,12 +576,16 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
 
     // --- Existing angular-velocity servo branch (unchanged) ---
     const float DesiredPitchRate = FMath::Clamp(PitchErrDz * 0.5f, -Ship->MaxPitchSpeed, Ship->MaxPitchSpeed);
-    const float DesiredYawRate   = FMath::Clamp(YawErrDz   * 0.55f, -Ship->MaxYawSpeed,  Ship->MaxYawSpeed);
+    const float DesiredYawRate   = DesiredYawRateForBank;
 
     float DesiredRollRate = 0.f;
     if (Ship->RollAlignMode == ERollAlignMode::Default)
     {
-        float RollLevelErrRad = 0.f;
+        const float YawRateNorm = (Ship->MaxYawSpeed > KINDA_SMALL_NUMBER)
+            ? (DesiredYawRate / Ship->MaxYawSpeed)
+            : 0.0f;
+        DesiredRollRate = -YawRateNorm * Ship->YawBankScale * Ship->MaxRollSpeed;
+
         bool bApplyForwardRollLevel = false;
         if (bEnableForwardRollLevel)
         {
@@ -601,14 +608,13 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
             const FVector CurrentUpLocal(0.f, 0.f, 1.f);
             const float CrossX = FVector::CrossProduct(CurrentUpLocal, DesiredUpLocal).X;
             const float DotUD = FVector::DotProduct(CurrentUpLocal, DesiredUpLocal);
-            RollLevelErrRad = FMath::Atan2(CrossX, DotUD);
+            const float RollLevelErrRad = FMath::Atan2(CrossX, DotUD);
 
             const float RollErrDeg = FMath::RadiansToDegrees(RollLevelErrRad);
-            DesiredRollRate = FMath::Clamp(
-                RollErrDeg * 0.5f * ForwardRollLevelGainScale,
-                -Ship->MaxRollSpeed,
-                Ship->MaxRollSpeed);
+            DesiredRollRate += RollErrDeg * 0.5f * ForwardRollLevelGainScale;
         }
+
+        DesiredRollRate = FMath::Clamp(DesiredRollRate, -Ship->MaxRollSpeed, Ship->MaxRollSpeed);
     }
     else
     {

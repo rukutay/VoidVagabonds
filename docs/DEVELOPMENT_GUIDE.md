@@ -22,7 +22,7 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Navigation stability**: Ensure replans can be forced on stuck/static-blocked states and temp avoidance targets are honored to avoid stalls.
 - **Unstuck recovery**: Reacquire blocking obstacles when needed, enforce minimum penetration scaling for force, and align steering to escape targets during unstuck.
 - **Safety margin avoidance**: Filter self/invalid obstacles, skip tangent escape offsets when no target actor is set, suppress safety checks after forced Nav fallback, and guard invalid escape targets with debug reasons.
-- **AI roll leveling**: When roll-align mode is Default, AI ships passively level roll only while moving forward to avoid fighting steering.
+- **AI roll behavior (Default mode)**: AI ships use shared yaw-banking (`YawBankScale`) and also passively level roll while moving forward to avoid fighting steering.
 - **AI movement gating**: `AAIShipController::bMovementAllowed` (Blueprint-editable, default true) gates AI ship movement/rotation; when false, ship AI steering/rotation is not applied.
 - **AI patrol routing**: `AAIShipController::CreatePatrolRoute(const TArray<ANavStaticBig*>&)` builds a patrol route from a provided actor list, chooses a random subset size `[2..N]`, orders route by nearest-neighbor from current ship location, and returns/stores ordered `ANavStaticBig` actors.
 - **AI action mode enum**: `AAIShipController` includes `EActionMode` values `Idle`, `Moving`, `Following`, `Patroling`, and `Fight` for controller-level action state selection.
@@ -59,7 +59,7 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
   - Yaw: **A/D**
   - Roll: **Q/E**
 - **Setup**: Create Input Actions + Mapping Context assets in Blueprint and assign them to `APlayerMainController` fields (`ThrottleAction`, `PitchAction`, `YawAction`, `RollAction`).
-- **Behavior**: On player possess, the previous AI controller resumes control on unpossess. Manual mode uses AI-style steering, `AShip::bManualUseRollAlign` toggles roll-align (default true), and `AShip::ManualYawBankScale` tunes yaw-driven banking when manual roll-align is disabled.
+- **Behavior**: On player possess, the previous AI controller resumes control on unpossess. Manual mode uses AI-style steering, `AShip::bManualUseRollAlign` toggles roll-align (default true), and shared `AShip::YawBankScale` tunes yaw-driven banking for both player and AI when roll-align is disabled.
 
 ## Player Spectator Setup
 - **Input Actions (Enhanced Input)**:

@@ -1210,7 +1210,7 @@ void AShip::ApplyManualShipRotation(const FVector& TargetLocation, float DeltaTi
         }
         else if (!bManualUseRollAlign)
         {
-            const float RollTargetRad = -ManualYawInput * ManualYawBankScale * MaxRollSpeed * (PI / 180.f);
+            const float RollTargetRad = -ManualYawInput * YawBankScale * MaxRollSpeed * (PI / 180.f);
             const float RollErrRadManual = RollTargetRad - CurAngVelLocalRad.X;
             TorqueRoll = (Ix * (ManualTorqueKpPitch * RollErrRadManual))
                 - (Ix * (ManualTorqueRollDamping * CurAngVelLocalRad.X));
@@ -1246,7 +1246,7 @@ void AShip::ApplyManualShipRotation(const FVector& TargetLocation, float DeltaTi
     }
     else if (!bManualUseRollAlign)
     {
-        DesiredRollRate = -ManualYawInput * ManualYawBankScale * MaxRollSpeed;
+        DesiredRollRate = -ManualYawInput * YawBankScale * MaxRollSpeed;
     }
     else if (bManualUseRollAlign && RollAlignMode != ERollAlignMode::Default)
     {

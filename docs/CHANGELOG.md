@@ -26,7 +26,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - NavStaticBig Blueprint helper to replace a HISM instance with a spawned actor using the same transform and mesh.
 - NavStaticBig near-field asteroid actor swap (timer-driven with enter/exit hysteresis) for full collision near the player; asteroids that wake physics remain actors and sleeping swaps now feed runtime navigation anchors.
 - Global navigation replanning with cached static obstacles.
-- Player manual ship controls (analog throttle, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess, manual roll-align toggle, and ManualYawBankScale for yaw-driven banking when roll-align is disabled.
+- Player manual ship controls (analog throttle, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess, manual roll-align toggle, and shared `YawBankScale` for yaw-driven banking (player + AI) when roll-align is disabled.
 - Ship presets for movement + TorquePD rotation tuning (Fighter/Interceptor/Gunship/Cruiser/Carrier) with Blueprint-selectable values.
 - Ship vitality presets now align with ship presets (hull/shield/recharge/armor) and reset current hull/shield to max on preset apply.
 
@@ -35,6 +35,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Patrol point delay now clears ship `TargetActor` during pause so ships stop movement until patrol resumes.
 - GameMode tracked actor lists are now strongly typed (`AllPlanets` as `NavStaticBig`, `AllShips` as `Ship`) with safe typed collection in refresh logic.
 - AI ships now passively level roll only while moving forward to keep horizontal alignment without fighting steering.
+- AI default roll-align mode now combines shared yaw-bank (`YawBankScale`) with forward-only passive roll leveling (ForwardRollLevel restored).
 - Navigation avoidance stability and replan jittering for scale.
 - Ship navigation now forces replans on stuck/static-blocked states and always honors temp avoidance targets to prevent long stalls.
 - Unstuck recovery now reacquires blocking obstacles, enforces a minimum penetration scale for force, and aligns steering to escape targets to reduce stalls.
