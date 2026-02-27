@@ -3,6 +3,7 @@
 
 #include "ShipNavComponent.h"
 #include "VagabondsWorkGameMode.h"
+#include "Ship.h"
 #include "DrawDebugHelpers.h"
 #include "Components/SphereComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -75,6 +76,11 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	
 	const FVector OwnerLocation = GetOwner()->GetActorLocation();
 	const FVector ShipPos = OwnerLocation;
+	AActor* IntentTargetActor = nullptr;
+	if (const AShip* OwnerShip = Cast<AShip>(GetOwner()))
+	{
+		IntentTargetActor = OwnerShip->TargetActor;
+	}
 	
 	const bool bTime = (CurrentTime >= NextReplanTime);
 	const bool bMoved = FVector::DistSquared(ShipPos, LastReplanShipPos) >
@@ -146,6 +152,15 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	if (GameMode && bStaticCheckDue)
 	{
 		bStaticBlocked = !GameMode->IsSegmentClearOfStaticObstacles(ShipPos, DesiredTarget, &StaticHitIndex);
+		if (bStaticBlocked && IntentTargetActor)
+		{
+			const TArray<FNavObstacleSphereProxy>& Obstacles = GameMode->GetStaticNavObstacles();
+			if (Obstacles.IsValidIndex(StaticHitIndex) && Obstacles[StaticHitIndex].Actor.Get() == IntentTargetActor)
+			{
+				bStaticBlocked = false;
+				StaticHitIndex = INDEX_NONE;
+			}
+		}
 		if (!bStaticBlocked)
 		{
 			const TArray<FNavObstacleSphereProxy>& Obstacles = GameMode->GetStaticNavObstacles();
@@ -155,6 +170,10 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			for (int32 Index = 0; Index < Obstacles.Num(); ++Index)
 			{
 				const FNavObstacleSphereProxy& Obstacle = Obstacles[Index];
+				if (IntentTargetActor && Obstacle.Actor.Get() == IntentTargetActor)
+				{
+					continue;
+				}
 				const float AvoidRadius = Obstacle.InflatedRadius + (ShipRadiusCm * StaticAvoidMarginMultiplier);
 				const float DistSq = FVector::DistSquared(ShipPos, Obstacle.Center);
 				if (DistSq < FMath::Square(AvoidRadius) && DistSq < BestDistSq)
@@ -181,6 +200,16 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	{
 		bStaticBlocked = true;
 		StaticHitIndex = FocusStaticObstacleIndex;
+		if (IntentTargetActor && GameMode)
+		{
+			const TArray<FNavObstacleSphereProxy>& Obstacles = GameMode->GetStaticNavObstacles();
+			if (Obstacles.IsValidIndex(StaticHitIndex) && Obstacles[StaticHitIndex].Actor.Get() == IntentTargetActor)
+			{
+				bStaticBlocked = false;
+				StaticHitIndex = INDEX_NONE;
+				FocusStaticObstacleIndex = INDEX_NONE;
+			}
+		}
 	}
 	bool bStaticAvoidanceActive = false;
 	FVector StaticTangentDir = FVector::ZeroVector;
@@ -309,6 +338,13 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			TraceParams);
 		if (bTraceAvoidance && TraceHit.bBlockingHit)
 		{
+			AActor* TraceActor = TraceHit.GetActor();
+			if (IntentTargetActor && TraceActor == IntentTargetActor)
+			{
+				bTraceAvoidance = false;
+			}
+			else
+			{
 			const FVector TraceNormal = TraceHit.ImpactNormal.GetSafeNormal();
 			const FVector TraceTangent = (ToTargetDir - FVector::DotProduct(ToTargetDir, TraceNormal) * TraceNormal).GetSafeNormal();
 			const FVector TraceAvoidDir = (TraceNormal + TraceTangent * 0.35f).GetSafeNormal();
@@ -316,7 +352,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			{
 				AvoidDir += TraceAvoidDir;
 			}
-			FocusCandidate = TraceHit.GetActor();
+			FocusCandidate = TraceActor;
 
 #if !UE_BUILD_SHIPPING
 			if (bDrawNavPath)
@@ -329,6 +365,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 					FColor::White, false, 0.0f, 0, 1.0f);
 			}
 #endif
+			}
 		}
 	}
 
@@ -336,6 +373,10 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	{
 		AActor* NeighborActor = NeighborPtr.Get();
 		if (!NeighborActor || NeighborActor == GetOwner())
+		{
+			continue;
+		}
+		if (IntentTargetActor && NeighborActor == IntentTargetActor)
 		{
 			continue;
 		}
