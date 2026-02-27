@@ -4,7 +4,19 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "TimerManager.h"
+#include "MarkerComponent.h"
 #include "VagabondsWorkGameMode.generated.h"
+
+UENUM(BlueprintType)
+enum class EActorFilterKind : uint8
+{
+	Faction,
+	MarkerType
+};
+
+class ANavStaticBig;
+class AShip;
 
 USTRUCT(BlueprintType)
 struct FNavObstacleSphereProxy
@@ -50,6 +62,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Navigation|Debug")
 	bool DebugTestSegmentAgainstStaticObstacles(const FVector& A, const FVector& B);
 
+	UFUNCTION(BlueprintCallable, Category = "World|Actors")
+	TArray<AActor*> GetActorsByFilter(const TArray<AActor*>& Actors, EActorFilterKind FilterKind, uint8 EnumValue) const;
+
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Navigation")
 	float NavSafetyMarginCm = 200.0f;
@@ -81,10 +96,22 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Navigation")
 	TArray<FNavObstacleSphereProxy> CombinedNavObstacles;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World|Actors")
+	TArray<TObjectPtr<ANavStaticBig>> AllPlanets;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World|Actors")
+	TArray<TObjectPtr<AShip>> AllShips;
+
+	UPROPERTY(EditDefaultsOnly, Category = "World|Actors")
+	float ActorListsRefreshInterval = 0.05f;
+
 	float NextStaticObstacleRefreshTime = 0.0f;
 
 private:
 	void RefreshCombinedNavObstacles();
+	void RefreshTrackedActors();
+
+	FTimerHandle TrackedActorsRefreshTimer;
 };
 
 

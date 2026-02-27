@@ -13,6 +13,14 @@ enum class EMarkerType : uint8
 	Component
 };
 
+UENUM(BlueprintType)
+enum class EFaction : uint8
+{
+	Neutral,
+	Red,
+	Blue
+};
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class VAGABONDSWORK_API UMarkerComponent : public UActorComponent
 {
@@ -23,4 +31,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Marker")
 	EMarkerType MarkerType = EMarkerType::Component;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Faction")
+	EFaction Faction = EFaction::Neutral;
 };

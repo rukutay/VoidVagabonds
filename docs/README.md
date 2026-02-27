@@ -21,12 +21,18 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Unstuck recovery reacquires blocking obstacles, enforces minimum penetration scaling for force, and aligns steering to escape targets.
 - Safety margin avoidance filters self overlaps/invalid obstacles, avoids tangent escape when no target actor is set, suppresses safety checks after forced Nav fallback, and guards against invalid escape targets with debug reasons.
 - AI ships passively level roll only while moving forward to keep horizontal alignment without fighting steering.
+- AI ship controller now exposes `bMovementAllowed` (Blueprint-editable, default true); ship AI movement/rotation is applied only while this flag is true.
+- AI ship controller now provides patrol route building from a provided random `NavStaticBig` actor list and returns/stores an ordered `NavStaticBig` actor route (index 0 is first), using nearest-neighbor ordering from current ship location.
+- AI ship controller defines `AAIShipController::EActionMode` with modes: `Idle`, `Moving`, `Following`, `Patroling`, `Fight`.
+- Patrol progression consumes route index 0 on overlap, waits configured delay, and automatically finishes patrol state at the last point (`ActionMode` returns to `Idle`, patrol active state clears).
+- During patrol point delay pause, ship `TargetActor` is cleared (`nullptr`) so movement stops until patrol resumes to the next point.
 - Toggleable debug logs for unstuck checks, steering source/heading, and nav target/avoidance decisions.
 - Dynamic ship avoidance uses repulsion on predicted closest approach with relative-speed prediction for high-speed head-on safety.
 - Dynamic/awakened asteroid actors (WorldDynamic) are included in neighbor avoidance queries.
 - Local avoidance now considers blocking PhysicsBody components (bounds-derived radius) in addition to ships and dynamic actors.
 - Physics-driven thrust + yaw/pitch rotation for ship steering.
 - Static obstacle caching handled by the game mode; nav component requests replans.
+- GameMode tracked actor arrays are now strongly typed: `AllPlanets` = `ANavStaticBig` actors, `AllShips` = `AShip` actors.
 - Timer-driven external module aiming (tick disabled); when no target is set, module pivots reset to local rotation (0,0,0) and aiming stops until a target is provided.
 - External module LOS uses a single forward sphere sweep with lead prediction and projectile radius; readiness now also accepts direct target alignment (not just predicted AimLoc).
 - External module firing supports single/auto/semi-auto modes with safe muzzle spawn and burst timing derived from FireRate, with per-shot damage override and ShootDelay spacing.

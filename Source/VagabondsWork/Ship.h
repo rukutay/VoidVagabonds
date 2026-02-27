@@ -105,6 +105,7 @@ class UShipVitalityComponent;
 class USpringArmComponent;
 class UCameraComponent;
 class UMarkerComponent;
+class AActor;
 
 UCLASS()
 class VAGABONDSWORK_API AShip : public APawn
@@ -136,6 +137,15 @@ public:
 
     UFUNCTION()
     void HandleShipRadiusBeginOverlap(
+        UPrimitiveComponent* OverlappedComponent,
+        AActor* OtherActor,
+        UPrimitiveComponent* OtherComp,
+        int32 OtherBodyIndex,
+        bool bFromSweep,
+        const FHitResult& SweepResult);
+
+    UFUNCTION()
+    void HandlePatrolPointBeginOverlap(
         UPrimitiveComponent* OverlappedComponent,
         AActor* OtherActor,
         UPrimitiveComponent* OtherComp,
@@ -306,6 +316,12 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components", meta=(ToolTip="Collision sphere used for radius checks."))
     USphereComponent* ShipRadius = nullptr;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Components", meta=(ToolTip="Internal radius scanner sphere."))
+    USphereComponent* InternalScanerRadius = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Scanner", meta=(ToolTip="Actors inside scanner radius, sorted nearest first."))
+    TArray<AActor*> WithinScaner;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|AI", meta=(ToolTip="Navigation component for avoidance and waypoints."))
     UShipNavComponent* ShipNav = nullptr;
 
@@ -381,6 +397,9 @@ public:
     void ApplyRotationServo(const FVector& TargetAngVelLocal, float DeltaTime);
 
 private:
+    UFUNCTION()
+    void UpdateWithinScaner();
+
     bool EnsureShipController();
     void ApplyManualControl(float DeltaTime);
     void ApplyManualShipRotation(const FVector& TargetLocation, float DeltaTime);
@@ -448,6 +467,8 @@ private:
         }
     };
     TArray<FOverlapDistanceInfo> OverlapDistancesCache;
+
+    FTimerHandle WithinScanerUpdateTimer;
 
     // Soft Separation Force Application
     void ApplySoftSeparation(float DeltaTime);

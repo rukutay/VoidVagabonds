@@ -5,9 +5,20 @@
 #include "AIShipController.generated.h"
 
 class AShip;
+class ANavStaticBig;
 class UPrimitiveComponent;
 class AActor;
 class USphereComponent;
+
+UENUM(BlueprintType)
+enum class EActionMode : uint8
+{
+    Idle      UMETA(DisplayName="Idle"),
+    Moving    UMETA(DisplayName="Moving"),
+    Following UMETA(DisplayName="Following"),
+    Patroling UMETA(DisplayName="Patroling"),
+    Fight     UMETA(DisplayName="Fight")
+};
 
 UCLASS()
 class VAGABONDSWORK_API AAIShipController : public AAIController
@@ -16,6 +27,12 @@ class VAGABONDSWORK_API AAIShipController : public AAIController
 
 public:
     virtual void BeginPlay() override;
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Set current AI action mode."))
+    void SetActionMode(EActionMode InActionMode) { ActionMode = InActionMode; }
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Get current AI action mode."))
+    EActionMode GetActionMode() const { return ActionMode; }
 
     UFUNCTION(BlueprintCallable, meta=(ToolTip="Get focus location (target actor if set, otherwise pawn location)."))
     FVector GetFocusLocation();
@@ -43,6 +60,33 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Navigation", meta=(ToolTip="Temporarily suppress safety margin checks (seconds)."))
     void SuppressSafetyMargin(float DurationSeconds);
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Movement", meta=(ToolTip="Returns whether movement is currently allowed for the controlled ship."))
+    bool IsMovementAllowed() const { return bMovementAllowed; }
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Build and store an effective patrol route from a random subset of provided NavStaticBig actors."))
+    TArray<ANavStaticBig*> CreatePatrolRoute(const TArray<ANavStaticBig*>& NavStaticActors);
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Start patrol progression using generated route and per-point delay."))
+    void StartPatrol(const TArray<ANavStaticBig*>& NavStaticActors, float InPointDelaySeconds);
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Get current patrol route head target."))
+    ANavStaticBig* GetCurrentPatrolPoint() const;
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Handle overlap for patrol point completion checks."))
+    void HandlePatrolPointOverlap(UPrimitiveComponent* OtherComp, AActor* OtherActor);
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Stop patrol progression and optionally clear route."))
+    void StopPatrol(bool bClearRoute);
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="True when patrol route is currently in progress (including delay pause)."))
+    bool IsPatrolActive() const { return bPatrolActive && PatrolRoute.Num() > 0; }
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="True when patrol route is currently in progress (including delay pause)."))
+    bool IsPatrolInProgress() const { return bPatrolActive && PatrolRoute.Num() > 0; }
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="True when patrol route has no points left or is not running."))
+    bool IsPatrolFinished() const { return !IsPatrolInProgress(); }
 
     UFUNCTION(BlueprintCallable, Category="Navigation", meta=(ToolTip="Get safety margin suppression duration."))
     float GetSafetyMarginSuppressDuration() const { return SafetyMarginSuppressDuration; }
@@ -88,11 +132,15 @@ public:
         float InMaxTorqueYaw,
         float InMaxTorqueRoll,
         float InTorqueRollDamping);
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Navigation|Patrol", meta=(ToolTip="Current high-level AI action mode."))
+    EActionMode ActionMode = EActionMode::Idle;
 
 private:
     void HandleStuckCheck();
     void HandleSafetyMarginCheck();
     bool UpdateInsideSafetyMargin(USphereComponent* ShipRadius);
+    void ResumePatrolAfterDelay();
+    void PruneInvalidPatrolHead();
 
     UPROPERTY(EditDefaultsOnly, Category = "Unstuck|Config", meta=(ToolTip="Interval (seconds) between stuck checks."))
     float StuckCheckInterval = 0.15f;
@@ -108,6 +156,26 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance", meta=(ToolTip="Seconds to suppress safety margin checks after forcing Nav fallback."))
     float SafetyMarginSuppressDuration = 1.5f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Navigation|Movement", meta=(AllowPrivateAccess="true", ToolTip="Enable/disable AI ship movement."))
+    bool bMovementAllowed = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Navigation|Patrol", meta=(AllowPrivateAccess="true", ToolTip="Stored ordered patrol route points in world space."))
+    TArray<TObjectPtr<ANavStaticBig>> PatrolRoute;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Patrol", meta=(ToolTip="True when patrol progression is active."))
+    bool bPatrolActive = false;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Patrol", meta=(ToolTip="True while patrol progression waits post-point delay."))
+    bool bPatrolPauseActive = false;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Patrol", meta=(ToolTip="Delay after reaching patrol point before continuing."))
+    float PatrolPointDelaySeconds = 0.0f;
+
+    FTimerHandle PatrolResumeTimerHandle;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Patrol", meta=(ToolTip="Cached current patrol route head when valid."))
+    TWeakObjectPtr<ANavStaticBig> CurrentPatrolTarget;
 
     UPROPERTY(EditDefaultsOnly, Category = "Navigation|Debug", meta=(ToolTip="Draw safety margin debug points."))
     bool bDebugSafetyMargin = false;

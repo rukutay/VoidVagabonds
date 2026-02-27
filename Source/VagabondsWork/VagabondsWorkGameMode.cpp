@@ -2,6 +2,9 @@
 
 #include "VagabondsWorkGameMode.h"
 #include "PlayerSpectator.h"
+#include "MarkerComponent.h"
+#include "NavStaticBig.h"
+#include "Ship.h"
 #include "DrawDebugHelpers.h"
 #include "EngineUtils.h"
 #include "Algo/Reverse.h"
@@ -79,6 +82,17 @@ void AVagabondsWorkGameMode::SetRuntimeNavObstacleActors(const TArray<AActor*>& 
 void AVagabondsWorkGameMode::BeginPlay()
 {
 	Super::BeginPlay();
+
+	RefreshTrackedActors();
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(
+			TrackedActorsRefreshTimer,
+			this,
+			&AVagabondsWorkGameMode::RefreshTrackedActors,
+			ActorListsRefreshInterval,
+			true);
+	}
 
 	StaticNavObstacles.Reset();
 
@@ -257,6 +271,53 @@ bool AVagabondsWorkGameMode::DebugTestSegmentAgainstStaticObstacles(const FVecto
 	}
 
 	return bIsClear;
+}
+
+TArray<AActor*> AVagabondsWorkGameMode::GetActorsByFilter(const TArray<AActor*>& Actors, EActorFilterKind FilterKind, uint8 EnumValue) const
+{
+	TArray<AActor*> Result;
+	Result.Reserve(Actors.Num());
+
+	auto TryAddActorIfMatch = [&](AActor* Actor)
+	{
+		if (!IsValid(Actor))
+		{
+			return;
+		}
+
+		const UMarkerComponent* Marker = Actor->FindComponentByClass<UMarkerComponent>();
+		if (!IsValid(Marker))
+		{
+			return;
+		}
+
+		switch (FilterKind)
+		{
+		case EActorFilterKind::Faction:
+			if (Marker->Faction == static_cast<EFaction>(EnumValue))
+			{
+				Result.Add(Actor);
+			}
+			break;
+
+		case EActorFilterKind::MarkerType:
+			if (Marker->MarkerType == static_cast<EMarkerType>(EnumValue))
+			{
+				Result.Add(Actor);
+			}
+			break;
+
+		default:
+			break;
+		}
+	};
+
+	for (AActor* Actor : Actors)
+	{
+		TryAddActorIfMatch(Actor);
+	}
+
+	return Result;
 }
 
 TArray<FVector> AVagabondsWorkGameMode::FindGlobalPathAnchors(const FVector& Start, const FVector& Goal) const
@@ -473,4 +534,46 @@ void AVagabondsWorkGameMode::RefreshCombinedNavObstacles()
 	CombinedNavObstacles.Reserve(StaticNavObstacles.Num() + RuntimeNavObstacles.Num());
 	CombinedNavObstacles.Append(StaticNavObstacles);
 	CombinedNavObstacles.Append(RuntimeNavObstacles);
+}
+
+void AVagabondsWorkGameMode::RefreshTrackedActors()
+{
+	AllPlanets.Reset();
+	AllShips.Reset();
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!IsValid(Actor))
+		{
+			continue;
+		}
+
+		const UMarkerComponent* Marker = Actor->FindComponentByClass<UMarkerComponent>();
+		if (!IsValid(Marker))
+		{
+			continue;
+		}
+
+		if (Marker->MarkerType == EMarkerType::Planet)
+		{
+			if (ANavStaticBig* Planet = Cast<ANavStaticBig>(Actor))
+			{
+				AllPlanets.Add(Planet);
+			}
+		}
+		else if (Marker->MarkerType == EMarkerType::Ship)
+		{
+			if (AShip* ShipActor = Cast<AShip>(Actor))
+			{
+				AllShips.Add(ShipActor);
+			}
+		}
+	}
 }

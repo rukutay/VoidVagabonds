@@ -6,6 +6,8 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 
 ## [Unreleased]
 ### Added
+- `AAIShipController::EActionMode` enum for controller action states (`Idle`, `Moving`, `Following`, `Patroling`, `Fight`).
+- AI ship movement toggle (`bMovementAllowed`, default true, BP-editable) and patrol route API in `AAIShipController` that returns/stores ordered `NavStaticBig` actor routes from a provided random candidate list using nearest-neighbor ordering from current ship location.
 - Player-facing marketing document for portfolio presentation (`docs/marketing.md`).
 - Player spectator pawn with Enhanced Input setup, smooth mouse look, and axis-based movement.
 - Ship camera boom + camera components (spring arm) with exposed camera transform helper.
@@ -29,6 +31,9 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Ship vitality presets now align with ship presets (hull/shield/recharge/armor) and reset current hull/shield to max on preset apply.
 
 ### Improved
+- Patrol progression now automatically clears patrol active state/mode after arriving at the final route point.
+- Patrol point delay now clears ship `TargetActor` during pause so ships stop movement until patrol resumes.
+- GameMode tracked actor lists are now strongly typed (`AllPlanets` as `NavStaticBig`, `AllShips` as `Ship`) with safe typed collection in refresh logic.
 - AI ships now passively level roll only while moving forward to keep horizontal alignment without fighting steering.
 - Navigation avoidance stability and replan jittering for scale.
 - Ship navigation now forces replans on stuck/static-blocked states and always honors temp avoidance targets to prevent long stalls.

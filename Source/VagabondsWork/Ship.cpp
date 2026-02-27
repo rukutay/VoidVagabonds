@@ -7,6 +7,8 @@
 #include "ShipNavComponent.h"
 #include "ShipVitalityComponent.h"
 #include "MarkerComponent.h"
+#include "NavStaticBig.h"
+#include "Kismet/GameplayStatics.h"
 #include "GameFramework/SpringArmComponent.h"
 
 AShip::AShip()
@@ -23,9 +25,14 @@ AShip::AShip()
     ShipBase->SetSimulatePhysics(true);
     ShipBase->SetEnableGravity(false);
     ShipBase->SetCollisionProfileName(TEXT("Pawn"));
+    ShipBase->SetGenerateOverlapEvents(true);
 
     ShipRadius = CreateDefaultSubobject<USphereComponent>(TEXT("ShipRadius"));
     ShipRadius->SetupAttachment(ShipBase);
+
+    InternalScanerRadius = CreateDefaultSubobject<USphereComponent>(TEXT("InternalScanerRadius"));
+    InternalScanerRadius->SetupAttachment(ShipBase);
+    InternalScanerRadius->SetSphereRadius(6400000.f);
 
     CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
     CameraBoom->SetupAttachment(ShipBase);
@@ -71,6 +78,31 @@ FTransform AShip::GetShipCameraTransform() const
 void AShip::BeginPlay()
 {
     Super::BeginPlay();
+
+    if (ShipBase)
+    {
+        ShipBase->SetGenerateOverlapEvents(true);
+        ShipBase->OnComponentBeginOverlap.RemoveDynamic(this, &AShip::HandlePatrolPointBeginOverlap);
+        ShipBase->OnComponentBeginOverlap.AddDynamic(this, &AShip::HandlePatrolPointBeginOverlap);
+#if !UE_BUILD_SHIPPING
+        UE_LOG(LogTemp, Log, TEXT("Ship %s Patrol bind on ShipBase (%s)"),
+            *GetActorNameOrLabel(),
+            *ShipBase->GetName());
+#endif
+    }
+
+    if (ShipRadius && !ShipRadius->OnComponentBeginOverlap.IsAlreadyBound(this, &AShip::HandlePatrolPointBeginOverlap))
+    {
+        ShipRadius->OnComponentBeginOverlap.AddDynamic(this, &AShip::HandlePatrolPointBeginOverlap);
+#if !UE_BUILD_SHIPPING
+        UE_LOG(LogTemp, Warning, TEXT("Ship %s Patrol fallback bind on ShipRadius (%s)"),
+            *GetActorNameOrLabel(),
+            *ShipRadius->GetName());
+#endif
+    }
+
+    GetWorldTimerManager().SetTimer(WithinScanerUpdateTimer, this, &AShip::UpdateWithinScaner, 0.25f, true);
+    UpdateWithinScaner();
 
     // NAVIGATION_TODO_REMOVE
     ShipController = Cast<AAIShipController>(GetController());
@@ -261,7 +293,7 @@ void AShip::ApplyShipPreset()
     {
         case EShipPreset::Fighter:
         {
-            MaxForwardForce = 950.f;
+            MaxForwardForce = 2850.f;
             MinThrottle = 0.15f;
             ThrottleInterpSpeed = 10.f;
             LateralDamping = 0.5f;
@@ -276,7 +308,7 @@ void AShip::ApplyShipPreset()
         }
         case EShipPreset::Interceptor:
         {
-            MaxForwardForce = 1050.f;
+            MaxForwardForce = 3150.f;
             MinThrottle = 0.17f;
             ThrottleInterpSpeed = 9.f;
             LateralDamping = 0.6f;
@@ -299,7 +331,7 @@ void AShip::ApplyShipPreset()
         }
         case EShipPreset::Gunship:
         {
-            MaxForwardForce = 700.f;
+            MaxForwardForce = 2100.f;
             MinThrottle = 0.22f;
             ThrottleInterpSpeed = 6.f;
             LateralDamping = 1.0f;
@@ -322,7 +354,7 @@ void AShip::ApplyShipPreset()
         }
         case EShipPreset::Cruiser:
         {
-            MaxForwardForce = 520.f;
+            MaxForwardForce = 1560.f;
             MinThrottle = 0.24f;
             ThrottleInterpSpeed = 4.5f;
             LateralDamping = 1.3f;
@@ -345,7 +377,7 @@ void AShip::ApplyShipPreset()
         }
         case EShipPreset::Carrier:
         {
-            MaxForwardForce = 430.f;
+            MaxForwardForce = 1290.f;
             MinThrottle = 0.26f;
             ThrottleInterpSpeed = 3.5f;
             LateralDamping = 1.6f;
@@ -526,6 +558,8 @@ void AShip::Tick(float DeltaTime)
     }
     else
     {
+        const bool bMovementAllowed = ShipController && ShipController->IsMovementAllowed();
+
         // NAVIGATION_TODO_REMOVE
         const FVector GoalCenter = GetGoalLocation();
         FVector Goal = GoalCenter;
@@ -602,7 +636,7 @@ void AShip::Tick(float DeltaTime)
         }
 #endif
 #if !UE_BUILD_SHIPPING
-        if ((Goal - ActorLocation).IsNearlyZero(1.f))
+/*         if ((Goal - ActorLocation).IsNearlyZero(1.f))
         {
             DebugMessageAccumulator += DeltaTime;
             if (DebugMessageAccumulator >= 1.f)
@@ -610,7 +644,7 @@ void AShip::Tick(float DeltaTime)
                 DebugMessageAccumulator = 0.f;
                 UE_LOG(LogTemp, Warning, TEXT("Ship %s has goal equal to self."), *GetActorNameOrLabel());
             }
-        }
+        } */
 #endif
 		const float ShipRadiusCm = ShipRadius ? ShipRadius->GetScaledSphereRadius() : 300.f;
 		FVector SteeringTarget = Goal;
@@ -675,7 +709,14 @@ void AShip::Tick(float DeltaTime)
             }
         }
 #endif
-        ApplySteeringForce(SteeringTarget, DeltaTime);
+        if (bMovementAllowed)
+        {
+            ApplySteeringForce(SteeringTarget, DeltaTime);
+        }
+        else
+        {
+            CurrentThrottle = 0.0f;
+        }
 
 #if !UE_BUILD_SHIPPING
         if (bDebugOrbit && GetWorld())
@@ -687,7 +728,7 @@ void AShip::Tick(float DeltaTime)
 
         // Rotation
         // NAVIGATION_TODO_REMOVE
-        if (ShipController)
+        if (bMovementAllowed && ShipController)
         {
             ShipController->ApplyShipRotation(SteeringTarget);
         }
@@ -841,6 +882,33 @@ void AShip::HandleShipRadiusBeginOverlap(
     }
 }
 
+void AShip::HandlePatrolPointBeginOverlap(
+    UPrimitiveComponent* OverlappedComponent,
+    AActor* OtherActor,
+    UPrimitiveComponent* OtherComp,
+    int32 OtherBodyIndex,
+    bool bFromSweep,
+    const FHitResult& SweepResult)
+{
+#if !UE_BUILD_SHIPPING
+    UE_LOG(LogTemp, Warning, TEXT("Ship %s PatrolOverlap: OtherActor=%s OtherComp=%s"),
+        *GetActorNameOrLabel(),
+        OtherActor ? *OtherActor->GetActorNameOrLabel() : TEXT("None"),
+        *OtherComp->GetName());
+#endif
+    if (!OtherComp || OtherActor == this)
+    {
+        return;
+    }
+
+
+
+    if (EnsureShipController())
+    {
+        ShipController->HandlePatrolPointOverlap(OtherComp, OtherActor);
+    }
+}
+
 void AShip::HandleShipRadiusEndOverlap(
     UPrimitiveComponent* OverlappedComponent,
     AActor* OtherActor,
@@ -878,6 +946,16 @@ FVector AShip::GetGoalLocation() const
 {
     if (ShipController)
     {
+        if (ShipController->IsPatrolInProgress())
+        {
+            if (ANavStaticBig* PatrolPoint = ShipController->GetCurrentPatrolPoint())
+            {
+                return PatrolPoint->GetActorLocation();
+            }
+
+            return GetActorLocation();
+        }
+
         return ShipController->GetFocusLocation();
     }
 
@@ -897,7 +975,7 @@ void AShip::ApplySteeringForce(FVector TargetLocation, float DeltaTime, bool bOv
     if (ToTarget.IsNearlyZero())
     {
 #if !UE_BUILD_SHIPPING
-        if (GEngine)
+/*         if (GEngine)
         {
             GEngine->AddOnScreenDebugMessage(
                 -1,
@@ -905,7 +983,7 @@ void AShip::ApplySteeringForce(FVector TargetLocation, float DeltaTime, bool bOv
                 FColor::Yellow,
                 TEXT("No valid target (goal == self)")
             );
-        }
+        } */
 #endif
         return;
     }
@@ -1249,6 +1327,49 @@ bool AShip::EnsureShipController()
         ShipController = Cast<AAIShipController>(GetController());
     }
     return ShipController != nullptr;
+}
+
+void AShip::UpdateWithinScaner()
+{
+    WithinScaner.Reset();
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    const FVector ShipLocation = GetActorLocation();
+    const float ScanRadius = InternalScanerRadius ? InternalScanerRadius->GetScaledSphereRadius() : 0.0f;
+    const float ScanRadiusSq = ScanRadius * ScanRadius;
+
+    TArray<AActor*> FoundActors;
+    FoundActors.Reserve(64);
+
+    UGameplayStatics::GetAllActorsOfClass(World, AShip::StaticClass(), FoundActors);
+
+    TArray<AActor*> FoundNavStaticBig;
+    UGameplayStatics::GetAllActorsOfClass(World, ANavStaticBig::StaticClass(), FoundNavStaticBig);
+    FoundActors.Append(FoundNavStaticBig);
+
+    for (AActor* Actor : FoundActors)
+    {
+        if (!IsValid(Actor))
+        {
+            continue;
+        }
+
+        const float DistanceSq = FVector::DistSquared(ShipLocation, Actor->GetActorLocation());
+        if (DistanceSq <= ScanRadiusSq)
+        {
+            WithinScaner.Add(Actor);
+        }
+    }
+
+    WithinScaner.Sort([ShipLocation](const AActor& A, const AActor& B)
+    {
+        return FVector::DistSquared(ShipLocation, A.GetActorLocation()) < FVector::DistSquared(ShipLocation, B.GetActorLocation());
+    });
 }
 
 void AShip::ApplySoftSeparation(float DeltaTime)

@@ -23,6 +23,11 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Unstuck recovery**: Reacquire blocking obstacles when needed, enforce minimum penetration scaling for force, and align steering to escape targets during unstuck.
 - **Safety margin avoidance**: Filter self/invalid obstacles, skip tangent escape offsets when no target actor is set, suppress safety checks after forced Nav fallback, and guard invalid escape targets with debug reasons.
 - **AI roll leveling**: When roll-align mode is Default, AI ships passively level roll only while moving forward to avoid fighting steering.
+- **AI movement gating**: `AAIShipController::bMovementAllowed` (Blueprint-editable, default true) gates AI ship movement/rotation; when false, ship AI steering/rotation is not applied.
+- **AI patrol routing**: `AAIShipController::CreatePatrolRoute(const TArray<ANavStaticBig*>&)` builds a patrol route from a provided actor list, chooses a random subset size `[2..N]`, orders route by nearest-neighbor from current ship location, and returns/stores ordered `ANavStaticBig` actors.
+- **AI action mode enum**: `AAIShipController` includes `EActionMode` values `Idle`, `Moving`, `Following`, `Patroling`, and `Fight` for controller-level action state selection.
+- **AI patrol progression**: Patrol overlap consumes route index 0, enters delay pause, then resumes to next index 0; at the last point, route exhaustion auto-calls `StopPatrol(false)` and returns mode/state to idle/inactive.
+- **AI patrol delay stop**: On entering patrol delay after reaching a point, `AShip::TargetActor` is set to `nullptr` so the ship stops movement until delay completes.
 - **Debugging**: Toggleable logs exist for unstuck checks, steering source/heading, and nav target/avoidance decisions.
 - **Navigation avoidance**: Dynamic ship avoidance uses repulsion at predicted closest approach with relative-speed prediction for high-speed safety.
 - **Navigation avoidance**: Dynamic/awakened asteroid actors (WorldDynamic) are included in neighbor avoidance queries.
@@ -44,6 +49,7 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **NavStaticBig**: Incremental chunk-based streaming with hysteresis bands plus stratified random sampling (double-buffer fallback) to avoid visible blinking during movement. Chunk rebuilds only trigger when a chunk changes band or when streaming config changes. Streaming adds deterministic along-spline jitter, frame roll, distance/radial noise, micro-clusters, and per-candidate dropout (low-frequency modulation) for less grid-like placement; dropout also scales per-tier budgets for visible thinning. Per-chunk instance budgets prevent late spline sections from starving.
 - **NavStaticBig**: Blueprint helper can replace a HISM instance with a spawned actor using the same transform/mesh for manual swaps.
 - **NavStaticBig**: Near-field asteroid swap can replace near HISM instances with actors on a timer, using enter/exit hysteresis radii for stable collision/avoidance behavior; actors that wake physics remain actors (no HISM restore) and sleeping swaps feed runtime navigation anchors.
+- **GameMode tracked actors**: `AllPlanets` is typed as `TArray<ANavStaticBig>`, and `AllShips` is typed as `TArray<AShip>` (stored as `TObjectPtr` arrays in C++).
 - **LevelBoundaries**: Runtime atmosphere system is timer-driven and BP-configurable; spawns fog/stardust actors at BeginPlay and periodically thereafter with prediction, non-overlap-by-class, distance-based despawn (2x radius), and a hard cap on active instances.
 
 ## Player Ship Manual Controls

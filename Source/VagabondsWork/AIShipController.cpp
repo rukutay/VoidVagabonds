@@ -1,5 +1,6 @@
 #include "AIShipController.h"
 #include "Ship.h"
+#include "NavStaticBig.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/Pawn.h"
 #include "Engine/World.h"
@@ -11,6 +12,8 @@
 void AAIShipController::BeginPlay()
 {
     Super::BeginPlay();
+
+    StopPatrol(false);
 
     if (GetWorld())
     {
@@ -28,6 +31,289 @@ void AAIShipController::BeginPlay()
             SafetyMarginCheckInterval,
             true);
     }
+}
+
+void AAIShipController::PruneInvalidPatrolHead()
+{
+    while (PatrolRoute.Num() > 0 && !IsValid(PatrolRoute[0]))
+    {
+        PatrolRoute.RemoveAt(0, 1, EAllowShrinking::No);
+    }
+
+    CurrentPatrolTarget = PatrolRoute.Num() > 0 ? PatrolRoute[0] : nullptr;
+
+    if (AShip* Ship = Cast<AShip>(GetPawn()))
+    {
+        Ship->TargetActor = CurrentPatrolTarget.Get();
+    }
+
+    if (PatrolRoute.Num() == 0)
+    {
+        StopPatrol(false);
+    }
+}
+
+void AAIShipController::StartPatrol(const TArray<ANavStaticBig*>& NavStaticActors, float InPointDelaySeconds)
+{
+    StopPatrol(true);
+
+    PatrolPointDelaySeconds = FMath::Max(0.0f, InPointDelaySeconds);
+    PatrolRoute.Reset();
+    PatrolRoute.Reserve(NavStaticActors.Num());
+    for (ANavStaticBig* RouteActor : NavStaticActors)
+    {
+        if (!IsValid(RouteActor))
+        {
+            continue;
+        }
+        PatrolRoute.Add(RouteActor);
+    }
+
+    PruneInvalidPatrolHead();
+    if (PatrolRoute.Num() == 0)
+    {
+        ActionMode = EActionMode::Idle;
+        UE_LOG(LogTemp, Warning, TEXT("StartPatrol failed: no valid patrol route points provided (Input=%d)"), NavStaticActors.Num());
+        return;
+    }
+
+    for (ANavStaticBig* RouteActor : PatrolRoute)
+    {
+        if (!IsValid(RouteActor) || !RouteActor->PlaneRadius)
+        {
+            continue;
+        }
+
+ /*        RouteActor->PlaneRadius->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+        RouteActor->PlaneRadius->SetGenerateOverlapEvents(true);
+        RouteActor->PlaneRadius->SetCollisionResponseToAllChannels(ECR_Ignore);
+        RouteActor->PlaneRadius->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap); */
+    }
+
+    bPatrolActive = true;
+    bPatrolPauseActive = false;
+    ActionMode = EActionMode::Patroling;
+    CurrentPatrolTarget = PatrolRoute[0];
+
+    if (AShip* Ship = Cast<AShip>(GetPawn()))
+    {
+        Ship->TargetActor = CurrentPatrolTarget.Get();
+    }
+}
+
+ANavStaticBig* AAIShipController::GetCurrentPatrolPoint() const
+{
+    if (!bPatrolActive || bPatrolPauseActive || ActionMode != EActionMode::Patroling || PatrolRoute.Num() == 0)
+    {
+        return nullptr;
+    }
+
+    AAIShipController* MutableThis = const_cast<AAIShipController*>(this);
+    MutableThis->PruneInvalidPatrolHead();
+    return MutableThis->CurrentPatrolTarget.Get();
+}
+
+void AAIShipController::HandlePatrolPointOverlap(UPrimitiveComponent* OtherComp, AActor* OtherActor)
+{
+    if (!bPatrolActive || bPatrolPauseActive || ActionMode != EActionMode::Patroling || PatrolRoute.Num() == 0 || !OtherComp || !OtherActor)
+    {
+#if !UE_BUILD_SHIPPING
+        UE_LOG(LogTemp, Verbose, TEXT("PatrolOverlap rejected (state): Active=%s Pause=%s Mode=%d Route=%d OtherComp=%s OtherActor=%s"),
+            bPatrolActive ? TEXT("true") : TEXT("false"),
+            bPatrolPauseActive ? TEXT("true") : TEXT("false"),
+            static_cast<int32>(ActionMode),
+            PatrolRoute.Num(),
+            OtherComp ? *OtherComp->GetName() : TEXT("None"),
+            OtherActor ? *OtherActor->GetActorNameOrLabel() : TEXT("None"));
+#endif
+        return;
+    }
+
+    PruneInvalidPatrolHead();
+    ANavStaticBig* CurrentPoint = CurrentPatrolTarget.Get();
+    if (!CurrentPoint)
+    {
+#if !UE_BUILD_SHIPPING
+        UE_LOG(LogTemp, Verbose, TEXT("PatrolOverlap rejected: CurrentPatrolTarget is null after prune"));
+#endif
+        return;
+    }
+
+    const bool bActorMatchesCurrentPoint = (OtherActor == CurrentPoint);
+    const bool bOwnerMatchesCurrentPoint = (OtherComp->GetOwner() == CurrentPoint);
+    if (!bActorMatchesCurrentPoint && !bOwnerMatchesCurrentPoint)
+    {
+#if !UE_BUILD_SHIPPING
+        UE_LOG(LogTemp, Verbose, TEXT("PatrolOverlap rejected: CurrentPoint=%s OtherActor=%s OtherCompOwner=%s"),
+            *CurrentPoint->GetActorNameOrLabel(),
+            OtherActor ? *OtherActor->GetActorNameOrLabel() : TEXT("None"),
+            OtherComp->GetOwner() ? *OtherComp->GetOwner()->GetActorNameOrLabel() : TEXT("None"));
+#endif
+        return;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("PatrolOverlap accepted: Ship reached patrol point %s"), *CurrentPoint->GetActorNameOrLabel());
+
+    PatrolRoute.RemoveAt(0, 1, EAllowShrinking::No);
+    CurrentPatrolTarget.Reset();
+    PruneInvalidPatrolHead();
+    if (!bPatrolActive)
+    {
+        return;
+    }
+
+    bPatrolPauseActive = true;
+    if (AShip* Ship = Cast<AShip>(GetPawn()))
+    {
+        Ship->TargetActor = nullptr;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        ResumePatrolAfterDelay();
+        return;
+    }
+
+    World->GetTimerManager().ClearTimer(PatrolResumeTimerHandle);
+    if (PatrolPointDelaySeconds <= 0.0f)
+    {
+        ResumePatrolAfterDelay();
+        return;
+    }
+
+    World->GetTimerManager().SetTimer(
+        PatrolResumeTimerHandle,
+        this,
+        &AAIShipController::ResumePatrolAfterDelay,
+        PatrolPointDelaySeconds,
+        false);
+}
+
+void AAIShipController::ResumePatrolAfterDelay()
+{
+    UWorld* World = GetWorld();
+    if (World)
+    {
+        World->GetTimerManager().ClearTimer(PatrolResumeTimerHandle);
+    }
+
+    if (ActionMode != EActionMode::Patroling)
+    {
+        StopPatrol(false);
+        return;
+    }
+
+    bPatrolPauseActive = false;
+    PruneInvalidPatrolHead();
+    if (PatrolRoute.Num() > 0)
+    {
+        bPatrolActive = true;
+        CurrentPatrolTarget = PatrolRoute[0];
+    }
+}
+
+void AAIShipController::StopPatrol(bool bClearRoute)
+{
+    UWorld* World = GetWorld();
+    if (World)
+    {
+        World->GetTimerManager().ClearTimer(PatrolResumeTimerHandle);
+    }
+
+    bPatrolActive = false;
+    bPatrolPauseActive = false;
+    CurrentPatrolTarget.Reset();
+    PatrolPointDelaySeconds = 0.0f;
+
+    if (bClearRoute)
+    {
+        PatrolRoute.Reset();
+    }
+
+    if (ActionMode == EActionMode::Patroling)
+    {
+        ActionMode = EActionMode::Idle;
+    }
+
+    if (AShip* Ship = Cast<AShip>(GetPawn()))
+    {
+        Ship->TargetActor = nullptr;
+    }
+}
+
+TArray<ANavStaticBig*> AAIShipController::CreatePatrolRoute(const TArray<ANavStaticBig*>& NavStaticActors)
+{
+    TArray<ANavStaticBig*> ValidActors;
+    ValidActors.Reserve(NavStaticActors.Num());
+
+    TSet<const ANavStaticBig*> UniqueActors;
+    for (ANavStaticBig* Actor : NavStaticActors)
+    {
+        if (!IsValid(Actor) || UniqueActors.Contains(Actor))
+        {
+            continue;
+        }
+
+        UniqueActors.Add(Actor);
+        ValidActors.Add(Actor);
+    }
+
+    PatrolRoute.Reset();
+    if (ValidActors.Num() < 2)
+    {
+        return PatrolRoute;
+    }
+
+    for (int32 i = ValidActors.Num() - 1; i > 0; --i)
+    {
+        const int32 SwapIndex = FMath::RandRange(0, i);
+        if (SwapIndex != i)
+        {
+            ValidActors.Swap(i, SwapIndex);
+        }
+    }
+
+    const int32 RoutePointCount = FMath::RandRange(2, ValidActors.Num());
+    TArray<ANavStaticBig*> RemainingActors;
+    RemainingActors.Reserve(RoutePointCount);
+    for (int32 i = 0; i < RoutePointCount; ++i)
+    {
+        RemainingActors.Add(ValidActors[i]);
+    }
+
+    const APawn* ControlledPawn = GetPawn();
+    FVector CurrentPoint = ControlledPawn ? ControlledPawn->GetActorLocation() : FVector::ZeroVector;
+
+    PatrolRoute.Reserve(RoutePointCount);
+    while (RemainingActors.Num() > 0)
+    {
+        int32 ClosestIdx = 0;
+        float ClosestDistSq = FVector::DistSquared(CurrentPoint, RemainingActors[0]->GetActorLocation());
+        for (int32 i = 1; i < RemainingActors.Num(); ++i)
+        {
+            const float DistSq = FVector::DistSquared(CurrentPoint, RemainingActors[i]->GetActorLocation());
+            if (DistSq < ClosestDistSq)
+            {
+                ClosestDistSq = DistSq;
+                ClosestIdx = i;
+            }
+        }
+
+        ANavStaticBig* NextActor = RemainingActors[ClosestIdx];
+        PatrolRoute.Add(NextActor);
+        RemainingActors.RemoveAtSwap(ClosestIdx, 1, EAllowShrinking::No);
+        CurrentPoint = NextActor->GetActorLocation();
+    }
+
+    TArray<ANavStaticBig*> RouteResult;
+    RouteResult.Reserve(PatrolRoute.Num());
+    for (ANavStaticBig* RouteActor : PatrolRoute)
+    {
+        RouteResult.Add(RouteActor);
+    }
+
+    return RouteResult;
 }
 
 void AAIShipController::SetTorqueTuning(
