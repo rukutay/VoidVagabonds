@@ -9,9 +9,9 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Core module: **VagabondsWork** (Runtime).
 - Primary systems (ownership map):
   - `UFactionsSubsystem` → faction enum ownership + fixed 6x6 relation matrix (`int8`, flat cache-friendly storage).
-	- `UNavigationSubsystem` → static/runtime obstacle cache, global path anchor planning.
-	- `ULevelActorsSubsystem` → tracked stations/planets/ships lists with periodic refresh + faction-filtered queries.
-	- `UVagabondsGameInstance` → actor filtering utilities and subsystem bootstrap.
+  - `UNavigationSubsystem` → static/runtime obstacle cache, global path anchor planning.
+  - `ULevelActorsSubsystem` → tracked stations/planets/ships lists with periodic refresh + faction-filtered queries.
+  - `UVagabondsGameInstance` → actor filtering utilities and subsystem bootstrap.
   - `AVagabondsWorkGameMode` → default pawn setup only.
   - `UShipNavComponent` → global replanning + avoidance + stuck recovery.
   - `AShip` → physics thrust/steering.

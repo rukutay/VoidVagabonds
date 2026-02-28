@@ -27,13 +27,11 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 ### Improved
 - `AAIShipController::Fight` now propagates the combat target to attached external modules and auto-clears fight state when target actors are destroyed.
 - Faction defaults now initialize in subsystem startup: `VoidRaiders` are mutual enemies (`-50`) with all other factions; all other mutual relations remain neutral (`0`), self-relations are `0`.
-- Navigation system ownership moved from `AVagabondsWorkGameMode` to `UVagabondsGameInstance` (static/runtime obstacle caches, global anchor pathfinding, and tracked actor lists), with dependent systems updated to use the game instance APIs.
-- Navigation system ownership moved from `UVagabondsGameInstance` to `UNavigationSubsystem` (static/runtime obstacle caches and global anchor pathfinding); dependent systems now use subsystem access, while `UVagabondsGameInstance` remains focused on tracked actor lists/filtering.
+- Navigation ownership was consolidated from GameMode/GameInstance into subsystems: `UNavigationSubsystem` now owns static/runtime obstacle caches + global anchor pathfinding; `ULevelActorsSubsystem` owns tracked actor lists and faction-filtered queries.
 - Actor tracking ownership moved from `UVagabondsGameInstance` to `ULevelActorsSubsystem` (periodic world scans + typed actor/faction queries).
 - Following behavior: entering follow disables orbit mode, sets ship target, and matches target speed when within `EffectiveRange`.
 - Move behavior: entering move disables orbit mode and auto-resets to idle (and clears target) when within `EffectiveRange`.
 - Patrol completion/delay flow: final point now exits patrol cleanly, and delay pauses clear `TargetActor` so ships stop until resume.
-- GameMode actor caches are strongly typed (`AllPlanets` = `NavStaticBig`, `AllShips` = `Ship`).
 - AI roll behavior stabilized: default mode uses shared `YawBankScale` + forward-only passive roll leveling.
 - Navigation stability improved with forced replans on stuck/static-blocked states and stronger unstuck obstacle reacquisition.
 - Safety margin and local avoidance hardening: ignores invalid/self hits, includes `PhysicsBody` obstacles, and improves predicted closest-approach handling.
