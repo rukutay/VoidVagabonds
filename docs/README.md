@@ -8,7 +8,8 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Platforms (from config/docs): **Windows (DX12/SM6)**, **Linux (Vulkan/SM6)**.
 - Core module: **VagabondsWork** (Runtime).
 - Primary systems (ownership map):
-  - `AVagabondsWorkGameMode` → static obstacle cache + global path anchor planning.
+  - `UVagabondsGameInstance` → static/runtime obstacle cache, global path anchor planning, tracked actor lists.
+  - `AVagabondsWorkGameMode` → default pawn setup only.
   - `UShipNavComponent` → global replanning + avoidance + stuck recovery.
   - `AShip` → physics thrust/steering.
   - `AAIShipController` → focus/rotation helpers.

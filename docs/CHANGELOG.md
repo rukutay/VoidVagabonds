@@ -20,6 +20,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Player manual ship controls + shared yaw-bank tuning (`YawBankScale`) and movement/vitality presets.
 
 ### Improved
+- Navigation system ownership moved from `AVagabondsWorkGameMode` to `UVagabondsGameInstance` (static/runtime obstacle caches, global anchor pathfinding, and tracked actor lists), with dependent systems updated to use the game instance APIs.
 - Following behavior: entering follow disables orbit mode, sets ship target, and matches target speed when within `EffectiveRange`.
 - Move behavior: entering move disables orbit mode and auto-resets to idle (and clears target) when within `EffectiveRange`.
 - Patrol completion/delay flow: final point now exits patrol cleanly, and delay pauses clear `TargetActor` so ships stop until resume.

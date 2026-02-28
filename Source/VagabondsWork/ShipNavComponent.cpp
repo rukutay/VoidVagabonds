@@ -2,7 +2,7 @@
 
 
 #include "ShipNavComponent.h"
-#include "VagabondsWorkGameMode.h"
+#include "VagabondsGameInstance.h"
 #include "Ship.h"
 #include "DrawDebugHelpers.h"
 #include "Components/SphereComponent.h"
@@ -93,7 +93,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 
 	if (bForce || (bTime && (bMoved || bGoalChanged)))
 	{
-		if (AVagabondsWorkGameMode* GameMode = GetWorld()->GetAuthGameMode<AVagabondsWorkGameMode>())
+		if (UVagabondsGameInstance* GameMode = Cast<UVagabondsGameInstance>(GetWorld()->GetGameInstance()))
 		{
 			GlobalWaypoints = GameMode->FindGlobalPathAnchors(GetOwner()->GetActorLocation(), GoalLocation);
 			WaypointIndex = 0;
@@ -129,7 +129,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	const float ShipSpeed = ShipVelocity.Size();
 	const float NeighborRadius = ShipRadiusCm * NeighborRadiusMultiplier;
 	const FVector DesiredTarget = CurrentWaypoint;
-	AVagabondsWorkGameMode* GameMode = GetWorld()->GetAuthGameMode<AVagabondsWorkGameMode>();
+	UVagabondsGameInstance* GameMode = Cast<UVagabondsGameInstance>(GetWorld()->GetGameInstance());
 	FHitResult TraceHit;
 	const FVector ToTargetDir = (DesiredTarget - ShipPos).GetSafeNormal();
 	FVector TraceDir = ShipVelocity.GetSafeNormal();
@@ -586,7 +586,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		{
 			bool bStillBlocked = false;
 
-			if (AVagabondsWorkGameMode* GM = GetWorld()->GetAuthGameMode<AVagabondsWorkGameMode>())
+			if (UVagabondsGameInstance* GM = Cast<UVagabondsGameInstance>(GetWorld()->GetGameInstance()))
 			{
 				bStillBlocked = !GM->IsSegmentClearOfStaticObstacles(ShipPos, CurrentWaypoint, nullptr);
 			}

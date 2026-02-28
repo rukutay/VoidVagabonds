@@ -4,7 +4,7 @@
 #include "NavStaticBig.h"
 #include "DrawDebugHelpers.h"
 #include "GameFramework/PlayerController.h"
-#include "VagabondsWorkGameMode.h"
+#include "VagabondsGameInstance.h"
 #include "MarkerComponent.h"
 
 static void BeginHISMBatch(UHierarchicalInstancedStaticMeshComponent* HISM)
@@ -706,7 +706,7 @@ void ANavStaticBig::UpdateNearAsteroidActorSwap()
 		ActiveNearSwapActors.Reset();
 		if (UWorld* World = GetWorld())
 		{
-			if (AVagabondsWorkGameMode* GameMode = World->GetAuthGameMode<AVagabondsWorkGameMode>())
+			if (UVagabondsGameInstance* GameMode = Cast<UVagabondsGameInstance>(World->GetGameInstance()))
 			{
 				GameMode->SetRuntimeNavObstacleActors(TArray<AActor*>());
 			}
@@ -835,7 +835,7 @@ void ANavStaticBig::UpdateNearAsteroidActorSwap()
 	}
 	if (UWorld* World = GetWorld())
 	{
-		if (AVagabondsWorkGameMode* GameMode = World->GetAuthGameMode<AVagabondsWorkGameMode>())
+		if (UVagabondsGameInstance* GameMode = Cast<UVagabondsGameInstance>(World->GetGameInstance()))
 		{
 			GameMode->SetRuntimeNavObstacleActors(SleepingActors);
 		}

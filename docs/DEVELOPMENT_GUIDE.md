@@ -55,7 +55,8 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **NavStaticBig**: Incremental chunk-based streaming with hysteresis bands plus stratified random sampling (double-buffer fallback) to avoid visible blinking during movement. Chunk rebuilds only trigger when a chunk changes band or when streaming config changes. Streaming adds deterministic along-spline jitter, frame roll, distance/radial noise, micro-clusters, and per-candidate dropout (low-frequency modulation) for less grid-like placement; dropout also scales per-tier budgets for visible thinning. Per-chunk instance budgets prevent late spline sections from starving.
 - **NavStaticBig**: Blueprint helper can replace a HISM instance with a spawned actor using the same transform/mesh for manual swaps.
 - **NavStaticBig**: Near-field asteroid swap can replace near HISM instances with actors on a timer, using enter/exit hysteresis radii for stable collision/avoidance behavior; actors that wake physics remain actors (no HISM restore) and sleeping swaps feed runtime navigation anchors.
-- **GameMode tracked actors**: `AllPlanets` is typed as `TArray<ANavStaticBig>`, and `AllShips` is typed as `TArray<AShip>` (stored as `TObjectPtr` arrays in C++).
+- **GameInstance tracked actors**: `AllPlanets` is typed as `TArray<ANavStaticBig>`, and `AllShips` is typed as `TArray<AShip>` (stored as `TObjectPtr` arrays in C++).
+- **Navigation ownership**: static/runtime obstacle caches and global anchor pathfinding are owned by `UVagabondsGameInstance`; `AVagabondsWorkGameMode` is kept minimal (default pawn setup).
 - **LevelBoundaries**: Runtime atmosphere system is timer-driven and BP-configurable; spawns fog/stardust actors at BeginPlay and periodically thereafter with prediction, non-overlap-by-class, distance-based despawn (2x radius), and a hard cap on active instances.
 
 ## Player Ship Manual Controls
