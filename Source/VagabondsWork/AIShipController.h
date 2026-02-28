@@ -17,7 +17,8 @@ enum class EActionMode : uint8
     Moving    UMETA(DisplayName="Moving"),
     Following UMETA(DisplayName="Following"),
     Patroling UMETA(DisplayName="Patroling"),
-    Fight     UMETA(DisplayName="Fight")
+    Fight     UMETA(DisplayName="Fight"),
+    Flee      UMETA(DisplayName="Flee")
 };
 
 UCLASS()

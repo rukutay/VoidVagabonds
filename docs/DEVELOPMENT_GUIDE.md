@@ -56,7 +56,9 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **NavStaticBig**: Blueprint helper can replace a HISM instance with a spawned actor using the same transform/mesh for manual swaps.
 - **NavStaticBig**: Near-field asteroid swap can replace near HISM instances with actors on a timer, using enter/exit hysteresis radii for stable collision/avoidance behavior; actors that wake physics remain actors (no HISM restore) and sleeping swaps feed runtime navigation anchors.
 - **GameInstance tracked actors**: `AllPlanets` is typed as `TArray<ANavStaticBig>`, and `AllShips` is typed as `TArray<AShip>` (stored as `TObjectPtr` arrays in C++).
-- **Navigation ownership**: static/runtime obstacle caches and global anchor pathfinding are owned by `UVagabondsGameInstance`; `AVagabondsWorkGameMode` is kept minimal (default pawn setup).
+- **Navigation ownership**: static/runtime obstacle caches and global anchor pathfinding are owned by `UNavigationSubsystem`; `UVagabondsGameInstance` keeps tracked actor lists/filtering, and `AVagabondsWorkGameMode` stays minimal (default pawn setup).
+- **Faction relations ownership**: `UFactionsSubsystem` owns `EFaction` and a fixed 6x6 flat `int8` relation matrix. Use `GetRelation`, `SetRelation`, and `ResetDefaults` for access/mutation.
+- **Faction relation defaults**: all self-relations are `0`; `VoidRaiders` are mutual enemies (`-50`) with every other faction; all other inter-faction relations are `0`.
 - **LevelBoundaries**: Runtime atmosphere system is timer-driven and BP-configurable; spawns fog/stardust actors at BeginPlay and periodically thereafter with prediction, non-overlap-by-class, distance-based despawn (2x radius), and a hard cap on active instances.
 
 ## Player Ship Manual Controls
