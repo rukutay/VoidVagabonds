@@ -36,7 +36,7 @@ public:
 	UMarkerComponent* MarkerComponent = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField")
-	USphereComponent* PlaneRadius = nullptr;
+	USphereComponent* SignatureSphere = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="AsteroidField")
 	USplineComponent* FieldSpline = nullptr;

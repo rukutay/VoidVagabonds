@@ -29,6 +29,7 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **AI action helpers**:
   - `StartFollowing(AShip* TargetShip)`: sets mode to `Following`, stops patrol state, disables orbit (`bOrbitTarget=false`), assigns `TargetActor`.
   - `MoveToTarget(AActor* TargetActor)`: sets mode to `Moving`, stops patrol state, disables orbit, assigns `TargetActor`.
+  - `Fight(AActor* TargetActor)`: sets mode to `Fight`, assigns target to controlled ship and all attached `AExternalModule` children, and auto-clears on target destruction.
   - `ResetAction()`: resets mode to `Idle` and clears active patrol state.
 - **Following speed matching**: while in `Following`, when target distance is within `EffectiveRange`, steering uses throttle override to maintain target speed.
 - **Move arrival behavior**: while in `Moving`, when distance to target is within `EffectiveRange`, `ResetAction()` is called (returns to idle and clears ship target actor).
@@ -45,9 +46,9 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Properties**: Use `UPROPERTY` with scoped categories (e.g., `Ship|Navigation`, `Aim|Speed`).
 - **Debug**: Wrap debug drawing in `#if !UE_BUILD_SHIPPING` and gate with toggles.
 - **Lighting**: The sun directional light should aim from the sun toward the current player pawn.
-- **External modules**: LOS uses a single forward sphere sweep (EffectiveRange * 1.05) with lead prediction and projectile radius (base 16 cm); readiness also accepts direct target alignment (not just predicted AimLoc). Aiming runs only when `TargetActor` is valid; when no target is set, PivotBase/PivotGun reset to local rotation (0,0,0) and ReadyToShoot remains false. Shooting supports single/auto/semi-auto modes; semi-auto uses FireRate-derived burst intervals with safe muzzle spawn checks, per-shot damage override, and ShootDelay spacing between single shots/bursts.
-- **NavStaticBig**: Asteroid field scaffolding now includes spline/plane radius components, generation config, and HISM storage.
-- **NavStaticBig**: Circular spline helper defaults to plane radius * 1.5 unless an override is provided.
+- **External modules**: LOS uses a single forward sphere sweep (EffectiveRange * 1.05) with lead prediction and projectile radius (base 16 cm); readiness also accepts direct target alignment (not just predicted AimLoc). Aiming runs only when `TargetActor` is valid; when no target is set, PivotBase/PivotGun reset to local rotation (0,0,0) and ReadyToShoot remains false. Shooting supports single/auto/semi-auto modes; semi-auto uses FireRate-derived burst intervals with safe muzzle spawn checks, per-shot damage override, and ShootDelay spacing between single shots/bursts. Effective range is initialized from owning ship range using `EffectiveRangeMultiplier`, and projectile spawn uses deferred spawn + finish for safer runtime setup.
+- **NavStaticBig**: Asteroid field scaffolding now includes spline/signature sphere components, generation config, and HISM storage.
+- **NavStaticBig**: Circular spline helper defaults to signature sphere radius * 1.5 unless an override is provided.
 - **NavStaticBig**: Asteroid generation is spline-driven, seeded, and uses width/height bounds with scale ranges.
 - **NavStaticBig**: View-based asteroid streaming with near/mid/far HISM tiers, per-tier density/instance budgets, and editor preview caps.
 - **NavStaticBig**: Organic spawn jitter/probability controls plus near-tier hit-to-dynamic-actor conversion.
@@ -55,9 +56,11 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **NavStaticBig**: Incremental chunk-based streaming with hysteresis bands plus stratified random sampling (double-buffer fallback) to avoid visible blinking during movement. Chunk rebuilds only trigger when a chunk changes band or when streaming config changes. Streaming adds deterministic along-spline jitter, frame roll, distance/radial noise, micro-clusters, and per-candidate dropout (low-frequency modulation) for less grid-like placement; dropout also scales per-tier budgets for visible thinning. Per-chunk instance budgets prevent late spline sections from starving.
 - **NavStaticBig**: Blueprint helper can replace a HISM instance with a spawned actor using the same transform/mesh for manual swaps.
 - **NavStaticBig**: Near-field asteroid swap can replace near HISM instances with actors on a timer, using enter/exit hysteresis radii for stable collision/avoidance behavior; actors that wake physics remain actors (no HISM restore) and sleeping swaps feed runtime navigation anchors.
-- **GameInstance tracked actors**: `AllPlanets` is typed as `TArray<ANavStaticBig>`, and `AllShips` is typed as `TArray<AShip>` (stored as `TObjectPtr` arrays in C++).
+- **Level actor tracking ownership**: `ULevelActorsSubsystem` owns tracked `Stations`/`Planets`/`Ships` lists, refreshes them on a timer, and exposes all/faction-filtered queries.
+- **Marker types**: `EMarkerType` includes `Station` and `Debris` in addition to existing actor categories.
 - **Navigation ownership**: static/runtime obstacle caches and global anchor pathfinding are owned by `UNavigationSubsystem`; `UVagabondsGameInstance` keeps tracked actor lists/filtering, and `AVagabondsWorkGameMode` stays minimal (default pawn setup).
 - **Faction relations ownership**: `UFactionsSubsystem` owns `EFaction` and a fixed 6x6 flat `int8` relation matrix. Use `GetRelation`, `SetRelation`, and `ResetDefaults` for access/mutation.
+- **Faction relations ownership**: `UFactionsSubsystem` also provides `UpdateRelations(EFaction A, EFaction B, float Modifier)` for delta-based symmetric updates.
 - **Faction relation defaults**: all self-relations are `0`; `VoidRaiders` are mutual enemies (`-50`) with every other faction; all other inter-faction relations are `0`.
 - **LevelBoundaries**: Runtime atmosphere system is timer-driven and BP-configurable; spawns fog/stardust actors at BeginPlay and periodically thereafter with prediction, non-overlap-by-class, distance-based despawn (2x radius), and a hard cap on active instances.
 

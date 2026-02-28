@@ -11,6 +11,8 @@ enum class EMarkerType : uint8
 	Ship UMETA(DisplayName = "Ship"),
 	Star UMETA(DisplayName = "Star"),
 	Planet UMETA(DisplayName = "Planet"),
+	Station UMETA(DisplayName = "Station"),
+	Debris UMETA(DisplayName = "Debris"),
 	Component UMETA(DisplayName = "Component")
 };
 

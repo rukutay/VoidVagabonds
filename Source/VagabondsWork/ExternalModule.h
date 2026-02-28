@@ -83,6 +83,9 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|Orbit", meta=(ClampMin="0"))
     float EffectiveRange = 6000.0f; // cm
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|Orbit", meta=(ClampMin="0", ToolTip="Multiplier applied to owner ship EffectiveRange at BeginPlay."))
+    float EffectiveRangeMultiplier = 1.0f;
+
 	// Base yaw limit (0..360 sweep around initial yaw)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|Limits",
 	  meta=(ToolTip="Limit base yaw sweep around initial yaw (0=locked, 360=unlimited)"))
@@ -142,6 +145,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot",
 	  meta=(ClampMin="0.1", ToolTip="Shots per second"))
 	float FireRate = 6.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot",
+	  meta=(ClampMin="0.0", ToolTip="Instance-editable default projectile damage for this module"))
+	float Damage = 25.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot",
 	  meta=(ClampMin="1", ToolTip="Semi-auto burst shot count"))

@@ -80,6 +80,9 @@ public:
     UFUNCTION(BlueprintCallable, Category="Navigation|Movement", meta=(ToolTip="Move to target actor until within effective range."))
     void MoveToTarget(AActor* TargetActor);
 
+    UFUNCTION(BlueprintCallable, Category="Navigation|Fight", meta=(ToolTip="Enter fight mode and assign target to controlled ship and external modules."))
+    void Fight(AActor* TargetActor);
+
     UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Get current patrol route head target."))
     ANavStaticBig* GetCurrentPatrolPoint() const;
 
@@ -148,9 +151,18 @@ public:
 private:
     void HandleStuckCheck();
     void HandleSafetyMarginCheck();
+    void SetExternalModulesTarget(AActor* TargetActor);
+    void ClearFightTargetState();
+
+    UFUNCTION()
+    void HandleFightTargetDestroyed(AActor* DestroyedActor);
+
     bool UpdateInsideSafetyMargin(USphereComponent* ShipRadius);
     void ResumePatrolAfterDelay();
     void PruneInvalidPatrolHead();
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Currently tracked fight target."))
+    TWeakObjectPtr<AActor> CurrentFightTarget;
 
     UPROPERTY(EditDefaultsOnly, Category = "Unstuck|Config", meta=(ToolTip="Interval (seconds) between stuck checks."))
     float StuckCheckInterval = 0.15f;

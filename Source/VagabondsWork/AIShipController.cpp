@@ -1,6 +1,7 @@
 #include "AIShipController.h"
 #include "Ship.h"
 #include "NavStaticBig.h"
+#include "ExternalModule.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/Pawn.h"
 #include "Engine/World.h"
@@ -35,6 +36,12 @@ void AAIShipController::BeginPlay()
 
 void AAIShipController::ResetAction()
 {
+    if (AActor* PreviousFightTarget = CurrentFightTarget.Get())
+    {
+        PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
+    }
+    CurrentFightTarget.Reset();
+
     ActionMode = EActionMode::Idle;
     StopPatrol(false);
 }
@@ -85,15 +92,15 @@ void AAIShipController::StartPatrol(const TArray<ANavStaticBig*>& NavStaticActor
 
     for (ANavStaticBig* RouteActor : PatrolRoute)
     {
-        if (!IsValid(RouteActor) || !RouteActor->PlaneRadius)
+        if (!IsValid(RouteActor) || !RouteActor->SignatureSphere)
         {
             continue;
         }
 
- /*        RouteActor->PlaneRadius->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-        RouteActor->PlaneRadius->SetGenerateOverlapEvents(true);
-        RouteActor->PlaneRadius->SetCollisionResponseToAllChannels(ECR_Ignore);
-        RouteActor->PlaneRadius->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap); */
+ /*        RouteActor->SignatureSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+        RouteActor->SignatureSphere->SetGenerateOverlapEvents(true);
+        RouteActor->SignatureSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
+        RouteActor->SignatureSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap); */
     }
 
     bPatrolActive = true;
@@ -109,6 +116,12 @@ void AAIShipController::StartPatrol(const TArray<ANavStaticBig*>& NavStaticActor
 
 void AAIShipController::StartFollowing(AShip* TargetShip)
 {
+    if (AActor* PreviousFightTarget = CurrentFightTarget.Get())
+    {
+        PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
+    }
+    CurrentFightTarget.Reset();
+
     ActionMode = EActionMode::Following;
     StopPatrol(false);
 
@@ -121,6 +134,12 @@ void AAIShipController::StartFollowing(AShip* TargetShip)
 
 void AAIShipController::MoveToTarget(AActor* TargetActor)
 {
+    if (AActor* PreviousFightTarget = CurrentFightTarget.Get())
+    {
+        PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
+    }
+    CurrentFightTarget.Reset();
+
     ActionMode = EActionMode::Moving;
     StopPatrol(false);
 
@@ -128,6 +147,81 @@ void AAIShipController::MoveToTarget(AActor* TargetActor)
     {
         Ship->bOrbitTarget = false;
         Ship->TargetActor = TargetActor;
+    }
+}
+
+void AAIShipController::SetExternalModulesTarget(AActor* TargetActor)
+{
+    AShip* Ship = Cast<AShip>(GetPawn());
+    if (!Ship)
+    {
+        return;
+    }
+
+    TArray<AActor*> ChildActors;
+    Ship->GetAllChildActors(ChildActors, true);
+    for (AActor* ChildActor : ChildActors)
+    {
+        if (AExternalModule* ExternalModule = Cast<AExternalModule>(ChildActor))
+        {
+            ExternalModule->SetTargetActor(TargetActor);
+        }
+    }
+}
+
+void AAIShipController::ClearFightTargetState()
+{
+    if (AActor* PreviousFightTarget = CurrentFightTarget.Get())
+    {
+        PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
+    }
+    CurrentFightTarget.Reset();
+
+    if (AShip* Ship = Cast<AShip>(GetPawn()))
+    {
+        Ship->TargetActor = nullptr;
+    }
+
+    SetExternalModulesTarget(nullptr);
+    ActionMode = EActionMode::Idle;
+}
+
+void AAIShipController::HandleFightTargetDestroyed(AActor* DestroyedActor)
+{
+    if (DestroyedActor != CurrentFightTarget.Get())
+    {
+        return;
+    }
+
+    ClearFightTargetState();
+}
+
+void AAIShipController::Fight(AActor* TargetActor)
+{
+    ActionMode = EActionMode::Fight;
+    StopPatrol(false);
+
+    if (AActor* PreviousFightTarget = CurrentFightTarget.Get())
+    {
+        PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
+    }
+    CurrentFightTarget = TargetActor;
+
+    if (AShip* Ship = Cast<AShip>(GetPawn()))
+    {
+        Ship->bOrbitTarget = false;
+        Ship->TargetActor = TargetActor;
+    }
+
+    SetExternalModulesTarget(TargetActor);
+
+    if (IsValid(TargetActor))
+    {
+        TargetActor->OnDestroyed.AddDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
+    }
+    else
+    {
+        ClearFightTargetState();
     }
 }
 

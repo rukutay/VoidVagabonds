@@ -32,6 +32,9 @@ public:
 	void SetRelation(EFaction A, EFaction B, int32 Value, bool bSymmetric = true);
 
 	UFUNCTION(BlueprintCallable, Category = "Faction|Relations")
+	void UpdateRelations(EFaction A, EFaction B, float Modifier);
+
+	UFUNCTION(BlueprintCallable, Category = "Faction|Relations")
 	void ResetDefaults();
 
 	static FORCEINLINE int32 ToIndex(EFaction F)

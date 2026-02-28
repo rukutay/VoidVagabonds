@@ -10,7 +10,8 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Primary systems (ownership map):
   - `UFactionsSubsystem` → faction enum ownership + fixed 6x6 relation matrix (`int8`, flat cache-friendly storage).
 	- `UNavigationSubsystem` → static/runtime obstacle cache, global path anchor planning.
-	- `UVagabondsGameInstance` → tracked actor lists + actor filtering utilities.
+	- `ULevelActorsSubsystem` → tracked stations/planets/ships lists with periodic refresh + faction-filtered queries.
+	- `UVagabondsGameInstance` → actor filtering utilities and subsystem bootstrap.
   - `AVagabondsWorkGameMode` → default pawn setup only.
   - `UShipNavComponent` → global replanning + avoidance + stuck recovery.
   - `AShip` → physics thrust/steering.
@@ -20,13 +21,14 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 
 ## Features (verified)
 - Timer-driven navigation/avoidance with cached static obstacles (no per-tick heavy pathfinding).
-- Faction relations in `UFactionsSubsystem`: allocation-free flat matrix with Blueprint `GetRelation` / `SetRelation` / `ResetDefaults` API.
+- Faction relations in `UFactionsSubsystem`: allocation-free flat matrix with Blueprint `GetRelation` / `SetRelation` / `UpdateRelations` / `ResetDefaults` API.
 - Forced replans + unstuck recovery for stuck/static-blocked states; temp avoidance targets are honored.
 - Safety/local avoidance hardening: self/invalid overlap filtering, `PhysicsBody` handling, and robust closest-approach prediction.
 - `ShipNavComponent` ignores the current intent target actor during avoidance checks (prevents false blocking).
 
 - AI controller action state enum: `Idle`, `Moving`, `Following`, `Patroling`, `Fight`.
 - AI action helpers in `AAIShipController`: `StartFollowing(AShip*)`, `MoveToTarget(AActor*)`, `ResetAction()`.
+- AI fight mode (`AAIShipController::Fight`) now pushes target assignment to both the controlled ship and all attached `AExternalModule` children, and clears state automatically when target actor is destroyed.
 - Following mode behavior: disables orbit, follows assigned ship target, and matches target speed when within `EffectiveRange`.
 - Move-to-target behavior: enters `Moving`, disables orbit, moves toward target actor, then auto-resets to idle on arrival (`<= EffectiveRange`).
 - AI movement gate via `bMovementAllowed` and nearest-neighbor patrol route generation from `NavStaticBig` candidates.
@@ -38,7 +40,10 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - UMG map widget (`UMapWidget`) with player + `NavStaticBig` markers scaled by `LevelBoundaries`.
 
 - External module system: timer-driven aiming (tick disabled), LOS forward sphere sweep with lead prediction, and single/auto/semi-auto firing modes.
+- External modules derive effective range from owning ship range (`EffectiveRangeMultiplier`) and use deferred projectile spawn/finalization for safer per-shot parameter setup.
 - `NavStaticBig` asteroid pipeline: spline generation, near/mid/far HISM streaming, organic jitter/noise/dropout, and near-field actor swap for collision/avoidance.
+
+- Marker taxonomy expanded with `Station` and `Debris` marker kinds.
 - Runtime atmosphere spawning via `ALevelBoundaries` with predictive placement and active-instance cap.
 - Sun directional light tracks current view target/player direction.
 - Ship presets (movement + TorquePD) and matching vitality presets (hull/shield/recharge/armor).

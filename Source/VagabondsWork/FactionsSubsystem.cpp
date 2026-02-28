@@ -31,6 +31,13 @@ void UFactionsSubsystem::SetRelation(EFaction A, EFaction B, int32 Value, bool b
 	}
 }
 
+void UFactionsSubsystem::UpdateRelations(EFaction A, EFaction B, float Modifier)
+{
+	const int32 CurrentValue = GetRelation(A, B);
+	const int32 Delta = FMath::RoundToInt(Modifier);
+	SetRelation(A, B, CurrentValue + Delta, true);
+}
+
 void UFactionsSubsystem::ResetDefaults()
 {
 	for (int32 Index = 0; Index < (FactionCount * FactionCount); ++Index)

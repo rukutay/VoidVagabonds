@@ -11,6 +11,7 @@
 #include "CollisionQueryParams.h"
 #include "CollisionShape.h"
 #include "Projectile.h"
+#include "Ship.h"
 #include "GameFramework/Actor.h"
 #include "MarkerComponent.h"
 
@@ -139,6 +140,17 @@ AExternalModule::AExternalModule()
 void AExternalModule::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimerForNextTick([this]()
+		{
+			if (const AShip* OwnerShip = Cast<AShip>(GetOwner()))
+			{
+				EffectiveRange = FMath::Max(0.0f, OwnerShip->EffectiveRange * FMath::Max(0.0f, EffectiveRangeMultiplier));
+			}
+		});
+	}
 	
 	// Cache initial angles
 	InitialBaseYawWorld = FRotator::NormalizeAxis(PivotBase ? PivotBase->GetComponentRotation().Yaw : 0.f);
@@ -336,8 +348,8 @@ bool AExternalModule::TrySpawnProjectile(TSubclassOf<AProjectile> ProjectileClas
 	SpawnParams.Owner = GetOwner();
 	SpawnParams.Instigator = GetInstigator();
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-	AProjectile* Projectile = GetWorld()->SpawnActor<AProjectile>(ProjectileClass, SpawnLoc, MuzzleRot.Rotator(), SpawnParams);
+	const FTransform SpawnTransform(MuzzleRot, SpawnLoc);
+	AProjectile* Projectile = GetWorld()->SpawnActorDeferred<AProjectile>(ProjectileClass, SpawnTransform, SpawnParams.Owner, SpawnParams.Instigator, SpawnParams.SpawnCollisionHandlingOverride);
 	if (!Projectile) return false;
 
 	Projectile->SetOwner(GetOwner());
@@ -347,6 +359,7 @@ bool AExternalModule::TrySpawnProjectile(TSubclassOf<AProjectile> ProjectileClas
 		Projectile->Movement->MaxSpeed = ProjectileSpeed;
 	}
 	Projectile->DamageAmount = DamageAmount;
+	Projectile->FinishSpawning(SpawnTransform);
 	if (LifeSpan > 0.0f)
 	{
 		Projectile->SetLifeSpan(LifeSpan);
@@ -589,6 +602,8 @@ void AExternalModule::AimStep(float Dt)
 void AExternalModule::Shoot(TSubclassOf<AProjectile> ProjectileClass, float ProjectileSpeed, float LifeSpan, float DamageAmount, float Delay)
 {
 	if (!ProjectileClass || !GetWorld()) return;
+	ProjectileInitialSpeed = FMath::Max(ProjectileSpeed, 1.0f);
+	ReadyToShoot = HasLineOfSightToTarget();
 	if (bUseReadyToShootCheck && !ReadyToShoot) return;
 
 	const float Now = GetWorld()->GetTimeSeconds();
@@ -619,5 +634,5 @@ void AExternalModule::Shoot(TSubclassOf<AProjectile> ProjectileClass, float Proj
 	}
 
 	NextAllowedShotTime = Now + Interval;
-	TrySpawnProjectile(ProjectileClass, ProjectileSpeed, LifeSpan, DamageAmount);
+	TrySpawnProjectile(ProjectileClass, ProjectileInitialSpeed, LifeSpan, DamageAmount);
 }

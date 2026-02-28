@@ -7,12 +7,15 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 ## [Unreleased]
 ### Added
 - `UFactionsSubsystem` with cache-friendly fixed faction relations matrix (`6x6`, flat `int8` storage, allocation-free).
-- Faction relation API in `UFactionsSubsystem`: `GetRelation`, `SetRelation`, `ResetDefaults`.
+- Faction relation API in `UFactionsSubsystem`: `GetRelation`, `SetRelation`, `UpdateRelations`, `ResetDefaults`.
 - `AAIShipController::EActionMode` enum (`Idle`, `Moving`, `Following`, `Patroling`, `Fight`).
 - `AAIShipController` action helpers:
   - `StartFollowing(AShip* TargetShip)`
   - `MoveToTarget(AActor* TargetActor)`
+  - `Fight(AActor* TargetActor)`
   - `ResetAction()`
+- `ULevelActorsSubsystem` for timer-driven tracking of stations/planets/ships plus faction-filtered query helpers.
+- `EMarkerType` entries for `Station` and `Debris`.
 - AI movement gating via `bMovementAllowed` (BP-editable) and nearest-neighbor patrol route creation from `NavStaticBig` candidates.
 - Player spectator workflow: possession swap, `LookAtActor` helper, smooth camera handoff, and Enhanced Input setup.
 - UMG top-down map widget (`UMapWidget`) with player + `NavStaticBig` markers using `LevelBoundaries` radius.
@@ -22,9 +25,11 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Player manual ship controls + shared yaw-bank tuning (`YawBankScale`) and movement/vitality presets.
 
 ### Improved
+- `AAIShipController::Fight` now propagates the combat target to attached external modules and auto-clears fight state when target actors are destroyed.
 - Faction defaults now initialize in subsystem startup: `VoidRaiders` are mutual enemies (`-50`) with all other factions; all other mutual relations remain neutral (`0`), self-relations are `0`.
 - Navigation system ownership moved from `AVagabondsWorkGameMode` to `UVagabondsGameInstance` (static/runtime obstacle caches, global anchor pathfinding, and tracked actor lists), with dependent systems updated to use the game instance APIs.
 - Navigation system ownership moved from `UVagabondsGameInstance` to `UNavigationSubsystem` (static/runtime obstacle caches and global anchor pathfinding); dependent systems now use subsystem access, while `UVagabondsGameInstance` remains focused on tracked actor lists/filtering.
+- Actor tracking ownership moved from `UVagabondsGameInstance` to `ULevelActorsSubsystem` (periodic world scans + typed actor/faction queries).
 - Following behavior: entering follow disables orbit mode, sets ship target, and matches target speed when within `EffectiveRange`.
 - Move behavior: entering move disables orbit mode and auto-resets to idle (and clears target) when within `EffectiveRange`.
 - Patrol completion/delay flow: final point now exits patrol cleanly, and delay pauses clear `TargetActor` so ships stop until resume.
@@ -34,7 +39,9 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Safety margin and local avoidance hardening: ignores invalid/self hits, includes `PhysicsBody` obstacles, and improves predicted closest-approach handling.
 - `ShipNavComponent` avoidance now ignores the current intent target actor during avoidance checks (prevents target from being treated as a blocker).
 - `NavStaticBig` streaming stability improved with chunk hysteresis, per-chunk budgets, dirty-chunk rebuilds, and more organic spatial jitter/noise.
+- `NavStaticBig` asteroid field signature component naming is standardized from `PlaneRadius` to `SignatureSphere`.
 - Sun and spectator camera behavior refined (sun tracks active view target; spectator return/look-at handoff is smoother).
+- External modules now initialize effective range from owning ship values and use deferred projectile spawning for safer projectile setup.
 
 ### Removed
 - Roll aim functionality (removed to keep ship behavior stable).

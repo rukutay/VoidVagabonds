@@ -39,8 +39,8 @@ ANavStaticBig::ANavStaticBig()
 	MarkerComponent = CreateDefaultSubobject<UMarkerComponent>(TEXT("MarkerComponent"));
 	MarkerComponent->MarkerType = EMarkerType::Planet;
 
-	PlaneRadius = CreateDefaultSubobject<USphereComponent>(TEXT("PlaneRadius"));
-	PlaneRadius->SetupAttachment(BodyMesh);
+	SignatureSphere = CreateDefaultSubobject<USphereComponent>(TEXT("SignatureSphere"));
+	SignatureSphere->SetupAttachment(BodyMesh);
 
 	FieldSpline = CreateDefaultSubobject<USplineComponent>(TEXT("FieldSpline"));
 	FieldSpline->SetupAttachment(BodyMesh);
@@ -49,7 +49,7 @@ ANavStaticBig::ANavStaticBig()
 	AsteroidHISM->SetupAttachment(BodyMesh);
 	AsteroidHISM->bAutoRebuildTreeOnInstanceChanges = false;
 
-	PlaneRadius->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SignatureSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	AsteroidHISM->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	AsteroidHISM->SetNotifyRigidBodyCollision(true);
 
@@ -105,9 +105,9 @@ void ANavStaticBig::BuildCircularSpline(float Radius, int32 NumPoints)
 		{
 			EffectiveRadius = SplineRadiusOverride;
 		}
-		else if (PlaneRadius)
+		else if (SignatureSphere)
 		{
-			EffectiveRadius = PlaneRadius->GetScaledSphereRadius() * 1.5f;
+			EffectiveRadius = SignatureSphere->GetScaledSphereRadius() * 1.5f;
 		}
 	}
 
