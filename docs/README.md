@@ -16,40 +16,25 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
   - `ANavStaticBig`, `ASun` → large body visuals/lighting helpers.
 
 ## Features (verified)
-- Timer-driven navigation and avoidance (no per-tick heavy pathfinding).
-- Navigation forces replans on stuck/static-blocked states and honors temp avoidance targets to prevent stalls.
-- Unstuck recovery reacquires blocking obstacles, enforces minimum penetration scaling for force, and aligns steering to escape targets.
-- Safety margin avoidance filters self overlaps/invalid obstacles, avoids tangent escape when no target actor is set, suppresses safety checks after forced Nav fallback, and guards against invalid escape targets with debug reasons.
-- AI ships in default roll-align mode now apply shared yaw-bank (`YawBankScale`) and keep forward-only passive roll leveling to maintain horizontal stability.
-- AI ship controller now exposes `bMovementAllowed` (Blueprint-editable, default true); ship AI movement/rotation is applied only while this flag is true.
-- AI ship controller now provides patrol route building from a provided random `NavStaticBig` actor list and returns/stores an ordered `NavStaticBig` actor route (index 0 is first), using nearest-neighbor ordering from current ship location.
-- AI ship controller defines `AAIShipController::EActionMode` with modes: `Idle`, `Moving`, `Following`, `Patroling`, `Fight`.
-- Patrol progression consumes route index 0 on overlap, waits configured delay, and automatically finishes patrol state at the last point (`ActionMode` returns to `Idle`, patrol active state clears).
-- During patrol point delay pause, ship `TargetActor` is cleared (`nullptr`) so movement stops until patrol resumes to the next point.
-- Toggleable debug logs for unstuck checks, steering source/heading, and nav target/avoidance decisions.
-- Dynamic ship avoidance uses repulsion on predicted closest approach with relative-speed prediction for high-speed head-on safety.
-- Dynamic/awakened asteroid actors (WorldDynamic) are included in neighbor avoidance queries.
-- Local avoidance now considers blocking PhysicsBody components (bounds-derived radius) in addition to ships and dynamic actors.
-- Physics-driven thrust + yaw/pitch rotation for ship steering.
-- Static obstacle caching handled by the game mode; nav component requests replans.
-- GameMode tracked actor arrays are now strongly typed: `AllPlanets` = `ANavStaticBig` actors, `AllShips` = `AShip` actors.
-- Timer-driven external module aiming (tick disabled); when no target is set, module pivots reset to local rotation (0,0,0) and aiming stops until a target is provided.
-- External module LOS uses a single forward sphere sweep with lead prediction and projectile radius; readiness now also accepts direct target alignment (not just predicted AimLoc).
-- External module firing supports single/auto/semi-auto modes with safe muzzle spawn and burst timing derived from FireRate, with per-shot damage override and ShootDelay spacing.
-- NavStaticBig supports asteroid field configuration scaffolding (spline, plane radius, HISM, generation params).
-- NavStaticBig can build circular splines from plane radius scaling or an explicit override.
-- NavStaticBig can generate asteroid instances along the spline using seeded offsets and scale ranges.
-- NavStaticBig supports view-based asteroid streaming with near/mid/far HISM tiers, stratified random sampling, jittered spawn probabilities, instance budgets, editor preview caps, and incremental chunk streaming with hysteresis (double-buffer fallback) to avoid blinking (impostor-friendly). Chunk rebuilds only trigger when a chunk changes band and now use deterministic along-spline jitter, frame roll, distance/radial noise, micro-clusters, and per-candidate dropout (scaled budgets) to reduce grid alignment.
-- NavStaticBig can convert hit near-tier HISM instances into dynamic physics actors on impact.
-- NavStaticBig exposes a Blueprint helper to replace an HISM instance with a spawned actor using the same transform and mesh.
-- NavStaticBig can swap near-field HISM instances into real actors on a timer with enter/exit hysteresis for collision-ready local avoidance; actors that wake physics remain actors (no HISM restore) and sleeping swaps contribute navigation anchors for avoidance.
-- NavStaticBig boundary spawns bias to a sun-aligned plane with a subtle 3–7 degree tilt for cohesive asteroid belts.
-- LevelBoundaries can now spawn and stream runtime atmosphere actors (fog/stardust) with predictive placement, overlap-safe class checks, timed cadence, and a hard cap on active instances (Blueprint-configurable).
-- Player ship manual control (analog throttle, WASD pitch/yaw, Q/E roll) with AI handoff on unpossess, optional roll-align toggle, and a shared `YawBankScale` setting (player + AI) to tune yaw-driven banking when roll-align is disabled.
-- Ship movement presets (Fighter/Interceptor/Gunship/Cruiser/Carrier) that apply movement + TorquePD rotation tuning on BeginPlay, with Blueprint-tunable overrides.
-- Ship presets now also drive vitality tuning (hull/shield/recharge/armor) and reset spawn hull/shield to max on preset apply.
-- Sun directional light aims from the sun toward the current player pawn (auto-updating target).
-- UMG top-down map widget (UMapWidget) driven by LevelBoundaries radius; shows player ship (white) and NavStaticBig actors (purple).
+- Timer-driven navigation/avoidance with cached static obstacles (no per-tick heavy pathfinding).
+- Forced replans + unstuck recovery for stuck/static-blocked states; temp avoidance targets are honored.
+- Safety/local avoidance hardening: self/invalid overlap filtering, `PhysicsBody` handling, and robust closest-approach prediction.
+- `ShipNavComponent` ignores the current intent target actor during avoidance checks (prevents false blocking).
+
+- AI controller action state enum: `Idle`, `Moving`, `Following`, `Patroling`, `Fight`.
+- AI movement gate via `bMovementAllowed` and nearest-neighbor patrol route generation from `NavStaticBig` candidates.
+- Patrol flow cleanup: pause clears `TargetActor`; final point exits patrol back to idle.
+- Shared yaw-bank tuning (`YawBankScale`) for AI + player; AI default keeps forward-only passive roll leveling.
+
+- Player manual ship controls (analog throttle + pitch/yaw/roll) with AI handoff on unpossess.
+- Spectator flow with Enhanced Input, smooth look, possession swap, and `LookAtActor` helper.
+- UMG map widget (`UMapWidget`) with player + `NavStaticBig` markers scaled by `LevelBoundaries`.
+
+- External module system: timer-driven aiming (tick disabled), LOS forward sphere sweep with lead prediction, and single/auto/semi-auto firing modes.
+- `NavStaticBig` asteroid pipeline: spline generation, near/mid/far HISM streaming, organic jitter/noise/dropout, and near-field actor swap for collision/avoidance.
+- Runtime atmosphere spawning via `ALevelBoundaries` with predictive placement and active-instance cap.
+- Sun directional light tracks current view target/player direction.
+- Ship presets (movement + TorquePD) and matching vitality presets (hull/shield/recharge/armor).
 
 > TODO: Add any additional gameplay feature claims only after verifying them in code/docs with explicit evidence.
 
