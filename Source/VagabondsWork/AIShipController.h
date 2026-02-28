@@ -80,6 +80,12 @@ public:
     UFUNCTION(BlueprintCallable, Category="Navigation|Movement", meta=(ToolTip="Move to target actor until within effective range."))
     void MoveToTarget(AActor* TargetActor);
 
+    UFUNCTION(BlueprintCallable, Category="Navigation|Movement", meta=(ToolTip="Move to target actor and finish on overlap or half effective range."))
+    void GoToActor(AActor* TargetActor);
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Movement", meta=(ToolTip="True while GoToActor arrival conditions are being tracked."))
+    bool IsGoToActorActive() const { return bGoToActorActive; }
+
     UFUNCTION(BlueprintCallable, Category="Navigation|Fight", meta=(ToolTip="Enter fight mode and assign target to controlled ship and external modules."))
     void Fight(AActor* TargetActor);
 
@@ -163,6 +169,12 @@ private:
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Currently tracked fight target."))
     TWeakObjectPtr<AActor> CurrentFightTarget;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Movement", meta=(ToolTip="Currently tracked GoToActor target."))
+    TWeakObjectPtr<AActor> CurrentGoToActorTarget;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Movement", meta=(ToolTip="True while GoToActor arrival conditions are active."))
+    bool bGoToActorActive = false;
 
     UPROPERTY(EditDefaultsOnly, Category = "Unstuck|Config", meta=(ToolTip="Interval (seconds) between stuck checks."))
     float StuckCheckInterval = 0.15f;

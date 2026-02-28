@@ -41,6 +41,8 @@ void AAIShipController::ResetAction()
         PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
     }
     CurrentFightTarget.Reset();
+    CurrentGoToActorTarget.Reset();
+    bGoToActorActive = false;
 
     ActionMode = EActionMode::Idle;
     StopPatrol(false);
@@ -68,6 +70,9 @@ void AAIShipController::PruneInvalidPatrolHead()
 
 void AAIShipController::StartPatrol(const TArray<ANavStaticBig*>& NavStaticActors, float InPointDelaySeconds)
 {
+    CurrentGoToActorTarget.Reset();
+    bGoToActorActive = false;
+
     StopPatrol(true);
 
     PatrolPointDelaySeconds = FMath::Max(0.0f, InPointDelaySeconds);
@@ -121,6 +126,8 @@ void AAIShipController::StartFollowing(AShip* TargetShip)
         PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
     }
     CurrentFightTarget.Reset();
+    CurrentGoToActorTarget.Reset();
+    bGoToActorActive = false;
 
     ActionMode = EActionMode::Following;
     StopPatrol(false);
@@ -139,9 +146,32 @@ void AAIShipController::MoveToTarget(AActor* TargetActor)
         PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
     }
     CurrentFightTarget.Reset();
+    CurrentGoToActorTarget.Reset();
+    bGoToActorActive = false;
 
     ActionMode = EActionMode::Moving;
     StopPatrol(false);
+
+    if (AShip* Ship = Cast<AShip>(GetPawn()))
+    {
+        Ship->bOrbitTarget = false;
+        Ship->TargetActor = TargetActor;
+    }
+}
+
+void AAIShipController::GoToActor(AActor* TargetActor)
+{
+    if (AActor* PreviousFightTarget = CurrentFightTarget.Get())
+    {
+        PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
+    }
+    CurrentFightTarget.Reset();
+
+    ActionMode = EActionMode::Moving;
+    StopPatrol(false);
+
+    CurrentGoToActorTarget = TargetActor;
+    bGoToActorActive = IsValid(TargetActor);
 
     if (AShip* Ship = Cast<AShip>(GetPawn()))
     {
@@ -198,6 +228,9 @@ void AAIShipController::HandleFightTargetDestroyed(AActor* DestroyedActor)
 
 void AAIShipController::Fight(AActor* TargetActor)
 {
+    CurrentGoToActorTarget.Reset();
+    bGoToActorActive = false;
+
     ActionMode = EActionMode::Fight;
     StopPatrol(false);
 

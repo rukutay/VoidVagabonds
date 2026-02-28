@@ -48,7 +48,7 @@ public:
 
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Navigation")
-	float NavSafetyMarginCm = 200.0f;
+	float NavSafetyMarginCm = 15000.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Navigation")
 	float NavAnchorShellMultiplier = 1.25f;

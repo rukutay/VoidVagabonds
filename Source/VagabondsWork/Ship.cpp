@@ -579,7 +579,10 @@ void AShip::Tick(float DeltaTime)
             && EffectiveRange > 0.0f)
         {
             const float DistanceToTarget = FVector::Dist(ActorLocation, TargetActor->GetActorLocation());
-            if (DistanceToTarget <= EffectiveRange)
+            const float ArrivalRange = ShipController->IsGoToActorActive()
+                ? (EffectiveRange * 0.5f)
+                : EffectiveRange;
+            if (DistanceToTarget <= ArrivalRange)
             {
                 ShipController->ResetAction();
             }
@@ -934,6 +937,16 @@ void AShip::HandlePatrolPointBeginOverlap(
 #endif
     if (!OtherComp || OtherActor == this)
     {
+        return;
+    }
+
+    if (EnsureShipController()
+        && ShipController->GetActionMode() == EActionMode::Moving
+        && ShipController->IsGoToActorActive()
+        && OtherActor == TargetActor
+        && OverlappedComponent == ShipBase)
+    {
+        ShipController->ResetAction();
         return;
     }
 
