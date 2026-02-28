@@ -26,6 +26,12 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **AI movement gating**: `AAIShipController::bMovementAllowed` (Blueprint-editable, default true) gates AI ship movement/rotation; when false, ship AI steering/rotation is not applied.
 - **AI patrol routing**: `AAIShipController::CreatePatrolRoute(const TArray<ANavStaticBig*>&)` builds a patrol route from a provided actor list, chooses a random subset size `[2..N]`, orders route by nearest-neighbor from current ship location, and returns/stores ordered `ANavStaticBig` actors.
 - **AI action mode enum**: `AAIShipController` includes `EActionMode` values `Idle`, `Moving`, `Following`, `Patroling`, and `Fight` for controller-level action state selection.
+- **AI action helpers**:
+  - `StartFollowing(AShip* TargetShip)`: sets mode to `Following`, stops patrol state, disables orbit (`bOrbitTarget=false`), assigns `TargetActor`.
+  - `MoveToTarget(AActor* TargetActor)`: sets mode to `Moving`, stops patrol state, disables orbit, assigns `TargetActor`.
+  - `ResetAction()`: resets mode to `Idle` and clears active patrol state.
+- **Following speed matching**: while in `Following`, when target distance is within `EffectiveRange`, steering uses throttle override to maintain target speed.
+- **Move arrival behavior**: while in `Moving`, when distance to target is within `EffectiveRange`, `ResetAction()` is called (returns to idle and clears ship target actor).
 - **AI patrol progression**: Patrol overlap consumes route index 0, enters delay pause, then resumes to next index 0; at the last point, route exhaustion auto-calls `StopPatrol(false)` and returns mode/state to idle/inactive.
 - **AI patrol delay stop**: On entering patrol delay after reaching a point, `AShip::TargetActor` is set to `nullptr` so the ship stops movement until delay completes.
 - **Debugging**: Toggleable logs exist for unstuck checks, steering source/heading, and nav target/avoidance decisions.

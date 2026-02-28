@@ -573,6 +573,17 @@ void AShip::Tick(float DeltaTime)
 
         const FVector ActorLocation = GetActorLocation();
         const float DistanceToGoal = FVector::Dist(ActorLocation, Goal);
+        if (ShipController
+            && ShipController->GetActionMode() == EActionMode::Moving
+            && TargetActor
+            && EffectiveRange > 0.0f)
+        {
+            const float DistanceToTarget = FVector::Dist(ActorLocation, TargetActor->GetActorLocation());
+            if (DistanceToTarget <= EffectiveRange)
+            {
+                ShipController->ResetAction();
+            }
+        }
         const bool bInSafetyMargin = ShipController && ShipController->IsInsideSafetyMargin();
         const bool bIsUnstuck = ShipController && ShipController->IsUnstucking();
         const bool bSafetyMarginAllowed = SafetyForceNavCooldown <= 0.0f;
@@ -709,9 +720,34 @@ void AShip::Tick(float DeltaTime)
             }
         }
 #endif
+        bool bUseFollowSpeedMatch = false;
+        float FollowThrottleOverride = 0.0f;
+        if (ShipController
+            && ShipController->GetActionMode() == EActionMode::Following
+            && TargetActor
+            && EffectiveRange > 0.0f)
+        {
+            const float DistanceToTarget = FVector::Dist(ActorLocation, TargetActor->GetActorLocation());
+            if (DistanceToTarget <= EffectiveRange)
+            {
+                const float TargetSpeed = TargetActor->GetVelocity().Size();
+                const float OwnSpeed = ShipBase ? ShipBase->GetPhysicsLinearVelocity().Size() : GetVelocity().Size();
+                const float SpeedNorm = FMath::Max(TargetSpeed, 200.0f);
+                FollowThrottleOverride = FMath::Clamp((TargetSpeed - OwnSpeed) / SpeedNorm, -1.0f, 1.0f);
+                bUseFollowSpeedMatch = true;
+            }
+        }
+
         if (bMovementAllowed)
         {
-            ApplySteeringForce(SteeringTarget, DeltaTime);
+            if (bUseFollowSpeedMatch)
+            {
+                ApplySteeringForce(SteeringTarget, DeltaTime, true, FollowThrottleOverride);
+            }
+            else
+            {
+                ApplySteeringForce(SteeringTarget, DeltaTime);
+            }
         }
         else
         {

@@ -33,6 +33,12 @@ void AAIShipController::BeginPlay()
     }
 }
 
+void AAIShipController::ResetAction()
+{
+    ActionMode = EActionMode::Idle;
+    StopPatrol(false);
+}
+
 void AAIShipController::PruneInvalidPatrolHead()
 {
     while (PatrolRoute.Num() > 0 && !IsValid(PatrolRoute[0]))
@@ -98,6 +104,30 @@ void AAIShipController::StartPatrol(const TArray<ANavStaticBig*>& NavStaticActor
     if (AShip* Ship = Cast<AShip>(GetPawn()))
     {
         Ship->TargetActor = CurrentPatrolTarget.Get();
+    }
+}
+
+void AAIShipController::StartFollowing(AShip* TargetShip)
+{
+    ActionMode = EActionMode::Following;
+    StopPatrol(false);
+
+    if (AShip* Ship = Cast<AShip>(GetPawn()))
+    {
+        Ship->bOrbitTarget = false;
+        Ship->TargetActor = TargetShip;
+    }
+}
+
+void AAIShipController::MoveToTarget(AActor* TargetActor)
+{
+    ActionMode = EActionMode::Moving;
+    StopPatrol(false);
+
+    if (AShip* Ship = Cast<AShip>(GetPawn()))
+    {
+        Ship->bOrbitTarget = false;
+        Ship->TargetActor = TargetActor;
     }
 }
 

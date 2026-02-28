@@ -34,6 +34,9 @@ public:
     UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Get current AI action mode."))
     EActionMode GetActionMode() const { return ActionMode; }
 
+    UFUNCTION(BlueprintCallable, Category="Navigation|Action", meta=(ToolTip="Reset current AI action mode to Idle."))
+    void ResetAction();
+
     UFUNCTION(BlueprintCallable, meta=(ToolTip="Get focus location (target actor if set, otherwise pawn location)."))
     FVector GetFocusLocation();
 
@@ -69,6 +72,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Start patrol progression using generated route and per-point delay."))
     void StartPatrol(const TArray<ANavStaticBig*>& NavStaticActors, float InPointDelaySeconds);
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Follow", meta=(ToolTip="Start following a target ship."))
+    void StartFollowing(AShip* TargetShip);
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Movement", meta=(ToolTip="Move to target actor until within effective range."))
+    void MoveToTarget(AActor* TargetActor);
 
     UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Get current patrol route head target."))
     ANavStaticBig* GetCurrentPatrolPoint() const;

@@ -22,6 +22,9 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - `ShipNavComponent` ignores the current intent target actor during avoidance checks (prevents false blocking).
 
 - AI controller action state enum: `Idle`, `Moving`, `Following`, `Patroling`, `Fight`.
+- AI action helpers in `AAIShipController`: `StartFollowing(AShip*)`, `MoveToTarget(AActor*)`, `ResetAction()`.
+- Following mode behavior: disables orbit, follows assigned ship target, and matches target speed when within `EffectiveRange`.
+- Move-to-target behavior: enters `Moving`, disables orbit, moves toward target actor, then auto-resets to idle on arrival (`<= EffectiveRange`).
 - AI movement gate via `bMovementAllowed` and nearest-neighbor patrol route generation from `NavStaticBig` candidates.
 - Patrol flow cleanup: pause clears `TargetActor`; final point exits patrol back to idle.
 - Shared yaw-bank tuning (`YawBankScale`) for AI + player; AI default keeps forward-only passive roll leveling.

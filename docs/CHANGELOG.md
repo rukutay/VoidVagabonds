@@ -7,6 +7,10 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 ## [Unreleased]
 ### Added
 - `AAIShipController::EActionMode` enum (`Idle`, `Moving`, `Following`, `Patroling`, `Fight`).
+- `AAIShipController` action helpers:
+  - `StartFollowing(AShip* TargetShip)`
+  - `MoveToTarget(AActor* TargetActor)`
+  - `ResetAction()`
 - AI movement gating via `bMovementAllowed` (BP-editable) and nearest-neighbor patrol route creation from `NavStaticBig` candidates.
 - Player spectator workflow: possession swap, `LookAtActor` helper, smooth camera handoff, and Enhanced Input setup.
 - UMG top-down map widget (`UMapWidget`) with player + `NavStaticBig` markers using `LevelBoundaries` radius.
@@ -16,6 +20,8 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Player manual ship controls + shared yaw-bank tuning (`YawBankScale`) and movement/vitality presets.
 
 ### Improved
+- Following behavior: entering follow disables orbit mode, sets ship target, and matches target speed when within `EffectiveRange`.
+- Move behavior: entering move disables orbit mode and auto-resets to idle (and clears target) when within `EffectiveRange`.
 - Patrol completion/delay flow: final point now exits patrol cleanly, and delay pauses clear `TargetActor` so ships stop until resume.
 - GameMode actor caches are strongly typed (`AllPlanets` = `NavStaticBig`, `AllShips` = `Ship`).
 - AI roll behavior stabilized: default mode uses shared `YawBankScale` + forward-only passive roll leveling.
