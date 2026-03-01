@@ -10,6 +10,7 @@
 #include "NavStaticBig.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "NiagaraComponent.h"
 
 AShip::AShip()
 {
@@ -78,6 +79,17 @@ FTransform AShip::GetShipCameraTransform() const
 void AShip::BeginPlay()
 {
     Super::BeginPlay();
+
+    ThrusterNiagaraComponents.Reset();
+    TArray<UNiagaraComponent*> NiagaraComponents;
+    GetComponents<UNiagaraComponent>(NiagaraComponents);
+    for (UNiagaraComponent* NiagaraComponent : NiagaraComponents)
+    {
+        if (NiagaraComponent && NiagaraComponent->ComponentHasTag(TEXT("thruster")))
+        {
+            ThrusterNiagaraComponents.Add(NiagaraComponent);
+        }
+    }
 
     if (ShipBase)
     {
@@ -781,7 +793,29 @@ void AShip::Tick(float DeltaTime)
 #endif
 
     // Apply soft separation forces after steering
+    UpdateNiagaraVelocity();
     ApplySoftSeparation(DeltaTime);
+}
+
+void AShip::UpdateNiagaraVelocity()
+{
+    const float ShipMass = ShipBase ? ShipBase->GetMass() : 1.0f;
+    const float CurrentForwardForceApplying = MaxForwardForce * CurrentThrottle * ShipMass;
+    const float VelocityValue = CurrentForwardForceApplying / 7500.f;
+    const float AttractionStrengthValue = CurrentForwardForceApplying * 2;
+
+    for (int32 Index = ThrusterNiagaraComponents.Num() - 1; Index >= 0; --Index)
+    {
+        if (!ThrusterNiagaraComponents[Index].IsValid())
+        {
+            ThrusterNiagaraComponents.RemoveAtSwap(Index);
+            continue;
+        }
+
+        UNiagaraComponent* NiagaraComponent = ThrusterNiagaraComponents[Index].Get();
+        NiagaraComponent->SetVariableFloat(TEXT("Velocity"), VelocityValue);
+        NiagaraComponent->SetVariableFloat(TEXT("AttractionStrenght"), AttractionStrengthValue);
+    }
 }
 
 void AShip::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

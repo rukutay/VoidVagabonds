@@ -105,6 +105,7 @@ class UShipVitalityComponent;
 class USpringArmComponent;
 class UCameraComponent;
 class UMarkerComponent;
+class UNiagaraComponent;
 class AActor;
 
 UCLASS()
@@ -400,6 +401,8 @@ private:
     UFUNCTION()
     void UpdateWithinScaner();
 
+    void UpdateNiagaraVelocity();
+
     bool EnsureShipController();
     void ApplyManualControl(float DeltaTime);
     void ApplyManualShipRotation(const FVector& TargetLocation, float DeltaTime);
@@ -467,6 +470,7 @@ private:
         }
     };
     TArray<FOverlapDistanceInfo> OverlapDistancesCache;
+    TArray<TWeakObjectPtr<UNiagaraComponent>> ThrusterNiagaraComponents;
 
     FTimerHandle WithinScanerUpdateTimer;
 

@@ -4,6 +4,7 @@
 #include "DrawDebugHelpers.h"
 #include "EngineUtils.h"
 #include "Math/NumericLimits.h"
+#include "Misc/CoreDelegates.h"
 
 namespace
 {
@@ -26,17 +27,53 @@ void UNavigationSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	InitializeNavObstacles();
+	TryInitializeForWorld(GetWorld());
+
+	if (!PostLoadMapHandle.IsValid())
+	{
+		PostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(
+			this,
+			&UNavigationSubsystem::HandlePostLoadMap);
+	}
+}
+
+void UNavigationSubsystem::Deinitialize()
+{
+	if (PostLoadMapHandle.IsValid())
+	{
+		FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(PostLoadMapHandle);
+		PostLoadMapHandle.Reset();
+	}
 
 	if (UWorld* World = GetWorld())
 	{
-		World->GetTimerManager().SetTimer(
-			MovingStaticRefreshTimer,
-			this,
-			&UNavigationSubsystem::RefreshMovingStaticObstacles,
-			StaticObstacleRefreshInterval,
-			true);
+		World->GetTimerManager().ClearTimer(MovingStaticRefreshTimer);
 	}
+
+	Super::Deinitialize();
+}
+
+void UNavigationSubsystem::HandlePostLoadMap(UWorld* LoadedWorld)
+{
+	TryInitializeForWorld(LoadedWorld);
+}
+
+void UNavigationSubsystem::TryInitializeForWorld(UWorld* World)
+{
+	if (!World || !World->IsGameWorld())
+	{
+		return;
+	}
+
+	InitializeNavObstacles();
+
+	World->GetTimerManager().ClearTimer(MovingStaticRefreshTimer);
+	World->GetTimerManager().SetTimer(
+		MovingStaticRefreshTimer,
+		this,
+		&UNavigationSubsystem::RefreshMovingStaticObstacles,
+		StaticObstacleRefreshInterval,
+		true);
 }
 
 void UNavigationSubsystem::SetRuntimeNavObstacleActors(const TArray<AActor*>& Actors)

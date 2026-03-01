@@ -2,7 +2,7 @@
 
 
 #include "ShipNavComponent.h"
-#include "NavigationSubsystem.h"
+#include "VagabondsWorkGameMode.h"
 #include "Ship.h"
 #include "DrawDebugHelpers.h"
 #include "Components/SphereComponent.h"
@@ -93,9 +93,9 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 
 	if (bForce || (bTime && (bMoved || bGoalChanged)))
 	{
-		if (UNavigationSubsystem* NavigationSubsystem = GetWorld()->GetGameInstance()->GetSubsystem<UNavigationSubsystem>())
+		if (AVagabondsWorkGameMode* NavigationGameMode = GetWorld()->GetAuthGameMode<AVagabondsWorkGameMode>())
 		{
-			GlobalWaypoints = NavigationSubsystem->FindGlobalPathAnchors(GetOwner()->GetActorLocation(), GoalLocation);
+			GlobalWaypoints = NavigationGameMode->FindGlobalPathAnchors(GetOwner()->GetActorLocation(), GoalLocation);
 			WaypointIndex = 0;
 			LastReplanShipPos = ShipPos;
 			LastReplanGoal = GoalLocation;
@@ -129,7 +129,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	const float ShipSpeed = ShipVelocity.Size();
 	const float NeighborRadius = ShipRadiusCm * NeighborRadiusMultiplier;
 	const FVector DesiredTarget = CurrentWaypoint;
-	UNavigationSubsystem* NavigationSubsystem = GetWorld()->GetGameInstance()->GetSubsystem<UNavigationSubsystem>();
+	AVagabondsWorkGameMode* NavigationGameMode = GetWorld()->GetAuthGameMode<AVagabondsWorkGameMode>();
 	FHitResult TraceHit;
 	const FVector ToTargetDir = (DesiredTarget - ShipPos).GetSafeNormal();
 	FVector TraceDir = ShipVelocity.GetSafeNormal();
@@ -149,12 +149,12 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	{
 		bStaticCheckDue = true;
 	}
-	if (NavigationSubsystem && bStaticCheckDue)
+	if (NavigationGameMode && bStaticCheckDue)
 	{
-		bStaticBlocked = !NavigationSubsystem->IsSegmentClearOfStaticObstacles(ShipPos, DesiredTarget, &StaticHitIndex);
+		bStaticBlocked = !NavigationGameMode->IsSegmentClearOfStaticObstacles(ShipPos, DesiredTarget, &StaticHitIndex);
 		if (bStaticBlocked && IntentTargetActor)
 		{
-			const TArray<FNavObstacleSphereProxy>& Obstacles = NavigationSubsystem->GetStaticNavObstacles();
+			const TArray<FNavObstacleSphereProxy>& Obstacles = NavigationGameMode->GetStaticNavObstacles();
 			if (Obstacles.IsValidIndex(StaticHitIndex) && Obstacles[StaticHitIndex].Actor.Get() == IntentTargetActor)
 			{
 				bStaticBlocked = false;
@@ -163,7 +163,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		}
 		if (!bStaticBlocked)
 		{
-			const TArray<FNavObstacleSphereProxy>& Obstacles = NavigationSubsystem->GetStaticNavObstacles();
+			const TArray<FNavObstacleSphereProxy>& Obstacles = NavigationGameMode->GetStaticNavObstacles();
 			float BestDistSq = BIG_NUMBER;
 			int32 BestIndex = INDEX_NONE;
 			float BestAvoidRadius = 0.0f;
@@ -200,9 +200,9 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	{
 		bStaticBlocked = true;
 		StaticHitIndex = FocusStaticObstacleIndex;
-		if (IntentTargetActor && NavigationSubsystem)
+		if (IntentTargetActor && NavigationGameMode)
 		{
-			const TArray<FNavObstacleSphereProxy>& Obstacles = NavigationSubsystem->GetStaticNavObstacles();
+			const TArray<FNavObstacleSphereProxy>& Obstacles = NavigationGameMode->GetStaticNavObstacles();
 			if (Obstacles.IsValidIndex(StaticHitIndex) && Obstacles[StaticHitIndex].Actor.Get() == IntentTargetActor)
 			{
 				bStaticBlocked = false;
@@ -217,9 +217,9 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	FVector StaticAvoidCenter = FVector::ZeroVector;
 	float StaticAvoidRadius = 0.0f;
 
-	if (bStaticBlocked && NavigationSubsystem)
+	if (bStaticBlocked && NavigationGameMode)
 	{
-		const TArray<FNavObstacleSphereProxy>& Obstacles = NavigationSubsystem->GetStaticNavObstacles();
+		const TArray<FNavObstacleSphereProxy>& Obstacles = NavigationGameMode->GetStaticNavObstacles();
 		if (Obstacles.IsValidIndex(StaticHitIndex))
 		{
 			const FNavObstacleSphereProxy& Obstacle = Obstacles[StaticHitIndex];
@@ -586,9 +586,9 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		{
 			bool bStillBlocked = false;
 
-			if (UNavigationSubsystem* NavigationSubsystemLocal = GetWorld()->GetGameInstance()->GetSubsystem<UNavigationSubsystem>())
+			if (AVagabondsWorkGameMode* NavigationGameModeLocal = GetWorld()->GetAuthGameMode<AVagabondsWorkGameMode>())
 			{
-				bStillBlocked = !NavigationSubsystemLocal->IsSegmentClearOfStaticObstacles(ShipPos, CurrentWaypoint, nullptr);
+				bStillBlocked = !NavigationGameModeLocal->IsSegmentClearOfStaticObstacles(ShipPos, CurrentWaypoint, nullptr);
 			}
 
 			if (!bStillBlocked || bCommitExpired)

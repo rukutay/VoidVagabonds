@@ -33,6 +33,7 @@ class VAGABONDSWORK_API UNavigationSubsystem : public UGameInstanceSubsystem
 
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
 
 	const TArray<FNavObstacleSphereProxy>& GetStaticNavObstacles() const;
 	bool GetClosestObstacleToSegment(const FVector& A, const FVector& B, int32& OutIndex) const;
@@ -60,7 +61,7 @@ protected:
 	float DefaultShipRadiusCm = 150.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Navigation")
-	bool bNavDebugDrawStatic = false;
+	bool bNavDebugDrawStatic = true;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Navigation|MovingStatic")
 	float StaticObstacleRefreshInterval = 1.0f;
@@ -78,9 +79,13 @@ protected:
 	TArray<FNavObstacleSphereProxy> CombinedNavObstacles;
 
 private:
+	void HandlePostLoadMap(UWorld* LoadedWorld);
+	void TryInitializeForWorld(UWorld* World);
+
 	void InitializeNavObstacles();
 	void RefreshMovingStaticObstacles();
 	void RefreshCombinedNavObstacles();
 
 	FTimerHandle MovingStaticRefreshTimer;
+	FDelegateHandle PostLoadMapHandle;
 };
