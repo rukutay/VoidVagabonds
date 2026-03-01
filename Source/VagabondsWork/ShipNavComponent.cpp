@@ -4,6 +4,7 @@
 #include "ShipNavComponent.h"
 #include "VagabondsWorkGameMode.h"
 #include "Ship.h"
+#include "AIShipController.h"
 #include "DrawDebugHelpers.h"
 #include "Components/SphereComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -77,10 +78,48 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	const FVector OwnerLocation = GetOwner()->GetActorLocation();
 	const FVector ShipPos = OwnerLocation;
 	AActor* IntentTargetActor = nullptr;
+	bool bIgnoreFightTargetAvoidance = false;
 	if (const AShip* OwnerShip = Cast<AShip>(GetOwner()))
 	{
 		IntentTargetActor = OwnerShip->TargetActor;
+		if (IntentTargetActor
+			&& OwnerShip->ShipController
+			&& OwnerShip->ShipController->GetActionMode() == EActionMode::Fight)
+		{
+			bIgnoreFightTargetAvoidance = true;
+		}
 	}
+
+	auto ShouldIgnoreActorForAvoidance = [&](const AActor* CandidateActor) -> bool
+	{
+		if (!bIgnoreFightTargetAvoidance || !IntentTargetActor || !CandidateActor)
+		{
+			return false;
+		}
+
+		if (CandidateActor == IntentTargetActor)
+		{
+			return true;
+		}
+
+		for (const AActor* Parent = CandidateActor->GetAttachParentActor(); Parent; Parent = Parent->GetAttachParentActor())
+		{
+			if (Parent == IntentTargetActor)
+			{
+				return true;
+			}
+		}
+
+		for (const AActor* Parent = IntentTargetActor->GetAttachParentActor(); Parent; Parent = Parent->GetAttachParentActor())
+		{
+			if (Parent == CandidateActor)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	};
 	
 	const bool bTime = (CurrentTime >= NextReplanTime);
 	const bool bMoved = FVector::DistSquared(ShipPos, LastReplanShipPos) >
@@ -152,10 +191,11 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	if (NavigationGameMode && bStaticCheckDue)
 	{
 		bStaticBlocked = !NavigationGameMode->IsSegmentClearOfStaticObstacles(ShipPos, DesiredTarget, &StaticHitIndex);
-		if (bStaticBlocked && IntentTargetActor)
+		if (bStaticBlocked && bIgnoreFightTargetAvoidance)
 		{
 			const TArray<FNavObstacleSphereProxy>& Obstacles = NavigationGameMode->GetStaticNavObstacles();
-			if (Obstacles.IsValidIndex(StaticHitIndex) && Obstacles[StaticHitIndex].Actor.Get() == IntentTargetActor)
+			if (Obstacles.IsValidIndex(StaticHitIndex)
+				&& ShouldIgnoreActorForAvoidance(Obstacles[StaticHitIndex].Actor.Get()))
 			{
 				bStaticBlocked = false;
 				StaticHitIndex = INDEX_NONE;
@@ -170,7 +210,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			for (int32 Index = 0; Index < Obstacles.Num(); ++Index)
 			{
 				const FNavObstacleSphereProxy& Obstacle = Obstacles[Index];
-				if (IntentTargetActor && Obstacle.Actor.Get() == IntentTargetActor)
+				if (ShouldIgnoreActorForAvoidance(Obstacle.Actor.Get()))
 				{
 					continue;
 				}
@@ -200,10 +240,11 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	{
 		bStaticBlocked = true;
 		StaticHitIndex = FocusStaticObstacleIndex;
-		if (IntentTargetActor && NavigationGameMode)
+		if (bIgnoreFightTargetAvoidance && NavigationGameMode)
 		{
 			const TArray<FNavObstacleSphereProxy>& Obstacles = NavigationGameMode->GetStaticNavObstacles();
-			if (Obstacles.IsValidIndex(StaticHitIndex) && Obstacles[StaticHitIndex].Actor.Get() == IntentTargetActor)
+			if (Obstacles.IsValidIndex(StaticHitIndex)
+				&& ShouldIgnoreActorForAvoidance(Obstacles[StaticHitIndex].Actor.Get()))
 			{
 				bStaticBlocked = false;
 				StaticHitIndex = INDEX_NONE;
@@ -339,7 +380,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		if (bTraceAvoidance && TraceHit.bBlockingHit)
 		{
 			AActor* TraceActor = TraceHit.GetActor();
-			if (IntentTargetActor && TraceActor == IntentTargetActor)
+			if (ShouldIgnoreActorForAvoidance(TraceActor))
 			{
 				bTraceAvoidance = false;
 			}
@@ -376,7 +417,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		{
 			continue;
 		}
-		if (IntentTargetActor && NeighborActor == IntentTargetActor)
+		if (ShouldIgnoreActorForAvoidance(NeighborActor))
 		{
 			continue;
 		}
