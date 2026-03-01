@@ -9,10 +9,10 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Core module: **VagabondsWork** (Runtime).
 - Primary systems (ownership map):
   - `UFactionsSubsystem` → faction enum ownership + fixed 6x6 relation matrix (`int8`, flat cache-friendly storage).
-  - `UNavigationSubsystem` → static/runtime obstacle cache, global path anchor planning.
+  - `UNavigationSubsystem` → subsystem implementation for static/runtime obstacle cache + global path anchor planning APIs.
   - `ULevelActorsSubsystem` → tracked stations/planets/ships lists with periodic refresh + faction-filtered queries.
   - `UVagabondsGameInstance` → actor filtering utilities and subsystem bootstrap.
-  - `AVagabondsWorkGameMode` → default pawn setup only.
+  - `AVagabondsWorkGameMode` → default pawn setup + active static/runtime obstacle cache and global path anchor planning used by ship navigation.
   - `UShipNavComponent` → global replanning + avoidance + stuck recovery.
   - `AShip` → physics thrust/steering.
   - `AAIShipController` → focus/rotation helpers.
@@ -21,6 +21,7 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 
 ## Features (verified)
 - Timer-driven navigation/avoidance with cached static obstacles (no per-tick heavy pathfinding).
+- Current ship navigation path/obstacle queries run through `AVagabondsWorkGameMode`; `UNavigationSubsystem` mirror APIs are present for subsystem migration.
 - Faction relations in `UFactionsSubsystem`: allocation-free flat matrix with Blueprint `GetRelation` / `SetRelation` / `UpdateRelations` / `ResetDefaults` API.
 - Forced replans + unstuck recovery for stuck/static-blocked states; temp avoidance targets are honored.
 - Safety/local avoidance hardening: self/invalid overlap filtering, `PhysicsBody` handling, and robust closest-approach prediction.
