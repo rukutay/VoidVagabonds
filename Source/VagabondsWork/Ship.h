@@ -349,6 +349,15 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Tuning|Movement", meta=(ToolTip="Current throttle value applied to thrust."))
     float CurrentThrottle = 0.f;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|State", meta=(ToolTip="True if ship is moving."))
+    bool isMoving = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|State", meta=(ToolTip="True if current speed is greater than half of potential max speed."))
+    bool isHalfSpeed = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|State", meta=(ToolTip="True if a player is looking at this ship or controlling it."))
+    bool IsPlayerLook = false;
+
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Movement", meta=(ToolTip="Damping applied to lateral velocity."))
     float LateralDamping = 0.5f;

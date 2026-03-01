@@ -36,6 +36,7 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Shared yaw-bank tuning (`YawBankScale`) for AI + player; AI default keeps forward-only passive roll leveling.
 
 - Player manual ship controls (analog throttle + pitch/yaw/roll) with AI handoff on unpossess.
+- `AShip` exposes Blueprint-readable runtime state booleans: `isMoving`, `isHalfSpeed`, and `IsPlayerLook`.
 - Spectator flow with Enhanced Input, smooth look, possession swap, and `LookAtActor` helper.
 - UMG map widget (`UMapWidget`) with player + `NavStaticBig` markers scaled by `LevelBoundaries`.
 

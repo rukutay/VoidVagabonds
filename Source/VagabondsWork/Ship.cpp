@@ -9,6 +9,7 @@
 #include "MarkerComponent.h"
 #include "NavStaticBig.h"
 #include "Kismet/GameplayStatics.h"
+#include "GameFramework/PlayerController.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "NiagaraComponent.h"
 
@@ -556,6 +557,35 @@ if (bDebugOrbit && GetWorld())
 void AShip::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
+
+    const float CurrentSpeed = ShipBase ? ShipBase->GetPhysicsLinearVelocity().Size() : GetVelocity().Size();
+    isMoving = CurrentSpeed > 10.0f;
+    isHalfSpeed = CurrentSpeed > (FMath::Max(0.0f, MaxForwardForce) * 0.5f);
+
+    IsPlayerLook = false;
+    if (UWorld* World = GetWorld())
+    {
+        for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+        {
+            const APlayerController* PlayerController = It->Get();
+            if (!PlayerController)
+            {
+                continue;
+            }
+
+            const APawn* PlayerPawn = PlayerController->GetPawn();
+            if (!PlayerPawn)
+            {
+                continue;
+            }
+
+            if (PlayerPawn == this || PlayerPawn->GetAttachParentActor() == this)
+            {
+                IsPlayerLook = true;
+                break;
+            }
+        }
+    }
 
     EnsureShipController();
     if (!ShipController && !bLoggedMissingController)

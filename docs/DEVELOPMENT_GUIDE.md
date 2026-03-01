@@ -44,6 +44,7 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Timers**: Prefer `FTimerHandle` updates; keep external modules tick-disabled.
 - **Naming**: Use Unreal prefixes (A/U/F/E), `b` prefix for booleans, `Cm` suffix for distances.
 - **Properties**: Use `UPROPERTY` with scoped categories (e.g., `Ship|Navigation`, `Aim|Speed`).
+- **Blueprint ship state flags**: `AShip` exposes runtime flags for BP/UI logic: `isMoving` (speed threshold), `isHalfSpeed` (current speed > half potential max speed), and `IsPlayerLook` (player controls ship or has an attached spectator look-at).
 - **Debug**: Wrap debug drawing in `#if !UE_BUILD_SHIPPING` and gate with toggles.
 - **Lighting**: The sun directional light should aim from the sun toward the current player pawn.
 - **External modules**: LOS uses a single forward sphere sweep (EffectiveRange * 1.05) with lead prediction and projectile radius (base 16 cm); readiness also accepts direct target alignment (not just predicted AimLoc). Aiming runs only when `TargetActor` is valid; when no target is set, PivotBase/PivotGun reset to local rotation (0,0,0) and ReadyToShoot remains false. Shooting supports single/auto/semi-auto modes; semi-auto uses FireRate-derived burst intervals with safe muzzle spawn checks, per-shot damage override, and ShootDelay spacing between single shots/bursts. Effective range is initialized from owning ship range using `EffectiveRangeMultiplier`, and projectile spawn uses deferred spawn + finish for safer runtime setup.

@@ -23,6 +23,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - External module system updates: timer-driven aiming (tick disabled), LOS sphere sweep with lead prediction, and expanded firing modes/settings.
 - `NavStaticBig` asteroid pipeline: spline generation, near/mid/far HISM streaming, jitter/dropout variation, and near-field actor swap.
 - Player manual ship controls + shared yaw-bank tuning (`YawBankScale`) and movement/vitality presets.
+- `AShip` Blueprint-readable runtime state booleans: `isMoving`, `isHalfSpeed`, and `IsPlayerLook`.
 
 ### Improved
 - `AAIShipController::Fight` now propagates the combat target to attached external modules and auto-clears fight state when target actors are destroyed.
