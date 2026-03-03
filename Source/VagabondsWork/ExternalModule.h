@@ -151,6 +151,26 @@ protected:
 	float Damage = 25.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot",
+	  meta=(ClampMin="0.0", ClampMax="1.0", ToolTip="Accuracy factor: 1.0 = no spray, 0.0 = maximum random spray"))
+	float Accuracy = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot|Recoil",
+	  meta=(ClampMin="0.0", ToolTip="Base recoil kick added per shot in degrees (scaled by 1-Accuracy)."))
+	float RecoilPerShotDeg = 3.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot|Recoil",
+	  meta=(ClampMin="0.0", ToolTip="How fast recoil offsets recover toward zero in deg/sec."))
+	float RecoilRecoveryDegPerSec = 18.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot|Recoil",
+	  meta=(ClampMin="0.0", ToolTip="Horizontal recoil randomness multiplier."))
+	float RecoilRandomYawScale = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot|Recoil",
+	  meta=(ClampMin="0.0", ToolTip="Vertical recoil kick multiplier (upward bias)."))
+	float RecoilRandomPitchScale = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot",
 	  meta=(ClampMin="1", ToolTip="Semi-auto burst shot count"))
 	int32 SemiAutoShootsNumber = 3;
 
@@ -185,6 +205,9 @@ private:
 	float BurstLifeSpan = 0.0f;
 	float BurstDamageAmount = 0.0f;
 	float BurstDelay = 0.0f;
+	float CurrentRecoilYawDeg = 0.0f;
+	float CurrentRecoilPitchDeg = 0.0f;
+	float LastShotTime = -1.0f;
 
 	bool HasLineOfSightToTarget() const;
 	float GetProjectileCollisionRadius(TSubclassOf<AProjectile> ProjectileClass) const;

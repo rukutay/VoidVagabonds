@@ -322,8 +322,38 @@ bool AExternalModule::TrySpawnProjectile(TSubclassOf<AProjectile> ProjectileClas
 
 	const float Radius = GetProjectileCollisionRadius(ProjectileClass);
 	const FVector MuzzleLoc = Muzzle->GetComponentLocation();
-	const FVector Forward = Muzzle->GetForwardVector();
-	const FQuat MuzzleRot = Muzzle->GetComponentQuat();
+	const float ClampedAccuracy = FMath::Clamp(Accuracy, 0.0f, 1.0f);
+	const float Inaccuracy = 1.0f - ClampedAccuracy;
+	const float Now = GetWorld()->GetTimeSeconds();
+	const float DtSinceLastShot = (LastShotTime >= 0.0f) ? FMath::Max(0.0f, Now - LastShotTime) : 0.0f;
+
+	if (DtSinceLastShot > 0.0f && RecoilRecoveryDegPerSec > 0.0f)
+	{
+		CurrentRecoilYawDeg = FMath::FInterpConstantTo(CurrentRecoilYawDeg, 0.0f, DtSinceLastShot, RecoilRecoveryDegPerSec);
+		CurrentRecoilPitchDeg = FMath::FInterpConstantTo(CurrentRecoilPitchDeg, 0.0f, DtSinceLastShot, RecoilRecoveryDegPerSec);
+	}
+
+	FRotator SpawnRotation = Muzzle->GetComponentRotation();
+	if (Inaccuracy > 0.0f)
+	{
+		const float ShotKickBaseDeg = RecoilPerShotDeg * Inaccuracy;
+		const float YawKick = FMath::FRandRange(-1.0f, 1.0f) * ShotKickBaseDeg * RecoilRandomYawScale;
+		const float PitchKick = FMath::FRandRange(0.35f, 1.0f) * ShotKickBaseDeg * RecoilRandomPitchScale;
+
+		CurrentRecoilYawDeg += YawKick;
+		CurrentRecoilPitchDeg += PitchKick;
+
+		const float MaxAccumYawDeg = FMath::Lerp(0.0f, 25.0f, Inaccuracy);
+		const float MaxAccumPitchDeg = FMath::Lerp(0.0f, 35.0f, Inaccuracy);
+		CurrentRecoilYawDeg = FMath::Clamp(CurrentRecoilYawDeg, -MaxAccumYawDeg, MaxAccumYawDeg);
+		CurrentRecoilPitchDeg = FMath::Clamp(CurrentRecoilPitchDeg, -MaxAccumPitchDeg, MaxAccumPitchDeg);
+
+		SpawnRotation += FRotator(CurrentRecoilPitchDeg, CurrentRecoilYawDeg, 0.0f);
+	}
+	LastShotTime = Now;
+
+	const FVector SpawnForward = SpawnRotation.Vector();
+	const FQuat SpawnQuat = SpawnRotation.Quaternion();
 	const int32 MaxAttempts = 4;
 	const float Step = FMath::Max(Radius * 1.5f, 4.0f);
 
@@ -336,7 +366,7 @@ bool AExternalModule::TrySpawnProjectile(TSubclassOf<AProjectile> ProjectileClas
 			bFoundClear = true;
 			break;
 		}
-		SpawnLoc += Forward * Step;
+		SpawnLoc += SpawnForward * Step;
 	}
 
 /* 	bFoundClear = true;
@@ -348,7 +378,7 @@ bool AExternalModule::TrySpawnProjectile(TSubclassOf<AProjectile> ProjectileClas
 	SpawnParams.Owner = GetOwner();
 	SpawnParams.Instigator = GetInstigator();
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	const FTransform SpawnTransform(MuzzleRot, SpawnLoc);
+	const FTransform SpawnTransform(SpawnQuat, SpawnLoc);
 	AProjectile* Projectile = GetWorld()->SpawnActorDeferred<AProjectile>(ProjectileClass, SpawnTransform, SpawnParams.Owner, SpawnParams.Instigator, SpawnParams.SpawnCollisionHandlingOverride);
 	if (!Projectile) return false;
 

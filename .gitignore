@@ -4,6 +4,10 @@ Binaries/
 DerivedDataCache/
 Intermediate/
 Saved/
+Content/StarterContent/
+Content/ThirdPerson/
+Content/Characters/
+Content/LevelPrototyping/
 
 # Visual Studio / Rider / CLion / VSCode
 .vs/

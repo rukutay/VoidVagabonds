@@ -21,6 +21,14 @@ enum class EActionMode : uint8
     Flee      UMETA(DisplayName="Flee")
 };
 
+UENUM(BlueprintType)
+enum class EBehavior : uint8
+{
+    Passive   UMETA(DisplayName="Passive"),
+    Guard     UMETA(DisplayName="Guard"),
+    Aggressive UMETA(DisplayName="Aggressive")
+};
+
 UCLASS()
 class VAGABONDSWORK_API AAIShipController : public AAIController
 {
@@ -153,6 +161,9 @@ public:
         float InTorqueRollDamping);
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Navigation|Patrol", meta=(ToolTip="Current high-level AI action mode."))
     EActionMode ActionMode = EActionMode::Idle;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Navigation|Behavior", meta=(ToolTip="Current high-level AI behavior."))
+    EBehavior Behavior = EBehavior::Passive;
 
 private:
     void HandleStuckCheck();
