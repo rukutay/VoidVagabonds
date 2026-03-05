@@ -14,6 +14,8 @@
 #include "Ship.h"
 #include "GameFramework/Actor.h"
 #include "MarkerComponent.h"
+#include "FactionsSubsystem.h"
+#include "EngineUtils.h"
 
 static float ClampAngleAroundCenterDeg(float CenterDeg, float DesiredDeg, float LimitDeg)
 {
@@ -111,8 +113,10 @@ AExternalModule::AExternalModule()
 
 	MarkerComponent = CreateDefaultSubobject<UMarkerComponent>(TEXT("MarkerComponent"));
 	MarkerComponent->MarkerType = EMarkerType::Component;
+	MarkerComponent->Faction = EFaction::None;
 
 	// Set default config values
+	TurretAimMode = ETurretAimMode::Targeted;
 	TargetActor = nullptr;
 	bAutoAim = true;
 	bManualAimStep = false;
@@ -165,6 +169,17 @@ void AExternalModule::BeginPlay()
 	{
 		ReadyToShoot = false;
 	}
+
+	UpdateTargetsList();
+	if (TargetsListRefreshInterval > 0.0f)
+	{
+		GetWorld()->GetTimerManager().SetTimer(
+			TargetsListRefreshTimerHandle,
+			this,
+			&AExternalModule::UpdateTargetsList,
+			TargetsListRefreshInterval,
+			true);
+	}
 }
 
 // Called when the actor is being removed from the game
@@ -174,6 +189,7 @@ void AExternalModule::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	
 	GetWorld()->GetTimerManager().ClearTimer(AimTimerHandle);
 	GetWorld()->GetTimerManager().ClearTimer(BurstTimerHandle);
+	GetWorld()->GetTimerManager().ClearTimer(TargetsListRefreshTimerHandle);
 }
 
 void AExternalModule::SetTargetActor(AActor* NewTarget)
@@ -184,6 +200,102 @@ void AExternalModule::SetTargetActor(AActor* NewTarget)
 void AExternalModule::ClearTarget()
 {
 	TargetActor = nullptr;
+}
+
+bool AExternalModule::HasVisibilityFromMuzzleToActor(AActor* Candidate) const
+{
+	if (!GetWorld() || !Muzzle || !IsValid(Candidate)) return false;
+
+	const FVector Start = Muzzle->GetComponentLocation();
+	const FVector End = Candidate->GetActorLocation();
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ExternalModule_FreeAimVisibility), false);
+	Params.AddIgnoredActor(this);
+	if (AActor* OwnerActor = GetOwner())
+	{
+		Params.AddIgnoredActor(OwnerActor);
+	}
+
+	FHitResult Hit;
+	const bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params);
+	if (!bHit)
+	{
+		return true;
+	}
+
+	AActor* HitActor = Hit.GetActor();
+	return HitActor == Candidate || (HitActor && HitActor->IsOwnedBy(Candidate));
+}
+
+AActor* AExternalModule::FindClosestVisibleTargetFromMuzzle() const
+{
+	if (!Muzzle || !GetWorld()) return nullptr;
+
+	const FVector MuzzleLoc = Muzzle->GetComponentLocation();
+	AActor* ClosestTarget = nullptr;
+	float ClosestDistSq = MAX_flt;
+
+	for (AActor* Candidate : TargetsList)
+	{
+		if (!IsValid(Candidate)) continue;
+		if (Candidate == this || Candidate == GetOwner()) continue;
+		if (!HasVisibilityFromMuzzleToActor(Candidate)) continue;
+
+		const float DistSq = FVector::DistSquared(MuzzleLoc, Candidate->GetActorLocation());
+		if (DistSq < ClosestDistSq)
+		{
+			ClosestDistSq = DistSq;
+			ClosestTarget = Candidate;
+		}
+	}
+
+	return ClosestTarget;
+}
+
+void AExternalModule::UpdateTargetsList()
+{
+	TargetsList.Reset();
+
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	const AActor* OwnerActor = GetOwner();
+	if (!IsValid(OwnerActor)) return;
+
+	const UMarkerComponent* OwnerMarker = OwnerActor->FindComponentByClass<UMarkerComponent>();
+	if (!IsValid(OwnerMarker) && IsValid(MarkerComponent))
+	{
+		OwnerMarker = MarkerComponent;
+	}
+	if (!IsValid(OwnerMarker)) return;
+
+	const UFactionsSubsystem* FactionsSubsystem = World->GetGameInstance() ? World->GetGameInstance()->GetSubsystem<UFactionsSubsystem>() : nullptr;
+	if (!IsValid(FactionsSubsystem)) return;
+
+	const FVector Origin = Muzzle ? Muzzle->GetComponentLocation() : GetActorLocation();
+	const float MaxDistSq = (EffectiveRange > 0.0f) ? FMath::Square(EffectiveRange) : MAX_flt;
+
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Candidate = *It;
+		if (!IsValid(Candidate)) continue;
+		if (Candidate == this || Candidate == OwnerActor) continue;
+
+		const UMarkerComponent* CandidateMarker = Candidate->FindComponentByClass<UMarkerComponent>();
+		if (!IsValid(CandidateMarker)) continue;
+
+		if (FactionsSubsystem->GetRelation(OwnerMarker->Faction, CandidateMarker->Faction) >= 0)
+		{
+			continue;
+		}
+
+		if (FVector::DistSquared(Origin, Candidate->GetActorLocation()) > MaxDistSq)
+		{
+			continue;
+		}
+
+		TargetsList.Add(Candidate);
+	}
 }
 
 bool AExternalModule::HasLineOfSightToTarget() const
@@ -467,6 +579,12 @@ void AExternalModule::UpdateAim()
 void AExternalModule::AimStep(float Dt)
 {
 	if (!PivotBase || !PivotGun || !Muzzle || Dt <= 0) return;
+
+	if (TurretAimMode == ETurretAimMode::Free)
+	{
+		TargetActor = FindClosestVisibleTargetFromMuzzle();
+	}
+
 	if (!TargetActor)
 	{
 		ReadyToShoot = false;

@@ -7,12 +7,13 @@
 UENUM(BlueprintType)
 enum class EFaction : uint8
 {
-	VoidVagabonds UMETA(DisplayName = "Void Vagabonds"),
-	VoidRaiders UMETA(DisplayName = "Void Raiders"),
-	SilentMandate UMETA(DisplayName = "Silent Mandate"),
-	FederationOfNations UMETA(DisplayName = "Federation of Nations"),
-	UnitedRepublic UMETA(DisplayName = "United Republic"),
-	ConcordUnion UMETA(DisplayName = "Concord Union")
+	VoidVagabonds = 0 UMETA(DisplayName = "Void Vagabonds"),
+	VoidRaiders = 1 UMETA(DisplayName = "Void Raiders"),
+	SilentMandate = 2 UMETA(DisplayName = "Silent Mandate"),
+	FederationOfNations = 3 UMETA(DisplayName = "Federation of Nations"),
+	UnitedRepublic = 4 UMETA(DisplayName = "United Republic"),
+	ConcordUnion = 5 UMETA(DisplayName = "Concord Union"),
+	None = 6 UMETA(DisplayName = "None")
 };
 
 UCLASS()
@@ -21,7 +22,7 @@ class VAGABONDSWORK_API UFactionsSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	static constexpr int32 FactionCount = 6;
+	static constexpr int32 FactionCount = 7;
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
@@ -29,7 +30,7 @@ public:
 	int32 GetRelation(EFaction A, EFaction B) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Faction|Relations")
-	void SetRelation(EFaction A, EFaction B, int32 Value, bool bSymmetric = true);
+	void SetRelation(EFaction A, EFaction B, int32 Value);
 
 	UFUNCTION(BlueprintCallable, Category = "Faction|Relations")
 	void UpdateRelations(EFaction A, EFaction B, float Modifier);

@@ -20,6 +20,13 @@ enum class EExternalModuleFireMode : uint8
 	SemiAuto UMETA(DisplayName = "SemiAuto")
 };
 
+UENUM(BlueprintType)
+enum class ETurretAimMode : uint8
+{
+	Targeted = 0 UMETA(DisplayName = "Targeted"),
+	Free UMETA(DisplayName = "Free")
+};
+
 /**
  * External module with auto-aiming capability using yaw/pitch rotation system.
  * Components are arranged as: ModuleRoot -> PivotBase -> MeshBase + PivotGun -> MeshGun + Muzzle
@@ -60,8 +67,17 @@ protected:
 	UMarkerComponent* MarkerComponent;
 
 	// Targeting - Visible and editable in Details panel and BP defaults
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim", meta = (ToolTip = "Aim behavior mode: Targeted uses TargetActor, Free auto-selects closest visible target from TargetsList"))
+	ETurretAimMode TurretAimMode = ETurretAimMode::Targeted;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim", meta = (ToolTip = "Target actor for aiming"))
 	AActor* TargetActor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim", meta = (ToolTip = "Targets available for Free aim mode"))
+	TArray<AActor*> TargetsList;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim", meta = (ClampMin = "0.01", ToolTip = "How often TargetsList is auto-refreshed (seconds)"))
+	float TargetsListRefreshInterval = 0.05f;
 
 	// Auto-aim settings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim", meta = (ToolTip = "Enable automatic aiming updates"))
@@ -192,6 +208,7 @@ protected:
 private:
 	FTimerHandle AimTimerHandle;
 	FTimerHandle BurstTimerHandle;
+	FTimerHandle TargetsListRefreshTimerHandle;
 	float DebugAccumTime;
 	
 	// Cached initial angles
@@ -208,6 +225,10 @@ private:
 	float CurrentRecoilYawDeg = 0.0f;
 	float CurrentRecoilPitchDeg = 0.0f;
 	float LastShotTime = -1.0f;
+
+	AActor* FindClosestVisibleTargetFromMuzzle() const;
+	bool HasVisibilityFromMuzzleToActor(AActor* Candidate) const;
+	void UpdateTargetsList();
 
 	bool HasLineOfSightToTarget() const;
 	float GetProjectileCollisionRadius(TSubclassOf<AProjectile> ProjectileClass) const;
