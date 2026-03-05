@@ -9,6 +9,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Timer-driven global replanning with cached static obstacles.
 - Static obstacle refresh for slow-moving bodies (tagged `NavStaticMoving`).
 - Temp waypoint tracking for static vs dynamic avoidance; force replan on persistent blocking.
+- `UShipNavComponent::TickNav` now ignores `TargetActor` as an avoidable obstacle in all action modes (not only Fight), including attach parent/child relationships during static and dynamic avoidance checks.
 
 ### Steering / Physics
 - Forward thrust + yaw/pitch rotation model (roll disabled).

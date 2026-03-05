@@ -78,21 +78,14 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	const FVector OwnerLocation = GetOwner()->GetActorLocation();
 	const FVector ShipPos = OwnerLocation;
 	AActor* IntentTargetActor = nullptr;
-	bool bIgnoreFightTargetAvoidance = false;
 	if (const AShip* OwnerShip = Cast<AShip>(GetOwner()))
 	{
 		IntentTargetActor = OwnerShip->TargetActor;
-		if (IntentTargetActor
-			&& OwnerShip->ShipController
-			&& OwnerShip->ShipController->GetActionMode() == EActionMode::Fight)
-		{
-			bIgnoreFightTargetAvoidance = true;
-		}
 	}
 
 	auto ShouldIgnoreActorForAvoidance = [&](const AActor* CandidateActor) -> bool
 	{
-		if (!bIgnoreFightTargetAvoidance || !IntentTargetActor || !CandidateActor)
+		if (!IntentTargetActor || !CandidateActor)
 		{
 			return false;
 		}
@@ -191,7 +184,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	if (NavigationGameMode && bStaticCheckDue)
 	{
 		bStaticBlocked = !NavigationGameMode->IsSegmentClearOfStaticObstacles(ShipPos, DesiredTarget, &StaticHitIndex);
-		if (bStaticBlocked && bIgnoreFightTargetAvoidance)
+		if (bStaticBlocked)
 		{
 			const TArray<FNavObstacleSphereProxy>& Obstacles = NavigationGameMode->GetStaticNavObstacles();
 			if (Obstacles.IsValidIndex(StaticHitIndex)
@@ -240,7 +233,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	{
 		bStaticBlocked = true;
 		StaticHitIndex = FocusStaticObstacleIndex;
-		if (bIgnoreFightTargetAvoidance && NavigationGameMode)
+		if (NavigationGameMode)
 		{
 			const TArray<FNavObstacleSphereProxy>& Obstacles = NavigationGameMode->GetStaticNavObstacles();
 			if (Obstacles.IsValidIndex(StaticHitIndex)
