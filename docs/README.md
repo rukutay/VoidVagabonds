@@ -30,6 +30,8 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - AI controller action state enum: `Idle`, `Moving`, `Following`, `Patroling`, `Fight`.
 - AI action helpers in `AAIShipController`: `StartFollowing(AShip*)`, `MoveToTarget(AActor*)`, `ResetAction()`.
 - AI fight mode (`AAIShipController::Fight`) now pushes target assignment to both the controlled ship and all attached `AExternalModule` children, and clears state automatically when target actor is destroyed.
+- AI fight mode now chains targets: when the current target is destroyed, controller selects the next closest valid opponent from `AShip::CurrentOpponents` and continues fighting.
+- AI fight mode now resumes pre-fight `Patroling` / `Moving` / `Following` only after opponents are fully cleared, using suspended-state + last-task fallback caching to prevent unintended `Idle` transitions.
 - Following mode behavior: disables orbit, follows assigned ship target, and matches target speed when within `EffectiveRange`.
 - Move-to-target behavior: enters `Moving`, disables orbit, moves toward target actor, then auto-resets to idle on arrival (`<= EffectiveRange`).
 - AI movement gate via `bMovementAllowed` and nearest-neighbor patrol route generation from `NavStaticBig` candidates.

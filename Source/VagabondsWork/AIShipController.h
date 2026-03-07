@@ -168,8 +168,13 @@ public:
 private:
     void HandleStuckCheck();
     void HandleSafetyMarginCheck();
+    void UnregisterCurrentFightTarget();
     void SetExternalModulesTarget(AActor* TargetActor);
     void ClearFightTargetState();
+    void SaveSuspendedActionStateIfNeeded();
+    void RestoreSuspendedActionStateIfPossible();
+    void ClearSuspendedActionState();
+    void CacheLastTaskStateFromCurrent();
 
     UFUNCTION()
     void HandleFightTargetDestroyed(AActor* DestroyedActor);
@@ -180,6 +185,66 @@ private:
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Currently tracked fight target."))
     TWeakObjectPtr<AActor> CurrentFightTarget;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="True when pre-fight action state is saved for resume."))
+    bool bHasSuspendedActionState = false;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Action mode suspended by fight for later resume."))
+    EActionMode SuspendedActionMode = EActionMode::Idle;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Suspended movement/follow target actor before fight."))
+    TWeakObjectPtr<AActor> SuspendedTargetActor;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Suspended GoToActor target before fight."))
+    TWeakObjectPtr<AActor> SuspendedGoToActorTarget;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Suspended GoToActor active state before fight."))
+    bool bSuspendedGoToActorActive = false;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Suspended patrol route before fight."))
+    TArray<TObjectPtr<ANavStaticBig>> SuspendedPatrolRoute;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Suspended patrol active state before fight."))
+    bool bSuspendedPatrolActive = false;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Suspended patrol pause state before fight."))
+    bool bSuspendedPatrolPauseActive = false;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Suspended patrol delay seconds before fight."))
+    float SuspendedPatrolPointDelaySeconds = 0.0f;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Suspended current patrol target before fight."))
+    TWeakObjectPtr<ANavStaticBig> SuspendedCurrentPatrolTarget;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="True when last non-fight task state is cached."))
+    bool bHasLastTaskState = false;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Last non-fight action mode for fallback resume."))
+    EActionMode LastTaskActionMode = EActionMode::Idle;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Last non-fight movement/follow target actor."))
+    TWeakObjectPtr<AActor> LastTaskTargetActor;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Last non-fight GoToActor target."))
+    TWeakObjectPtr<AActor> LastTaskGoToActorTarget;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Last non-fight GoToActor active flag."))
+    bool bLastTaskGoToActorActive = false;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Last non-fight patrol route."))
+    TArray<TObjectPtr<ANavStaticBig>> LastTaskPatrolRoute;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Last non-fight patrol active state."))
+    bool bLastTaskPatrolActive = false;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Last non-fight patrol pause state."))
+    bool bLastTaskPatrolPauseActive = false;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Last non-fight patrol delay seconds."))
+    float LastTaskPatrolPointDelaySeconds = 0.0f;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Last non-fight patrol target."))
+    TWeakObjectPtr<ANavStaticBig> LastTaskCurrentPatrolTarget;
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Movement", meta=(ToolTip="Currently tracked GoToActor target."))
     TWeakObjectPtr<AActor> CurrentGoToActorTarget;

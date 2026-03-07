@@ -36,11 +36,8 @@ void AAIShipController::BeginPlay()
 
 void AAIShipController::ResetAction()
 {
-    if (AActor* PreviousFightTarget = CurrentFightTarget.Get())
-    {
-        PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
-    }
-    CurrentFightTarget.Reset();
+    UnregisterCurrentFightTarget();
+    ClearSuspendedActionState();
     CurrentGoToActorTarget.Reset();
     bGoToActorActive = false;
 
@@ -117,15 +114,13 @@ void AAIShipController::StartPatrol(const TArray<ANavStaticBig*>& NavStaticActor
     {
         Ship->TargetActor = CurrentPatrolTarget.Get();
     }
+
+    CacheLastTaskStateFromCurrent();
 }
 
 void AAIShipController::StartFollowing(AShip* TargetShip)
 {
-    if (AActor* PreviousFightTarget = CurrentFightTarget.Get())
-    {
-        PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
-    }
-    CurrentFightTarget.Reset();
+    UnregisterCurrentFightTarget();
     CurrentGoToActorTarget.Reset();
     bGoToActorActive = false;
 
@@ -137,15 +132,13 @@ void AAIShipController::StartFollowing(AShip* TargetShip)
         Ship->bOrbitTarget = false;
         Ship->TargetActor = TargetShip;
     }
+
+    CacheLastTaskStateFromCurrent();
 }
 
 void AAIShipController::MoveToTarget(AActor* TargetActor)
 {
-    if (AActor* PreviousFightTarget = CurrentFightTarget.Get())
-    {
-        PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
-    }
-    CurrentFightTarget.Reset();
+    UnregisterCurrentFightTarget();
     CurrentGoToActorTarget.Reset();
     bGoToActorActive = false;
 
@@ -157,15 +150,13 @@ void AAIShipController::MoveToTarget(AActor* TargetActor)
         Ship->bOrbitTarget = false;
         Ship->TargetActor = TargetActor;
     }
+
+    CacheLastTaskStateFromCurrent();
 }
 
 void AAIShipController::GoToActor(AActor* TargetActor)
 {
-    if (AActor* PreviousFightTarget = CurrentFightTarget.Get())
-    {
-        PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
-    }
-    CurrentFightTarget.Reset();
+    UnregisterCurrentFightTarget();
 
     ActionMode = EActionMode::Moving;
     StopPatrol(false);
@@ -178,6 +169,8 @@ void AAIShipController::GoToActor(AActor* TargetActor)
         Ship->bOrbitTarget = false;
         Ship->TargetActor = TargetActor;
     }
+
+    CacheLastTaskStateFromCurrent();
 }
 
 void AAIShipController::SetExternalModulesTarget(AActor* TargetActor)
@@ -201,19 +194,207 @@ void AAIShipController::SetExternalModulesTarget(AActor* TargetActor)
 
 void AAIShipController::ClearFightTargetState()
 {
-    if (AActor* PreviousFightTarget = CurrentFightTarget.Get())
-    {
-        PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
-    }
-    CurrentFightTarget.Reset();
+    UnregisterCurrentFightTarget();
 
-    if (AShip* Ship = Cast<AShip>(GetPawn()))
+    AShip* Ship = Cast<AShip>(GetPawn());
+    if (Ship)
     {
         Ship->TargetActor = nullptr;
     }
 
     SetExternalModulesTarget(nullptr);
-    ActionMode = EActionMode::Idle;
+    RestoreSuspendedActionStateIfPossible();
+}
+
+void AAIShipController::SaveSuspendedActionStateIfNeeded()
+{
+    if (bHasSuspendedActionState)
+    {
+        return;
+    }
+
+    if (ActionMode != EActionMode::Patroling
+        && ActionMode != EActionMode::Moving
+        && ActionMode != EActionMode::Following)
+    {
+        if (!bHasLastTaskState)
+        {
+            return;
+        }
+
+        bHasSuspendedActionState = true;
+        SuspendedActionMode = LastTaskActionMode;
+        SuspendedTargetActor = LastTaskTargetActor;
+        SuspendedGoToActorTarget = LastTaskGoToActorTarget;
+        bSuspendedGoToActorActive = bLastTaskGoToActorActive;
+        SuspendedPatrolRoute = LastTaskPatrolRoute;
+        bSuspendedPatrolActive = bLastTaskPatrolActive;
+        bSuspendedPatrolPauseActive = bLastTaskPatrolPauseActive;
+        SuspendedPatrolPointDelaySeconds = LastTaskPatrolPointDelaySeconds;
+        SuspendedCurrentPatrolTarget = LastTaskCurrentPatrolTarget;
+        return;
+    }
+
+    bHasSuspendedActionState = true;
+    SuspendedActionMode = ActionMode;
+    SuspendedGoToActorTarget = CurrentGoToActorTarget;
+    bSuspendedGoToActorActive = bGoToActorActive;
+
+    if (AShip* Ship = Cast<AShip>(GetPawn()))
+    {
+        SuspendedTargetActor = Ship->TargetActor;
+    }
+
+    if (ActionMode == EActionMode::Patroling)
+    {
+        SuspendedPatrolRoute = PatrolRoute;
+        bSuspendedPatrolActive = bPatrolActive;
+        bSuspendedPatrolPauseActive = bPatrolPauseActive;
+        SuspendedPatrolPointDelaySeconds = PatrolPointDelaySeconds;
+        SuspendedCurrentPatrolTarget = CurrentPatrolTarget;
+    }
+}
+
+void AAIShipController::CacheLastTaskStateFromCurrent()
+{
+    if (ActionMode != EActionMode::Patroling
+        && ActionMode != EActionMode::Moving
+        && ActionMode != EActionMode::Following)
+    {
+        return;
+    }
+
+    bHasLastTaskState = true;
+    LastTaskActionMode = ActionMode;
+    LastTaskGoToActorTarget = CurrentGoToActorTarget;
+    bLastTaskGoToActorActive = bGoToActorActive;
+
+    if (AShip* Ship = Cast<AShip>(GetPawn()))
+    {
+        LastTaskTargetActor = Ship->TargetActor;
+    }
+
+    if (ActionMode == EActionMode::Patroling)
+    {
+        LastTaskPatrolRoute = PatrolRoute;
+        bLastTaskPatrolActive = bPatrolActive;
+        bLastTaskPatrolPauseActive = bPatrolPauseActive;
+        LastTaskPatrolPointDelaySeconds = PatrolPointDelaySeconds;
+        LastTaskCurrentPatrolTarget = CurrentPatrolTarget;
+    }
+}
+
+void AAIShipController::RestoreSuspendedActionStateIfPossible()
+{
+    if (!bHasSuspendedActionState)
+    {
+        ActionMode = EActionMode::Idle;
+        return;
+    }
+
+    AShip* Ship = Cast<AShip>(GetPawn());
+    if (!Ship)
+    {
+        ActionMode = EActionMode::Idle;
+        ClearSuspendedActionState();
+        return;
+    }
+
+    Ship->PruneOpponents();
+    if (Ship->CurrentOpponents.Num() > 0)
+    {
+        ActionMode = EActionMode::Fight;
+        return;
+    }
+
+    switch (SuspendedActionMode)
+    {
+        case EActionMode::Patroling:
+        {
+            PatrolRoute = SuspendedPatrolRoute;
+            PatrolPointDelaySeconds = SuspendedPatrolPointDelaySeconds;
+            bPatrolActive = bSuspendedPatrolActive;
+            bPatrolPauseActive = bSuspendedPatrolPauseActive;
+            CurrentPatrolTarget = SuspendedCurrentPatrolTarget;
+
+            if (PatrolRoute.Num() == 0)
+            {
+                ActionMode = EActionMode::Idle;
+                Ship->TargetActor = nullptr;
+            }
+            else
+            {
+                ActionMode = EActionMode::Patroling;
+                if (!CurrentPatrolTarget.IsValid())
+                {
+                    CurrentPatrolTarget = PatrolRoute[0];
+                }
+
+                if (bPatrolPauseActive)
+                {
+                    Ship->TargetActor = nullptr;
+                }
+                else
+                {
+                    bPatrolActive = true;
+                    Ship->TargetActor = CurrentPatrolTarget.Get();
+                }
+            }
+            break;
+        }
+        case EActionMode::Moving:
+        {
+            ActionMode = EActionMode::Moving;
+            CurrentGoToActorTarget = SuspendedGoToActorTarget;
+            bGoToActorActive = bSuspendedGoToActorActive && IsValid(CurrentGoToActorTarget.Get());
+            Ship->TargetActor = SuspendedTargetActor.Get();
+
+            if (!IsValid(Ship->TargetActor))
+            {
+                ActionMode = EActionMode::Idle;
+                bGoToActorActive = false;
+                CurrentGoToActorTarget.Reset();
+            }
+            break;
+        }
+        case EActionMode::Following:
+        {
+            ActionMode = EActionMode::Following;
+            CurrentGoToActorTarget.Reset();
+            bGoToActorActive = false;
+            Ship->TargetActor = SuspendedTargetActor.Get();
+
+            if (!IsValid(Ship->TargetActor))
+            {
+                ActionMode = EActionMode::Idle;
+            }
+            break;
+        }
+        default:
+        {
+            ActionMode = EActionMode::Idle;
+            Ship->TargetActor = nullptr;
+            CurrentGoToActorTarget.Reset();
+            bGoToActorActive = false;
+            break;
+        }
+    }
+
+    ClearSuspendedActionState();
+}
+
+void AAIShipController::ClearSuspendedActionState()
+{
+    bHasSuspendedActionState = false;
+    SuspendedActionMode = EActionMode::Idle;
+    SuspendedTargetActor.Reset();
+    SuspendedGoToActorTarget.Reset();
+    bSuspendedGoToActorActive = false;
+    SuspendedPatrolRoute.Reset();
+    bSuspendedPatrolActive = false;
+    bSuspendedPatrolPauseActive = false;
+    SuspendedPatrolPointDelaySeconds = 0.0f;
+    SuspendedCurrentPatrolTarget.Reset();
 }
 
 void AAIShipController::HandleFightTargetDestroyed(AActor* DestroyedActor)
@@ -223,24 +404,59 @@ void AAIShipController::HandleFightTargetDestroyed(AActor* DestroyedActor)
         return;
     }
 
+    UnregisterCurrentFightTarget();
+
+    AShip* Ship = Cast<AShip>(GetPawn());
+    if (!Ship)
+    {
+        ClearFightTargetState();
+        return;
+    }
+
+    Ship->PruneOpponents();
+
+    AActor* NextTarget = nullptr;
+    float BestDistSq = TNumericLimits<float>::Max();
+    const FVector ShipLocation = Ship->GetActorLocation();
+    for (AActor* OpponentActor : Ship->CurrentOpponents)
+    {
+        if (!IsValid(OpponentActor) || OpponentActor == Ship || OpponentActor == DestroyedActor)
+        {
+            continue;
+        }
+
+        const float DistSq = FVector::DistSquared(ShipLocation, OpponentActor->GetActorLocation());
+        if (DistSq < BestDistSq)
+        {
+            BestDistSq = DistSq;
+            NextTarget = OpponentActor;
+        }
+    }
+
+    if (IsValid(NextTarget))
+    {
+        Fight(NextTarget);
+        return;
+    }
+
     ClearFightTargetState();
 }
 
 void AAIShipController::Fight(AActor* TargetActor)
 {
+    SaveSuspendedActionStateIfNeeded();
+
     CurrentGoToActorTarget.Reset();
     bGoToActorActive = false;
 
     ActionMode = EActionMode::Fight;
     StopPatrol(false);
 
-    if (AActor* PreviousFightTarget = CurrentFightTarget.Get())
-    {
-        PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
-    }
+    UnregisterCurrentFightTarget();
     CurrentFightTarget = TargetActor;
 
-    if (AShip* Ship = Cast<AShip>(GetPawn()))
+    AShip* Ship = Cast<AShip>(GetPawn());
+    if (Ship)
     {
         Ship->bOrbitTarget = false;
         Ship->TargetActor = TargetActor;
@@ -251,11 +467,42 @@ void AAIShipController::Fight(AActor* TargetActor)
     if (IsValid(TargetActor))
     {
         TargetActor->OnDestroyed.AddDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
+        if (Ship)
+        {
+            Ship->AddOpponent(TargetActor);
+            if (AShip* TargetShip = Cast<AShip>(TargetActor))
+            {
+                TargetShip->NotifyIncomingAttack(Ship);
+            }
+        }
     }
     else
     {
         ClearFightTargetState();
     }
+}
+
+void AAIShipController::UnregisterCurrentFightTarget()
+{
+    AActor* PreviousFightTarget = CurrentFightTarget.Get();
+    if (!PreviousFightTarget)
+    {
+        CurrentFightTarget.Reset();
+        return;
+    }
+
+    PreviousFightTarget->OnDestroyed.RemoveDynamic(this, &AAIShipController::HandleFightTargetDestroyed);
+
+    if (AShip* Ship = Cast<AShip>(GetPawn()))
+    {
+        Ship->RemoveOpponent(PreviousFightTarget);
+        if (AShip* PreviousTargetShip = Cast<AShip>(PreviousFightTarget))
+        {
+            PreviousTargetShip->RemoveOpponent(Ship);
+        }
+    }
+
+    CurrentFightTarget.Reset();
 }
 
 ANavStaticBig* AAIShipController::GetCurrentPatrolPoint() const

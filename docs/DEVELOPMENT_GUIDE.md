@@ -29,8 +29,10 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **AI action helpers**:
   - `StartFollowing(AShip* TargetShip)`: sets mode to `Following`, stops patrol state, disables orbit (`bOrbitTarget=false`), assigns `TargetActor`.
   - `MoveToTarget(AActor* TargetActor)`: sets mode to `Moving`, stops patrol state, disables orbit, assigns `TargetActor`.
-  - `Fight(AActor* TargetActor)`: sets mode to `Fight`, assigns target to controlled ship and all attached `AExternalModule` children, and auto-clears on target destruction.
+  - `Fight(AActor* TargetActor)`: sets mode to `Fight`, suspends the current non-fight task (`Patroling` / `Moving` / `Following`), assigns target to controlled ship and all attached `AExternalModule` children, and tracks target destruction.
   - `ResetAction()`: resets mode to `Idle` and clears active patrol state.
+- **AI fight target chaining**: on current fight target destruction, controller picks the next closest valid actor from `AShip::CurrentOpponents` and re-enters `Fight` until no valid opponents remain.
+- **AI post-fight resume**: controller stays in `Fight` while `CurrentOpponents` is non-empty, then restores the suspended pre-fight task; if direct suspended data is missing, last non-fight task cache is used as fallback to avoid unintended `Idle` transitions.
 - **Following speed matching**: while in `Following`, when target distance is within `EffectiveRange`, steering uses throttle override to maintain target speed.
 - **Move arrival behavior**: while in `Moving`, when distance to target is within `EffectiveRange`, `ResetAction()` is called (returns to idle and clears ship target actor).
 - **AI patrol progression**: Patrol overlap consumes route index 0, enters delay pause, then resumes to next index 0; at the last point, route exhaustion auto-calls `StopPatrol(false)` and returns mode/state to idle/inactive.

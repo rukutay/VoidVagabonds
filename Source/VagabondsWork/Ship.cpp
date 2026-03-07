@@ -142,6 +142,20 @@ void AShip::BeginPlay()
 #endif
 }
 
+void AShip::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    for (AActor* OpponentActor : CurrentOpponents)
+    {
+        if (IsValid(OpponentActor))
+        {
+            OpponentActor->OnDestroyed.RemoveDynamic(this, &AShip::HandleOpponentDestroyed);
+        }
+    }
+
+    CurrentOpponents.Reset();
+    Super::EndPlay(EndPlayReason);
+}
+
 #if WITH_EDITOR
 void AShip::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
@@ -558,6 +572,8 @@ void AShip::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
+    PruneOpponents();
+
     const float CurrentSpeed = ShipBase ? ShipBase->GetPhysicsLinearVelocity().Size() : GetVelocity().Size();
     isMoving = CurrentSpeed > 10.0f;
     isHalfSpeed = CurrentSpeed > (FMath::Max(0.0f, MaxForwardForce) * 0.5f);
@@ -825,6 +841,60 @@ void AShip::Tick(float DeltaTime)
     // Apply soft separation forces after steering
     UpdateNiagaraVelocity();
     ApplySoftSeparation(DeltaTime);
+}
+
+void AShip::HandleOpponentDestroyed(AActor* DestroyedActor)
+{
+    RemoveOpponent(DestroyedActor);
+}
+
+void AShip::AddOpponent(AActor* OpponentActor)
+{
+    if (!IsValid(OpponentActor) || OpponentActor == this)
+    {
+        return;
+    }
+
+    PruneOpponents();
+    if (CurrentOpponents.Contains(OpponentActor))
+    {
+        return;
+    }
+
+    CurrentOpponents.Add(OpponentActor);
+    OpponentActor->OnDestroyed.RemoveDynamic(this, &AShip::HandleOpponentDestroyed);
+    OpponentActor->OnDestroyed.AddDynamic(this, &AShip::HandleOpponentDestroyed);
+}
+
+void AShip::RemoveOpponent(AActor* OpponentActor)
+{
+    if (!OpponentActor)
+    {
+        PruneOpponents();
+        return;
+    }
+
+    OpponentActor->OnDestroyed.RemoveDynamic(this, &AShip::HandleOpponentDestroyed);
+    CurrentOpponents.RemoveSingleSwap(OpponentActor);
+    PruneOpponents();
+}
+
+void AShip::NotifyIncomingAttack(AActor* AggressorActor)
+{
+    AddOpponent(AggressorActor);
+    Attacked(AggressorActor);
+}
+
+void AShip::PruneOpponents()
+{
+    for (int32 Index = CurrentOpponents.Num() - 1; Index >= 0; --Index)
+    {
+        AActor* OpponentActor = CurrentOpponents[Index];
+        if (!IsValid(OpponentActor) || OpponentActor == this)
+        {
+            CurrentOpponents.RemoveAtSwap(Index);
+        }
+    }
 }
 
 void AShip::UpdateNiagaraVelocity()

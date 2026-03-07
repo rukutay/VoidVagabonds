@@ -124,6 +124,7 @@ public:
 
 protected:
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 #if WITH_EDITOR
     virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
@@ -323,6 +324,24 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Scanner", meta=(ToolTip="Actors inside scanner radius, sorted nearest first."))
     TArray<AActor*> WithinScaner;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|Combat", meta=(ToolTip="Current combat opponents for this ship."))
+    TArray<AActor*> CurrentOpponents;
+
+    UFUNCTION(BlueprintCallable, Category="Ship|Combat", meta=(ToolTip="Add actor to current opponents list."))
+    void AddOpponent(AActor* OpponentActor);
+
+    UFUNCTION(BlueprintCallable, Category="Ship|Combat", meta=(ToolTip="Remove actor from current opponents list."))
+    void RemoveOpponent(AActor* OpponentActor);
+
+    UFUNCTION(BlueprintCallable, Category="Ship|Combat", meta=(ToolTip="Notify this ship that it has been attacked by the provided aggressor."))
+    void NotifyIncomingAttack(AActor* AggressorActor);
+
+    UFUNCTION(BlueprintCallable, Category="Ship|Combat", meta=(ToolTip="Remove invalid or destroyed actors from opponents list."))
+    void PruneOpponents();
+
+    UFUNCTION(BlueprintImplementableEvent, Category="Ship|Combat", meta=(ToolTip="Called when this ship is attacked."))
+    void Attacked(AActor* AggressorActor);
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ship|AI", meta=(ToolTip="Navigation component for avoidance and waypoints."))
     UShipNavComponent* ShipNav = nullptr;
 
@@ -407,6 +426,9 @@ public:
     void ApplyRotationServo(const FVector& TargetAngVelLocal, float DeltaTime);
 
 private:
+    UFUNCTION()
+    void HandleOpponentDestroyed(AActor* DestroyedActor);
+
     UFUNCTION()
     void UpdateWithinScaner();
 
