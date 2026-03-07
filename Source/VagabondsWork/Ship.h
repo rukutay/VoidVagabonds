@@ -18,7 +18,7 @@ enum class ERollAlignMode : uint8
 UENUM(BlueprintType)
 enum class EShipPreset : uint8
 {
-    Fighter     UMETA(DisplayName="Fighter"),
+    Fighter     UMETA(DisplayName="Fighter"), 
     Interceptor UMETA(DisplayName="Interceptor"),
     Gunship     UMETA(DisplayName="Gunship"),
     Cruiser     UMETA(DisplayName="Cruiser"),

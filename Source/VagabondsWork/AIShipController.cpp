@@ -112,6 +112,8 @@ void AAIShipController::StartPatrol(const TArray<ANavStaticBig*>& NavStaticActor
 
     if (AShip* Ship = Cast<AShip>(GetPawn()))
     {
+        Ship->bOrbitTarget = false;
+        Ship->RollAlignMode = ERollAlignMode::Default;
         Ship->TargetActor = CurrentPatrolTarget.Get();
     }
 
@@ -130,6 +132,7 @@ void AAIShipController::StartFollowing(AShip* TargetShip)
     if (AShip* Ship = Cast<AShip>(GetPawn()))
     {
         Ship->bOrbitTarget = false;
+        Ship->RollAlignMode = ERollAlignMode::Default;
         Ship->TargetActor = TargetShip;
     }
 
@@ -148,6 +151,7 @@ void AAIShipController::MoveToTarget(AActor* TargetActor)
     if (AShip* Ship = Cast<AShip>(GetPawn()))
     {
         Ship->bOrbitTarget = false;
+        Ship->RollAlignMode = ERollAlignMode::Default;
         Ship->TargetActor = TargetActor;
     }
 
@@ -167,6 +171,7 @@ void AAIShipController::GoToActor(AActor* TargetActor)
     if (AShip* Ship = Cast<AShip>(GetPawn()))
     {
         Ship->bOrbitTarget = false;
+        Ship->RollAlignMode = ERollAlignMode::Default;
         Ship->TargetActor = TargetActor;
     }
 
@@ -232,6 +237,7 @@ void AAIShipController::SaveSuspendedActionStateIfNeeded()
         bSuspendedPatrolPauseActive = bLastTaskPatrolPauseActive;
         SuspendedPatrolPointDelaySeconds = LastTaskPatrolPointDelaySeconds;
         SuspendedCurrentPatrolTarget = LastTaskCurrentPatrolTarget;
+        UE_LOG(LogTemp, Log, TEXT("Fight snapshot saved from LastTask cache (Mode=%d)"), static_cast<int32>(SuspendedActionMode));
         return;
     }
 
@@ -253,6 +259,8 @@ void AAIShipController::SaveSuspendedActionStateIfNeeded()
         SuspendedPatrolPointDelaySeconds = PatrolPointDelaySeconds;
         SuspendedCurrentPatrolTarget = CurrentPatrolTarget;
     }
+
+    UE_LOG(LogTemp, Log, TEXT("Fight snapshot saved from current mode (Mode=%d)"), static_cast<int32>(SuspendedActionMode));
 }
 
 void AAIShipController::CacheLastTaskStateFromCurrent()
@@ -316,6 +324,8 @@ void AAIShipController::RestoreSuspendedActionStateIfPossible()
             bPatrolActive = bSuspendedPatrolActive;
             bPatrolPauseActive = bSuspendedPatrolPauseActive;
             CurrentPatrolTarget = SuspendedCurrentPatrolTarget;
+            Ship->bOrbitTarget = false;
+            Ship->RollAlignMode = ERollAlignMode::Default;
 
             if (PatrolRoute.Num() == 0)
             {
@@ -347,6 +357,8 @@ void AAIShipController::RestoreSuspendedActionStateIfPossible()
             ActionMode = EActionMode::Moving;
             CurrentGoToActorTarget = SuspendedGoToActorTarget;
             bGoToActorActive = bSuspendedGoToActorActive && IsValid(CurrentGoToActorTarget.Get());
+            Ship->bOrbitTarget = false;
+            Ship->RollAlignMode = ERollAlignMode::Default;
             Ship->TargetActor = SuspendedTargetActor.Get();
 
             if (!IsValid(Ship->TargetActor))
@@ -362,6 +374,8 @@ void AAIShipController::RestoreSuspendedActionStateIfPossible()
             ActionMode = EActionMode::Following;
             CurrentGoToActorTarget.Reset();
             bGoToActorActive = false;
+            Ship->bOrbitTarget = false;
+            Ship->RollAlignMode = ERollAlignMode::Default;
             Ship->TargetActor = SuspendedTargetActor.Get();
 
             if (!IsValid(Ship->TargetActor))
@@ -380,7 +394,9 @@ void AAIShipController::RestoreSuspendedActionStateIfPossible()
         }
     }
 
+    UE_LOG(LogTemp, Log, TEXT("Fight restore completed (RestoredMode=%d)"), static_cast<int32>(ActionMode));
     ClearSuspendedActionState();
+    ClearLastTaskState();
 }
 
 void AAIShipController::ClearSuspendedActionState()
@@ -395,6 +411,20 @@ void AAIShipController::ClearSuspendedActionState()
     bSuspendedPatrolPauseActive = false;
     SuspendedPatrolPointDelaySeconds = 0.0f;
     SuspendedCurrentPatrolTarget.Reset();
+}
+
+void AAIShipController::ClearLastTaskState()
+{
+    bHasLastTaskState = false;
+    LastTaskActionMode = EActionMode::Idle;
+    LastTaskTargetActor.Reset();
+    LastTaskGoToActorTarget.Reset();
+    bLastTaskGoToActorActive = false;
+    LastTaskPatrolRoute.Reset();
+    bLastTaskPatrolActive = false;
+    bLastTaskPatrolPauseActive = false;
+    LastTaskPatrolPointDelaySeconds = 0.0f;
+    LastTaskCurrentPatrolTarget.Reset();
 }
 
 void AAIShipController::HandleFightTargetDestroyed(AActor* DestroyedActor)
@@ -435,6 +465,7 @@ void AAIShipController::HandleFightTargetDestroyed(AActor* DestroyedActor)
 
     if (IsValid(NextTarget))
     {
+        UE_LOG(LogTemp, Log, TEXT("Fight chain target selected: %s"), *NextTarget->GetActorNameOrLabel());
         Fight(NextTarget);
         return;
     }
