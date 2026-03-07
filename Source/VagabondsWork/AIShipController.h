@@ -174,6 +174,7 @@ private:
     void SaveSuspendedActionStateIfNeeded();
     void RestoreSuspendedActionStateIfPossible();
     void ClearSuspendedActionState();
+    void ClearLastTaskState();
     void CacheLastTaskStateFromCurrent();
 
     UFUNCTION()
