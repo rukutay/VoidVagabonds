@@ -1614,6 +1614,9 @@ void AShip::ApplySoftSeparation(float DeltaTime)
     const int32 NumToProcess = FMath::Min(OverlapDistancesCache.Num(), SoftSeparationMaxActors);
 
     FVector TotalForce = FVector::ZeroVector;
+    float TotalPushForceMagnitude = 0.0f;
+    float TotalDampingForceMagnitude = 0.0f;
+    float MaxPenetrationAlphaApplied = 0.0f;
 
     // Process each overlap with branch-light force calculation
     for (int32 i = 0; i < NumToProcess; ++i)
@@ -1628,6 +1631,7 @@ void AShip::ApplySoftSeparation(float DeltaTime)
         
         // Apply smoothstep to PenetrationAlpha for smoother force response
         const float SmoothedAlpha = PenetrationAlpha * PenetrationAlpha * (3.0f - 2.0f * PenetrationAlpha);
+        MaxPenetrationAlphaApplied = FMath::Max(MaxPenetrationAlphaApplied, PenetrationAlpha);
 
         // Compute contact normal - skip if nearly zero
         const FVector ToClosest = ShipPos - ClosestPoint;
@@ -1639,38 +1643,56 @@ void AShip::ApplySoftSeparation(float DeltaTime)
         
         const FVector N = ToClosest * FMath::InvSqrt(DistSq); // Faster normalization
 
+        // Passive separation force from penetration depth.
+        // This works even when ship speed is near zero.
+        const float PushForceMagnitude = SoftSeparationStrength * SmoothedAlpha;
+
         // Compute velocity going INTO the obstacle (branch-light calculation)
         const float IntoSpeed = (-N.X * Velocity.X) + (-N.Y * Velocity.Y) + (-N.Z * Velocity.Z); // Manual dot product for clarity
 
-        // Apply BRAKING ONLY - remove velocity component going INTO obstacle
-        // NO outward forces to prevent slingshot effects
-        // Branch prediction friendly: likely to be > 0 for overlapping ships
+        // Damping term removes velocity component going INTO obstacle.
+        // Branch prediction friendly: likely to be > 0 for overlapping ships.
+        float DampingForceMagnitude = 0.0f;
         if (IntoSpeed > 0.0f)
         {
-            // Force direction opposes the velocity component going into obstacle
-            // Scale by: penetration depth, damping, and mass
-            const float ForceMagnitude = IntoSpeed * SmoothedAlpha * SoftSeparationDamping * Mass;
-            
-            // Clamp force magnitude to prevent any large forces that could cause instability
-            const float ClampedForceMagnitude = FMath::Min(ForceMagnitude, SoftSeparationMaxForce);
-            
-            // Apply force in the normal direction (braking direction)
-            TotalForce.X += N.X * ClampedForceMagnitude;
-            TotalForce.Y += N.Y * ClampedForceMagnitude;
-            TotalForce.Z += N.Z * ClampedForceMagnitude;
+            DampingForceMagnitude = IntoSpeed * SmoothedAlpha * SoftSeparationDamping;
         }
+
+        const float DampingForceCap = SoftSeparationMaxForce * 0.75f;
+        DampingForceMagnitude = FMath::Min(DampingForceMagnitude, DampingForceCap);
+
+        // Combine passive push + damping and clamp per-contact force.
+        const float CombinedForceMagnitude = FMath::Min(
+            PushForceMagnitude + DampingForceMagnitude,
+            SoftSeparationMaxForce);
+
+        TotalForce.X += N.X * CombinedForceMagnitude;
+        TotalForce.Y += N.Y * CombinedForceMagnitude;
+        TotalForce.Z += N.Z * CombinedForceMagnitude;
+
+        TotalPushForceMagnitude += PushForceMagnitude;
+        TotalDampingForceMagnitude += DampingForceMagnitude;
     }
 
     // Smooth the force over time for stable behavior
     // VInterpTo provides exponential smoothing that helps prevent jitter
     SmoothedSoftSeparationForce = FMath::VInterpTo(SmoothedSoftSeparationForce, TotalForce, DeltaTime, SoftSeparationResponse);
 
+    // Counter forward thrust while penetration is active so separation can win over steering thrust.
+    if (MaxPenetrationAlphaApplied > KINDA_SMALL_NUMBER && CurrentThrottle > 0.0f)
+    {
+        const FVector Forward = ShipBase->GetForwardVector();
+        const float CounterThrust = MaxForwardForce * CurrentThrottle * MaxPenetrationAlphaApplied;
+        SmoothedSoftSeparationForce += (-Forward * CounterThrust);
+    }
+
     // Apply force to physics body
     // NOTE: AddForce is NOT scaled by DeltaTime because:
     // 1. Physics force integration already handles time scaling internally
     // 2. DeltaTime scaling would make force response dependent on frame rate
     // 3. This ensures consistent force application regardless of frame rate
-    ShipBase->AddForce(SmoothedSoftSeparationForce);
+    // Use acceleration change so response is consistent across different ship masses.
+    ShipBase->AddForce(SmoothedSoftSeparationForce, NAME_None, true);
 
 #if !UE_BUILD_SHIPPING
     if (bDebugSoftSeparation && GetWorld())
@@ -1686,20 +1708,15 @@ void AShip::ApplySoftSeparation(float DeltaTime)
         }
     }
     
-    // Find max penetration alpha for logging
-    float MaxPenetrationAlpha = 0.0f;
-    for (int32 i = 0; i < NumToProcess; ++i)
-    {
-        const float Dist = OverlapDistancesCache[i].Distance;
-        const float PenetrationAlpha = FMath::Clamp((ActivationRadius - Dist) / ActivationRadius, 0.0f, 1.0f);
-        MaxPenetrationAlpha = FMath::Max(MaxPenetrationAlpha, PenetrationAlpha);
-    }
-    
     // Log debug information
     if (bDebugSoftSeparation)
     {
-        UE_LOG(LogTemp, Log, TEXT("Ship SoftSeparation - MaxPenetrationAlpha: %.3f, AppliedForce: %.1f"), 
-               MaxPenetrationAlpha, SmoothedSoftSeparationForce.Size());
+        UE_LOG(LogTemp, Log,
+            TEXT("Ship SoftSeparation - MaxPenetrationAlpha: %.3f, AppliedForce: %.1f, Push: %.1f, Damping: %.1f"),
+            MaxPenetrationAlphaApplied,
+            SmoothedSoftSeparationForce.Size(),
+            TotalPushForceMagnitude,
+            TotalDampingForceMagnitude);
                
 #if !UE_BUILD_SHIPPING
         if (GEngine)
@@ -1708,8 +1725,11 @@ void AShip::ApplySoftSeparation(float DeltaTime)
                 -1,
                 0.1f,
                 FColor::Cyan,
-                FString::Printf(TEXT("MaxPenetrationAlpha: %.3f, AppliedForce: %.1f"), 
-                               MaxPenetrationAlpha, SmoothedSoftSeparationForce.Size())
+                FString::Printf(TEXT("MaxPen: %.3f, Applied: %.1f, Push: %.1f, Damp: %.1f"),
+                    MaxPenetrationAlphaApplied,
+                    SmoothedSoftSeparationForce.Size(),
+                    TotalPushForceMagnitude,
+                    TotalDampingForceMagnitude)
             );
         }
 #endif
