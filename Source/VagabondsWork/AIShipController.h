@@ -97,6 +97,12 @@ public:
     UFUNCTION(BlueprintCallable, Category="Navigation|Fight", meta=(ToolTip="Enter fight mode and assign target to controlled ship and external modules."))
     void Fight(AActor* TargetActor);
 
+    UFUNCTION(BlueprintCallable, Category="Navigation|Task", meta=(ToolTip="Store current/suspended task state before manual player control."))
+    void SaveTaskStateForManualControl();
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Task", meta=(ToolTip="Resume previously stored task state after manual player control ends."))
+    void ResumeTaskStateAfterManualControl();
+
     UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Get current patrol route head target."))
     ANavStaticBig* GetCurrentPatrolPoint() const;
 

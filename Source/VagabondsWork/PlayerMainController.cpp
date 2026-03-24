@@ -6,6 +6,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "Ship.h"
+#include "AIShipController.h"
 #include "Camera/CameraComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "EngineUtils.h"
@@ -723,6 +724,10 @@ void APlayerMainController::SwitchToPawn(APawn* PawnToControl)
 	if (AShip* ShipToControl = Cast<AShip>(PawnToControl))
 	{
 		LastPossessedShip = ShipToControl;
+		if (AAIShipController* AIController = Cast<AAIShipController>(ShipToControl->GetController()))
+		{
+			AIController->SaveTaskStateForManualControl();
+		}
 	}
 
 	ClearSwitchToPawnBlend();

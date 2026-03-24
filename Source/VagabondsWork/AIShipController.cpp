@@ -513,6 +513,21 @@ void AAIShipController::Fight(AActor* TargetActor)
     }
 }
 
+void AAIShipController::SaveTaskStateForManualControl()
+{
+    SaveSuspendedActionStateIfNeeded();
+}
+
+void AAIShipController::ResumeTaskStateAfterManualControl()
+{
+    if (!bHasSuspendedActionState)
+    {
+        return;
+    }
+
+    RestoreSuspendedActionStateIfPossible();
+}
+
 void AAIShipController::UnregisterCurrentFightTarget()
 {
     AActor* PreviousFightTarget = CurrentFightTarget.Get();

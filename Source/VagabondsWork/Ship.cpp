@@ -955,6 +955,7 @@ void AShip::UnPossessed()
     if (StoredAIController.IsValid() && GetController() != StoredAIController.Get())
     {
         StoredAIController->Possess(this);
+        StoredAIController->ResumeTaskStateAfterManualControl();
     }
 }
 

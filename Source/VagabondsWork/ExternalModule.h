@@ -170,6 +170,30 @@ protected:
 	  meta=(ClampMin="0.0", ClampMax="1.0", ToolTip="Accuracy factor: 1.0 = no spray, 0.0 = maximum random spray"))
 	float Accuracy = 1.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot|ReadyToShoot",
+	  meta=(ClampMin="0.0", ToolTip="Extra spread allowance added at long range for ReadyToShoot LOS check (degrees)."))
+	float ReadyToShootDistanceSpreadBonusDeg = 3.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot|ReadyToShoot",
+	  meta=(ClampMin="0.0", ToolTip="Distance in cm at which full ReadyToShootDistanceSpreadBonusDeg is reached."))
+	float ReadyToShootBonusDistanceCm = 4000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot|ReadyToShoot",
+	  meta=(ClampMin="1.0", ToolTip="Multiplier applied to allowed spread while already ReadyToShoot (hysteresis)."))
+	float ReadyToShootHysteresisMultiplier = 1.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|FreeTarget",
+	  meta=(ClampMin="0.0", ToolTip="Penalty in score (cm per degree) for off-boresight targets in Free mode."))
+	float FreeTargetAngleWeightCmPerDeg = 40.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|FreeTarget",
+	  meta=(ClampMin="0.0", ClampMax="1.0", ToolTip="Score multiplier for current target in Free mode. <1 favors sticking to current target."))
+	float FreeTargetCurrentTargetScoreMultiplier = 0.75f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Aim|FreeTarget",
+	  meta=(ClampMin="0.0", ToolTip="Minimum time between target switches in Free mode (seconds)."))
+	float FreeTargetSwitchCooldown = 0.35f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Shoot|Recoil",
 	  meta=(ClampMin="0.0", ToolTip="Base recoil kick added per shot in degrees (scaled by 1-Accuracy)."))
 	float RecoilPerShotDeg = 3.0f;
@@ -225,6 +249,7 @@ private:
 	float CurrentRecoilYawDeg = 0.0f;
 	float CurrentRecoilPitchDeg = 0.0f;
 	float LastShotTime = -1.0f;
+	float LastFreeTargetSwitchTime = -1.0f;
 
 	AActor* FindClosestVisibleTargetFromMuzzle() const;
 	bool HasVisibilityFromMuzzleToActor(AActor* Candidate) const;

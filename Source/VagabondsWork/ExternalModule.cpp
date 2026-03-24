@@ -232,8 +232,9 @@ AActor* AExternalModule::FindClosestVisibleTargetFromMuzzle() const
 	if (!Muzzle || !GetWorld()) return nullptr;
 
 	const FVector MuzzleLoc = Muzzle->GetComponentLocation();
+	const FVector MuzzleForward = Muzzle->GetForwardVector().GetSafeNormal();
 	AActor* ClosestTarget = nullptr;
-	float ClosestDistSq = MAX_flt;
+	float BestScore = MAX_flt;
 
 	for (AActor* Candidate : TargetsList)
 	{
@@ -241,10 +242,23 @@ AActor* AExternalModule::FindClosestVisibleTargetFromMuzzle() const
 		if (Candidate == this || Candidate == GetOwner()) continue;
 		if (!HasVisibilityFromMuzzleToActor(Candidate)) continue;
 
-		const float DistSq = FVector::DistSquared(MuzzleLoc, Candidate->GetActorLocation());
-		if (DistSq < ClosestDistSq)
+		const FVector ToCandidate = Candidate->GetActorLocation() - MuzzleLoc;
+		const float DistCm = ToCandidate.Size();
+		if (DistCm <= KINDA_SMALL_NUMBER) continue;
+
+		const FVector ToCandidateDir = ToCandidate / DistCm;
+		const float Dot = FMath::Clamp(FVector::DotProduct(MuzzleForward, ToCandidateDir), -1.0f, 1.0f);
+		const float AngleDeg = FMath::RadiansToDegrees(FMath::Acos(Dot));
+		float Score = DistCm + (AngleDeg * FMath::Max(0.0f, FreeTargetAngleWeightCmPerDeg));
+
+		if (Candidate == TargetActor)
 		{
-			ClosestDistSq = DistSq;
+			Score *= FMath::Clamp(FreeTargetCurrentTargetScoreMultiplier, 0.0f, 1.0f);
+		}
+
+		if (Score < BestScore)
+		{
+			BestScore = Score;
 			ClosestTarget = Candidate;
 		}
 	}
@@ -303,7 +317,6 @@ bool AExternalModule::HasLineOfSightToTarget() const
     if (!bUseReadyToShootCheck) return false;
     if (!GetWorld() || !TargetActor || !PivotGun || !Muzzle) return false;
 
-    const FVector GunLoc = PivotGun->GetComponentLocation();
     const FVector MuzzleLoc = Muzzle->GetComponentLocation();
 
     // --- AimLoc (prediction) ---
@@ -318,6 +331,7 @@ bool AExternalModule::HasLineOfSightToTarget() const
     }
 
     const float Radius = ProjectileSphere->GetScaledSphereRadius();
+	const FVector MuzzleForwardWithRecoil = (Muzzle->GetComponentRotation() + FRotator(CurrentRecoilPitchDeg, CurrentRecoilYawDeg, 0.0f)).Vector().GetSafeNormal();
 
     FCollisionQueryParams Params(SCENE_QUERY_STAT(ExternalModule_LOS_Sweep), false);
     Params.AddIgnoredActor(this);
@@ -336,35 +350,35 @@ bool AExternalModule::HasLineOfSightToTarget() const
             return false;
         }
 
-        const FVector ToAim = (ShotLoc - GunLoc);
+        const FVector ToAim = (ShotLoc - MuzzleLoc);
         const float ToAimLenSq = ToAim.SizeSquared();
         if (ToAimLenSq < 1.f) return true;
 
-        // --- Ensure trace goes "through muzzle" (gun forward check) ---
-        // Muzzle must lie close to the segment GunLoc -> ShotLoc and in front of GunLoc.
-        const FVector ToMuzzle = (MuzzleLoc - GunLoc);
-        const float ToMuzzleLenSq = ToMuzzle.SizeSquared();
-        if (ToMuzzleLenSq < 1.f) return false;
+		// Accuracy + distance + recoil aware acceptance with hysteresis.
+        const FVector AimDir = ToAim.GetSafeNormal();
+		const float Dot = FMath::Clamp(FVector::DotProduct(MuzzleForwardWithRecoil, AimDir), -1.0f, 1.0f);
+        const float AngleDeg = FMath::RadiansToDegrees(FMath::Acos(Dot));
+        const float ClampedAccuracy = FMath::Clamp(Accuracy, 0.0f, 1.0f);
+		float AllowedSpreadDeg = FMath::Lerp(12.0f, 0.5f, ClampedAccuracy);
 
-        const FVector Dir = ToAim.GetSafeNormal();
-        const float MuzzleProj = FVector::DotProduct(ToMuzzle, Dir);
-        if (MuzzleProj <= 0.f) return false; // muzzle behind start relative to firing dir
+		const float BonusDistance = FMath::Max(ReadyToShootBonusDistanceCm, 1.0f);
+		const float DistAlpha = FMath::Clamp(FMath::Sqrt(ToAimLenSq) / BonusDistance, 0.0f, 1.0f);
+		AllowedSpreadDeg += DistAlpha * FMath::Max(0.0f, ReadyToShootDistanceSpreadBonusDeg);
 
-        // Perpendicular distance from muzzle to firing line
-        const FVector ClosestPointOnLine = GunLoc + Dir * MuzzleProj;
-        const float MuzzleLineDistSq = FVector::DistSquared(MuzzleLoc, ClosestPointOnLine);
+		if (ReadyToShoot)
+		{
+			AllowedSpreadDeg *= FMath::Max(1.0f, ReadyToShootHysteresisMultiplier);
+		}
 
-        // Tolerance: small fraction of projectile radius (or a small constant if sphere missing)
-        const float ThroughTol = FMath::Max(2.f, Radius * 0.25f);
-        if (MuzzleLineDistSq > FMath::Square(ThroughTol))
+        if (AngleDeg > AllowedSpreadDeg)
         {
-            return false; // not aimed "through" muzzle yet
+            return false;
         }
 
         auto SweepBlocked = [&](ECollisionChannel Channel) -> bool
         {
             FHitResult Hit;
-            const bool bHit = GetWorld()->SweepSingleByChannel(Hit, GunLoc, ShotLoc, FQuat::Identity, Channel, Sphere, Params);
+            const bool bHit = GetWorld()->SweepSingleByChannel(Hit, MuzzleLoc, ShotLoc, FQuat::Identity, Channel, Sphere, Params);
             if (!bHit) return false; // clear on this channel
             return Hit.GetActor() != TargetActor; // only target is allowed
         };
@@ -582,7 +596,22 @@ void AExternalModule::AimStep(float Dt)
 
 	if (TurretAimMode == ETurretAimMode::Free)
 	{
-		TargetActor = FindClosestVisibleTargetFromMuzzle();
+		AActor* BestTarget = FindClosestVisibleTargetFromMuzzle();
+		if (BestTarget != TargetActor)
+		{
+			const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+			const bool bHasCurrentTarget = IsValid(TargetActor);
+			const bool bWithinSwitchCooldown = bHasCurrentTarget
+				&& FreeTargetSwitchCooldown > 0.0f
+				&& LastFreeTargetSwitchTime >= 0.0f
+				&& (Now - LastFreeTargetSwitchTime) < FreeTargetSwitchCooldown;
+
+			if (!bWithinSwitchCooldown)
+			{
+				TargetActor = BestTarget;
+				LastFreeTargetSwitchTime = Now;
+			}
+		}
 	}
 
 	if (!TargetActor)
