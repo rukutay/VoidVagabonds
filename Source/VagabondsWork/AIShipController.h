@@ -29,6 +29,13 @@ enum class EBehavior : uint8
     Aggressive UMETA(DisplayName="Aggressive")
 };
 
+UENUM(BlueprintType)
+enum class EFightRunPhase : uint8
+{
+    Approach   UMETA(DisplayName="Approach"),
+    PassBehind UMETA(DisplayName="PassBehind")
+};
+
 UCLASS()
 class VAGABONDSWORK_API AAIShipController : public AAIController
 {
@@ -96,6 +103,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Navigation|Fight", meta=(ToolTip="Enter fight mode and assign target to controlled ship and external modules."))
     void Fight(AActor* TargetActor);
+
+    UFUNCTION(BlueprintCallable, Category="Navigation|Fight", meta=(ToolTip="Resolve steering goal for non-orbit fight runs with approach/pass-behind phases."))
+    FVector ResolveFightSteeringGoal(AShip* Ship, float DeltaTime);
 
     UFUNCTION(BlueprintCallable, Category="Navigation|Task", meta=(ToolTip="Store current/suspended task state before manual player control."))
     void SaveTaskStateForManualControl();
@@ -174,6 +184,10 @@ public:
 private:
     void HandleStuckCheck();
     void HandleSafetyMarginCheck();
+    void ResetFightRunState();
+    bool ShouldUseFightRunNavigation(const AShip* Ship) const;
+    bool PredictFightTargetCollision(const AShip* Ship, const AActor* Target, float PredictTimeSec, float SafetyMarginCm) const;
+    FVector BuildFightPassBehindPoint(const AShip* Ship, const AActor* Target) const;
     void UnregisterCurrentFightTarget();
     void SetExternalModulesTarget(AActor* TargetActor);
     void ClearFightTargetState();
@@ -192,6 +206,33 @@ private:
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Currently tracked fight target."))
     TWeakObjectPtr<AActor> CurrentFightTarget;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Current phase for non-orbit fight run navigation."))
+    EFightRunPhase FightRunPhase = EFightRunPhase::Approach;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Cached pass-behind steering point used during pass phase."))
+    FVector FightPassBehindPoint = FVector::ZeroVector;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="True when pass-behind point is initialized."))
+    bool bHasFightPassBehindPoint = false;
+
+    UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="World time until fight phase switch is allowed."))
+    float FightPhaseSwitchCooldownUntil = 0.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|Fight", meta=(ClampMin="0.1", ToolTip="Prediction horizon for fight collision checks (seconds)."))
+    float FightCollisionPredictTimeSec = 1.2f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|Fight", meta=(ClampMin="0.0", ToolTip="Extra target safety margin during fight run collision prediction (cm)."))
+    float FightTargetSafetyMarginCm = 300.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|Fight", meta=(ClampMin="0.1", ClampMax="1.0", ToolTip="Pass-behind distance multiplier of effective range."))
+    float FightPassBehindDistanceMultiplier = 0.9f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|Fight", meta=(ClampMin="0.1", ClampMax="1.0", ToolTip="Distance multiplier of effective range required to switch pass phase back to approach."))
+    float FightApproachReentryMultiplier = 0.85f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|Fight", meta=(ClampMin="0.0", ToolTip="Minimum hold duration per fight run phase (seconds)."))
+    float FightMinPhaseHoldSec = 0.5f;
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="True when pre-fight action state is saved for resume."))
     bool bHasSuspendedActionState = false;

@@ -78,9 +78,16 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	const FVector OwnerLocation = GetOwner()->GetActorLocation();
 	const FVector ShipPos = OwnerLocation;
 	AActor* IntentTargetActor = nullptr;
+	bool bNonOrbitFightRun = false;
 	if (const AShip* OwnerShip = Cast<AShip>(GetOwner()))
 	{
 		IntentTargetActor = OwnerShip->TargetActor;
+		if (const AAIShipController* OwnerController = Cast<AAIShipController>(OwnerShip->GetController()))
+		{
+			bNonOrbitFightRun = OwnerController->GetActionMode() == EActionMode::Fight
+				&& IntentTargetActor != nullptr
+				&& !OwnerShip->bOrbitTarget;
+		}
 	}
 
 	auto ShouldIgnoreActorForAvoidance = [&](const AActor* CandidateActor) -> bool
@@ -92,6 +99,10 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 
 		if (CandidateActor == IntentTargetActor)
 		{
+			if (bNonOrbitFightRun)
+			{
+				return false;
+			}
 			return true;
 		}
 

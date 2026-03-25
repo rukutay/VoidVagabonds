@@ -619,9 +619,18 @@ void AShip::Tick(float DeltaTime)
         const bool bMovementAllowed = ShipController && ShipController->IsMovementAllowed();
 
         // NAVIGATION_TODO_REMOVE
-        const FVector GoalCenter = GetGoalLocation();
+        FVector GoalCenter = GetGoalLocation();
         FVector Goal = GoalCenter;
         bool bMovingGoal = false;
+
+        if (ShipController
+            && ShipController->GetActionMode() == EActionMode::Fight
+            && TargetActor
+            && !bOrbitTarget)
+        {
+            GoalCenter = ShipController->ResolveFightSteeringGoal(this, DeltaTime);
+            Goal = GoalCenter;
+        }
 
         if (TargetActor && bOrbitTarget && EffectiveRange > 0.0f)
         {

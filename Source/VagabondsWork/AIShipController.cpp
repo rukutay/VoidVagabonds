@@ -34,9 +34,212 @@ void AAIShipController::BeginPlay()
     }
 }
 
+void AAIShipController::ResetFightRunState()
+{
+    FightRunPhase = EFightRunPhase::Approach;
+    FightPassBehindPoint = FVector::ZeroVector;
+    bHasFightPassBehindPoint = false;
+    FightPhaseSwitchCooldownUntil = 0.0f;
+}
+
+bool AAIShipController::ShouldUseFightRunNavigation(const AShip* Ship) const
+{
+    if (!Ship)
+    {
+        return false;
+    }
+
+    return ActionMode == EActionMode::Fight
+        && Ship->TargetActor != nullptr
+        && !Ship->bOrbitTarget;
+}
+
+bool AAIShipController::PredictFightTargetCollision(const AShip* Ship, const AActor* Target, float PredictTimeSec, float SafetyMarginCm) const
+{
+    if (!Ship || !Target)
+    {
+        return false;
+    }
+
+    UPrimitiveComponent* ShipBase = Ship->GetShipBase();
+    const FVector ShipPos = Ship->GetActorLocation();
+    const FVector TargetPos = Target->GetActorLocation();
+    const FVector ShipVel = ShipBase ? ShipBase->GetPhysicsLinearVelocity() : Ship->GetVelocity();
+    const FVector TargetVel = Target->GetVelocity();
+
+    float ShipRadius = 300.0f;
+    if (Ship->ShipRadius)
+    {
+        ShipRadius = FMath::Max(Ship->ShipRadius->GetScaledSphereRadius(), 1.0f);
+    }
+
+    float TargetRadius = 300.0f;
+    if (const AShip* TargetShip = Cast<AShip>(Target))
+    {
+        if (TargetShip->ShipRadius)
+        {
+            TargetRadius = FMath::Max(TargetShip->ShipRadius->GetScaledSphereRadius(), 1.0f);
+        }
+    }
+    else if (const UPrimitiveComponent* TargetRootPrimitive = Cast<UPrimitiveComponent>(Target->GetRootComponent()))
+    {
+        TargetRadius = FMath::Max(TargetRootPrimitive->Bounds.SphereRadius, 1.0f);
+    }
+
+    const float CombinedRadius = ShipRadius + TargetRadius + FMath::Max(0.0f, SafetyMarginCm);
+    const FVector RelPos = TargetPos - ShipPos;
+    const FVector RelVel = TargetVel - ShipVel;
+    const float RelVelSizeSq = RelVel.SizeSquared();
+
+    float TimeToClosest = 0.0f;
+    if (RelVelSizeSq > KINDA_SMALL_NUMBER)
+    {
+        TimeToClosest = FMath::Clamp(-FVector::DotProduct(RelPos, RelVel) / RelVelSizeSq, 0.0f, FMath::Max(0.1f, PredictTimeSec));
+    }
+
+    const FVector ClosestRelPos = RelPos + RelVel * TimeToClosest;
+    const float ClosestDistSq = ClosestRelPos.SizeSquared();
+    if (ClosestDistSq <= FMath::Square(CombinedRadius))
+    {
+        return true;
+    }
+
+    const float CurrentDistSq = RelPos.SizeSquared();
+    return CurrentDistSq <= FMath::Square(CombinedRadius * 0.95f);
+}
+
+FVector AAIShipController::BuildFightPassBehindPoint(const AShip* Ship, const AActor* Target) const
+{
+    if (!Ship || !Target)
+    {
+        return Ship ? Ship->GetActorLocation() : FVector::ZeroVector;
+    }
+
+    const FVector ShipPos = Ship->GetActorLocation();
+    const FVector TargetPos = Target->GetActorLocation();
+
+    FVector ApproachDir = (TargetPos - ShipPos).GetSafeNormal();
+    if (ApproachDir.IsNearlyZero())
+    {
+        ApproachDir = Target->GetActorForwardVector();
+        if (ApproachDir.IsNearlyZero())
+        {
+            ApproachDir = Ship->GetActorForwardVector();
+        }
+    }
+    ApproachDir = ApproachDir.GetSafeNormal();
+
+    FVector TargetFrameForward = Target->GetVelocity().GetSafeNormal();
+    if (TargetFrameForward.IsNearlyZero())
+    {
+        TargetFrameForward = Target->GetActorForwardVector();
+    }
+
+    if (!TargetFrameForward.IsNearlyZero() && FVector::DotProduct(TargetFrameForward, ApproachDir) < 0.0f)
+    {
+        TargetFrameForward *= -1.0f;
+    }
+
+    FVector PassDirection = ApproachDir;
+    if (!TargetFrameForward.IsNearlyZero())
+    {
+        PassDirection = (ApproachDir * 0.65f + TargetFrameForward * 0.35f).GetSafeNormal();
+    }
+
+    if (PassDirection.IsNearlyZero())
+    {
+        PassDirection = ApproachDir.IsNearlyZero() ? Ship->GetActorForwardVector().GetSafeNormal() : ApproachDir;
+    }
+
+    const float EffectiveRange = FMath::Max(Ship->EffectiveRange, 1000.0f);
+    const float PassDistance = EffectiveRange * FMath::Clamp(FightPassBehindDistanceMultiplier, 0.1f, 1.0f);
+    FVector PassPoint = TargetPos + PassDirection * PassDistance;
+
+    const float MinTargetDistance = EffectiveRange * FMath::Clamp(FightApproachReentryMultiplier, 0.1f, 1.0f);
+    if (FVector::DistSquared(PassPoint, TargetPos) < FMath::Square(MinTargetDistance))
+    {
+        PassPoint = TargetPos + PassDirection * MinTargetDistance;
+    }
+
+    return PassPoint;
+}
+
+FVector AAIShipController::ResolveFightSteeringGoal(AShip* Ship, float DeltaTime)
+{
+    (void)DeltaTime;
+
+    if (!Ship || !ShouldUseFightRunNavigation(Ship))
+    {
+        return Ship && Ship->TargetActor ? Ship->TargetActor->GetActorLocation() : (Ship ? Ship->GetActorLocation() : FVector::ZeroVector);
+    }
+
+    AActor* Target = Ship->TargetActor;
+    if (!IsValid(Target))
+    {
+        ResetFightRunState();
+        return Ship->GetActorLocation();
+    }
+
+    UWorld* World = GetWorld();
+    const float WorldTime = World ? World->GetTimeSeconds() : 0.0f;
+    const bool bCanSwitchPhase = WorldTime >= FightPhaseSwitchCooldownUntil;
+    const float DistanceToTarget = FVector::Dist(Ship->GetActorLocation(), Target->GetActorLocation());
+
+    if (FightRunPhase == EFightRunPhase::Approach)
+    {
+        const bool bPredictedCollision = PredictFightTargetCollision(
+            Ship,
+            Target,
+            FMath::Max(FightCollisionPredictTimeSec, 0.1f),
+            FMath::Max(FightTargetSafetyMarginCm, 0.0f));
+
+        if (bPredictedCollision && bCanSwitchPhase)
+        {
+            FightRunPhase = EFightRunPhase::PassBehind;
+            FightPassBehindPoint = BuildFightPassBehindPoint(Ship, Target);
+            bHasFightPassBehindPoint = true;
+            FightPhaseSwitchCooldownUntil = WorldTime + FMath::Max(FightMinPhaseHoldSec, 0.0f);
+        }
+    }
+    else
+    {
+        if (!bHasFightPassBehindPoint)
+        {
+            FightPassBehindPoint = BuildFightPassBehindPoint(Ship, Target);
+            bHasFightPassBehindPoint = true;
+        }
+
+        const float ReentryDistance = FMath::Max(
+            500.0f,
+            FMath::Max(Ship->EffectiveRange, 1000.0f) * FMath::Clamp(FightApproachReentryMultiplier, 0.1f, 1.0f));
+
+        const FVector ShipPos = Ship->GetActorLocation();
+        const FVector TargetPos = Target->GetActorLocation();
+        const FVector PassVector = FightPassBehindPoint - TargetPos;
+        const FVector TargetToShip = ShipPos - TargetPos;
+        const bool bPassedTargetPlane = !PassVector.IsNearlyZero()
+            && FVector::DotProduct(TargetToShip, PassVector.GetSafeNormal()) > 0.15f;
+
+        const bool bReopenDistance = DistanceToTarget >= ReentryDistance;
+        const bool bPassedAndReopened = bPassedTargetPlane && DistanceToTarget >= (ReentryDistance * 0.6f);
+
+        if ((bReopenDistance || bPassedAndReopened) && bCanSwitchPhase)
+        {
+            FightRunPhase = EFightRunPhase::Approach;
+            bHasFightPassBehindPoint = false;
+            FightPhaseSwitchCooldownUntil = WorldTime + FMath::Max(FightMinPhaseHoldSec, 0.0f);
+        }
+    }
+
+    return (FightRunPhase == EFightRunPhase::PassBehind && bHasFightPassBehindPoint)
+        ? FightPassBehindPoint
+        : Target->GetActorLocation();
+}
+
 void AAIShipController::ResetAction()
 {
     UnregisterCurrentFightTarget();
+    ResetFightRunState();
     ClearSuspendedActionState();
     CurrentGoToActorTarget.Reset();
     bGoToActorActive = false;
@@ -200,6 +403,7 @@ void AAIShipController::SetExternalModulesTarget(AActor* TargetActor)
 void AAIShipController::ClearFightTargetState()
 {
     UnregisterCurrentFightTarget();
+    ResetFightRunState();
 
     AShip* Ship = Cast<AShip>(GetPawn());
     if (Ship)
@@ -476,6 +680,7 @@ void AAIShipController::HandleFightTargetDestroyed(AActor* DestroyedActor)
 void AAIShipController::Fight(AActor* TargetActor)
 {
     SaveSuspendedActionStateIfNeeded();
+    ResetFightRunState();
 
     CurrentGoToActorTarget.Reset();
     bGoToActorActive = false;

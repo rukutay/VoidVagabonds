@@ -1,123 +1,98 @@
 # Implementation Plan
 
 [Overview]
-Implement patrol progression in `AAIShipController` so a ship consumes `PatrolRoute` points by overlapping each `ANavStaticBig::PlaneRadius`, removes the reached point, waits for a caller-provided delay, and then continues with the new index `0` point.
+Implement a fight-specific non-orbit navigation pattern that prevents ramming the current fight target while preserving aggressive attack behavior.
 
-The current codebase already has route creation (`CreatePatrolRoute`) and navigation steering, but it does not contain patrol progression logic that reacts to overlap with patrol objective volumes. The ship currently navigates to `GetFocusLocation()` (target actor or self), and overlap events are used mainly for avoidance/soft-separation, not patrol objective completion. This gap prevents route consumption and deterministic step-by-step patrol advancement.
+The current crash behavior is caused by one core interaction: `UShipNavComponent::TickNav` treats `IntentTargetActor` as an avoidance-ignore actor in all cases, and in `Fight` mode with `bOrbitTarget=false` this removes the only collision guard against the actor being pursued directly. As a result, steering remains goal-seeking all the way into target collision when no static or dynamic substitute obstacle is selected in time.
 
-The implementation will keep patrol ownership in `AAIShipController::PatrolRoute` (per user confirmation), while integrating progression with existing ship movement flow. `AShip::GetGoalLocation()` will be adjusted to prioritize patrol target when patrol is active, so existing `ShipNavComponent`/steering systems remain intact and timer-driven behavior is preserved. Overlap detection will rely on `AShip::HandleShipRadiusBeginOverlap` because `ANavStaticBig::PlaneRadius` is currently configured with `NoCollision`; the patrol start function will therefore configure route actors’ `PlaneRadius` for query overlap participation to make the mechanic functional without per-tick scans.
+The implementation introduces an explicit “attack run + retreat loop” for `Fight` mode when orbiting is disabled. During approach, the ship advances toward a safe attack band and predicts near-term collision with the target volume; when collision risk becomes high, it switches to retreat and steers toward a generated retreat anchor that remains within effective range. Once spacing is restored, it re-enters approach and repeats.
 
 [Types]
-Add patrol state and timing fields to controller state to support delayed progression.
+Add explicit fight run/retreat phase state in the controller so combat navigation can be phase-driven.
 
-- `AAIShipController` new/extended state fields:
-  - `bool bPatrolActive` — true when an active patrol run exists.
-  - `bool bPatrolPauseActive` — true during the post-reach delay window.
-  - `float PatrolPointDelaySeconds` — configured delay argument captured at patrol start (validated `>= 0`).
-  - `FTimerHandle PatrolResumeTimerHandle` — timer for delayed continuation.
-  - `TWeakObjectPtr<ANavStaticBig> CurrentPatrolTarget` (optional helper cache) — avoids repeated route lookups and supports validity checks.
+- **New enum** (`Source/VagabondsWork/AIShipController.h`):
+  - `UENUM(BlueprintType) enum class EFightRunPhase : uint8`
+    - `Approach`
+    - `Retreat`
+- **New controller state**:
+  - `EFightRunPhase FightRunPhase = EFightRunPhase::Approach;`
+  - `FVector FightRetreatAnchor = FVector::ZeroVector;`
+  - `bool bHasFightRetreatAnchor = false;`
+  - `float FightPhaseSwitchCooldownUntil = 0.0f;`
+- **New tuning fields**:
+  - `FightCollisionPredictTimeSec` (float)
+  - `FightTargetSafetyMarginCm` (float)
+  - `FightRetreatDistanceMultiplier` (float)
+  - `FightApproachReentryMultiplier` (float)
+  - `FightMinPhaseHoldSec` (float)
 
-- Validation and behavior rules:
-  - Delay argument is clamped to `>= 0.0f`.
-  - Reached point is always `PatrolRoute[0]`; on completion it is removed with no shrinking.
-  - Invalid/null entries at route head are pruned before resolving goal target.
-  - Patrol ends when `PatrolRoute.Num() == 0`; all patrol flags/timers are reset.
+Validation:
+- Clamp multipliers/ranges to positive values.
+- Reset fight phase state whenever fight target changes or fight exits.
 
 [Files]
-Modify controller and ship files to add patrol lifecycle, overlap handling integration, and goal sourcing.
+Modify only fight/navigation control paths.
 
-- Existing files to be modified:
-  - `Source/VagabondsWork/AIShipController.h`
-    - Add patrol API for start/progression/cancel/query.
-    - Add patrol runtime state fields and timer handle.
-  - `Source/VagabondsWork/AIShipController.cpp`
-    - Implement start patrol with delay argument.
-    - Implement route-head target resolution.
-    - Implement point reached handler (remove index 0 + start delay timer).
-    - Implement resume callback and cleanup/cancel paths.
-  - `Source/VagabondsWork/Ship.h`
-    - Add minimal patrol-aware helper declarations if needed for overlap dispatch clarity.
-  - `Source/VagabondsWork/Ship.cpp`
-    - In `HandleShipRadiusBeginOverlap`, detect `ANavStaticBig` + `PlaneRadius` overlap and notify controller patrol logic.
-    - In `GetGoalLocation`, prioritize current patrol point when patrol is active; fall back to existing focus behavior.
-
-- New files to be created: none.
-- Files to be deleted/moved: none.
-- Configuration updates:
-  - None in `.ini`; collision profile changes are applied at runtime to `PlaneRadius` for patrol route actors.
+- **Modify** `Source/VagabondsWork/AIShipController.h`
+  - Add `EFightRunPhase`, state fields, tunables, helper declarations.
+- **Modify** `Source/VagabondsWork/AIShipController.cpp`
+  - Add phase reset/init in `Fight`, `ResetAction`, `ClearFightTargetState`, destruction handlers.
+  - Implement collision prediction, retreat anchor build, phase update, steering goal resolve.
+- **Modify** `Source/VagabondsWork/Ship.cpp`
+  - In `Tick`, for `Fight && !bOrbitTarget`, resolve phase-based fight goal from controller and pass it into nav/steering/rotation flow.
+- **Modify** `Source/VagabondsWork/ShipNavComponent.cpp`
+  - Update `ShouldIgnoreActorForAvoidance` so target is not ignored during non-orbit fight-run navigation.
+- **Docs to update at end of implementation**:
+  - `docs/README.md`
+  - `docs/DEVELOPMENT_GUIDE.md`
+  - `docs/CHANGELOG.md`
 
 [Functions]
-Add patrol lifecycle functions and minimally modify goal/overlap functions.
+Add focused helpers and adapt existing flow.
 
-- New functions in `AAIShipController`:
-  - `void StartPatrol(const TArray<ANavStaticBig*>& NavStaticActors, float InPointDelaySeconds);`
-    - Builds/stores route via existing `CreatePatrolRoute`, captures delay, enables `PlaneRadius` overlap on route points, and arms patrol state.
-  - `ANavStaticBig* GetCurrentPatrolPoint() const;`
-    - Returns first valid route point (`index 0`) after pruning invalid head entries.
-  - `void HandlePatrolPointOverlap(UPrimitiveComponent* OtherComp, AActor* OtherActor);`
-    - Verifies overlap belongs to current route head’s `PlaneRadius`; then consumes point and starts delay timer.
-  - `void ResumePatrolAfterDelay();`
-    - Clears pause state; ends patrol if route empty.
-  - `void StopPatrol(bool bClearRoute);`
-    - Clears timer/state and optionally empties route.
-
-- Modified functions:
-  - `AAIShipController::BeginPlay()`
-    - Ensure patrol timer handles are clean and safe on begin.
-  - `AShip::HandleShipRadiusBeginOverlap(...)`
-    - Forward overlaps to controller patrol handler before/alongside existing obstacle tracking logic.
-  - `AShip::GetGoalLocation() const`
-    - Return patrol point location when patrol is active and a valid route head exists.
-
-- Removed functions: none.
+- **New (`AAIShipController`)**:
+  - `bool ShouldUseFightRunNavigation(const AShip* Ship) const;`
+  - `bool PredictFightTargetCollision(const AShip* Ship, const AActor* Target, float PredictTimeSec, float SafetyMarginCm) const;`
+  - `FVector BuildFightRetreatAnchor(const AShip* Ship, const AActor* Target) const;`
+  - `FVector ResolveFightSteeringGoal(AShip* Ship, float DeltaTime);`
+  - `void ResetFightRunState();`
+- **Modified**:
+  - `AAIShipController::Fight(AActor* TargetActor)`
+  - `AAIShipController::ResetAction()`
+  - `AAIShipController::ClearFightTargetState()`
+  - `AAIShipController::HandleFightTargetDestroyed(AActor*)`
+  - `AShip::Tick(float DeltaTime)`
+  - `UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, float ShipRadiusCm, bool bMovingGoal)`
 
 [Classes]
-Extend existing classes only; no new class introductions.
+Extend existing classes only.
 
-- Modified classes:
-  - `AAIShipController`
-    - Gains full patrol progression lifecycle (start, overlap consume, delayed resume, stop).
-    - Continues using `PatrolRoute` as authoritative store.
-  - `AShip`
-    - Becomes the overlap event bridge for patrol objective completion.
-    - Uses controller patrol target as navigation goal source when applicable.
-
-- New classes: none.
-- Removed classes: none.
+- **Modified**:
+  - `AAIShipController` (fight phase machine + steering goal selection)
+  - `AShip` (uses fight-phase steering goal in non-orbit fight mode)
+  - `UShipNavComponent` (target-ignore avoidance condition)
+- **No new classes**, **no removed classes**.
 
 [Dependencies]
-No external packages are added; only existing Unreal Engine modules/APIs are used.
+No dependency/package changes are required.
 
-- UE APIs used/extended:
-  - `FTimerManager` / `FTimerHandle` for delayed continuation.
-  - `USphereComponent` collision mode/response configuration for `PlaneRadius` overlap viability.
-  - Existing controller/ship/nav integration paths already present in module.
+Only internal UE C++ logic is adjusted.
 
 [Testing]
-Use runtime verification in PIE focused on patrol progression correctness and non-regression.
+Validate by scenario-based PIE runs.
 
-- Functional tests:
-  - Start patrol with a known `NavStaticBig` list and explicit delay argument.
-  - Verify first patrol target is `PatrolRoute[0]` location.
-  - On ship overlap with that target’s `PlaneRadius`, confirm route shrinks by one (head removed).
-  - Confirm ship pauses for provided delay, then resumes toward new `PatrolRoute[0]`.
-  - Confirm patrol cleanly stops when route empties.
-
-- Edge-case tests:
-  - Delay `0.0` (immediate continuation).
-  - Invalid/null actors in input list.
-  - Route actor destroyed before being reached (head pruning behavior).
-  - Overlap with non-head patrol point should not consume route.
-
-- Regression checks:
-  - Existing safety-margin/unstuck behavior still works.
-  - Non-patrol goal behavior (`GetFocusLocation`) unchanged when patrol inactive.
+1. Fight mode + `bOrbitTarget=false` + high-speed approach to stationary target: no collision; retreat loop observed.
+2. Fight mode + moving target: repeated approach/retreat cycles without phase flicker.
+3. Fight mode + `bOrbitTarget=true`: orbit unchanged.
+4. Patrol/Follow/Move regression check.
+5. Target destroyed mid-retreat: state reset and restore behavior remains valid.
 
 [Implementation Order]
-Implement controller patrol lifecycle first, then wire ship overlap/goal sourcing, then validate in PIE.
+Implement controller phase logic first, then wire ship/nav integration.
 
-1. Extend `AAIShipController` header with patrol lifecycle APIs/state and timer handle.
-2. Implement patrol start/consume/delay/resume/stop logic in `AIShipController.cpp` using `PatrolRoute` index `0` semantics.
-3. Update `AShip::HandleShipRadiusBeginOverlap` to dispatch patrol overlap events to controller.
-4. Update `AShip::GetGoalLocation` to return patrol head location when patrol is active.
-5. Validate end-to-end patrol flow and edge cases in PIE (including delay argument behavior).
+1. Add new enum/state/tunables to `AIShipController.h`.
+2. Implement helpers and reset hooks in `AIShipController.cpp`.
+3. Integrate non-orbit fight steering-goal resolution in `AShip::Tick`.
+4. Refine avoidance ignore logic in `UShipNavComponent::TickNav`.
+5. Validate behavior in PIE and tune defaults.
+6. Update docs after implementation completion.
