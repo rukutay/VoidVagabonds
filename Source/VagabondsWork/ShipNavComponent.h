@@ -87,6 +87,12 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance", meta=(ToolTip="Extra separation margin for dynamic avoidance."))
 	float SeparationMarginMultiplier = 0.5f;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|Fight", meta=(ClampMin="0.0", ClampMax="1.0", ToolTip="Target avoidance scale applied when inside fight firing cone and collision is non-critical."))
+	float FightTargetAvoidanceScaleInFiringCone = 0.35f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|Fight", meta=(ClampMin="1.0", ToolTip="Critical distance multiplier of ship radius where full target avoidance is restored."))
+	float FightTargetAvoidanceCriticalDistanceMultiplier = 3.0f;
+
     UPROPERTY(EditAnywhere, Category = "Navigation|Stuck", meta=(ToolTip="Interval between stuck checks (seconds)."))
 	float StuckCheckInterval = 0.25f;
 

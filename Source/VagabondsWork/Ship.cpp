@@ -767,6 +767,36 @@ void AShip::Tick(float DeltaTime)
             SteeringSource = TEXT("Nav");
         }
 
+        const bool bUseFightSteeringSmoothing = ShipController
+            && ShipController->GetActionMode() == EActionMode::Fight
+            && TargetActor
+            && !bOrbitTarget
+            && FightSteeringSmoothingSpeed > 0.0f;
+
+        if (bUseFightSteeringSmoothing)
+        {
+            if (!bHasFightSteeringSmoothingState)
+            {
+                LastFightSmoothedSteeringTarget = SteeringTarget;
+                bHasFightSteeringSmoothingState = true;
+            }
+            else
+            {
+                LastFightSmoothedSteeringTarget = FMath::VInterpTo(
+                    LastFightSmoothedSteeringTarget,
+                    SteeringTarget,
+                    DeltaTime,
+                    FightSteeringSmoothingSpeed);
+            }
+
+            SteeringTarget = LastFightSmoothedSteeringTarget;
+        }
+        else
+        {
+            bHasFightSteeringSmoothingState = false;
+            LastFightSmoothedSteeringTarget = FVector::ZeroVector;
+        }
+
 #if !UE_BUILD_SHIPPING
         if (bDebugSteering)
         {

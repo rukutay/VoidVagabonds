@@ -108,6 +108,31 @@ bool AAIShipController::PredictFightTargetCollision(const AShip* Ship, const AAc
     return CurrentDistSq <= FMath::Square(CombinedRadius * 0.95f);
 }
 
+FVector AAIShipController::BuildFightInterceptPoint(const AShip* Ship, const AActor* Target) const
+{
+    if (!Ship || !Target)
+    {
+        return Ship ? Ship->GetActorLocation() : FVector::ZeroVector;
+    }
+
+    UPrimitiveComponent* ShipBase = Ship->GetShipBase();
+    const FVector ShipPos = Ship->GetActorLocation();
+    const FVector TargetPos = Target->GetActorLocation();
+    const FVector ShipVel = ShipBase ? ShipBase->GetPhysicsLinearVelocity() : Ship->GetVelocity();
+    const FVector TargetVel = Target->GetVelocity();
+
+    const float ShipSpeed = FMath::Max(ShipVel.Size(), 300.0f);
+    const FVector ToTarget = TargetPos - ShipPos;
+    const float DistanceToTarget = ToTarget.Size();
+
+    const float MinPredictTime = 0.1f;
+    const float MaxPredictTime = FMath::Max(FightCollisionPredictTimeSec, 0.2f);
+    const float TimeToTarget = DistanceToTarget / ShipSpeed;
+    const float InterceptTime = FMath::Clamp(TimeToTarget, MinPredictTime, MaxPredictTime);
+
+    return TargetPos + TargetVel * InterceptTime;
+}
+
 FVector AAIShipController::BuildFightPassBehindPoint(const AShip* Ship, const AActor* Target) const
 {
     if (!Ship || !Target)
@@ -184,6 +209,7 @@ FVector AAIShipController::ResolveFightSteeringGoal(AShip* Ship, float DeltaTime
     const float WorldTime = World ? World->GetTimeSeconds() : 0.0f;
     const bool bCanSwitchPhase = WorldTime >= FightPhaseSwitchCooldownUntil;
     const float DistanceToTarget = FVector::Dist(Ship->GetActorLocation(), Target->GetActorLocation());
+    const FVector InterceptPoint = BuildFightInterceptPoint(Ship, Target);
 
     if (FightRunPhase == EFightRunPhase::Approach)
     {
@@ -233,7 +259,7 @@ FVector AAIShipController::ResolveFightSteeringGoal(AShip* Ship, float DeltaTime
 
     return (FightRunPhase == EFightRunPhase::PassBehind && bHasFightPassBehindPoint)
         ? FightPassBehindPoint
-        : Target->GetActorLocation();
+        : InterceptPoint;
 }
 
 void AAIShipController::ResetAction()

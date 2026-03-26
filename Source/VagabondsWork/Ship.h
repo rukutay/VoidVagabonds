@@ -201,6 +201,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Orbit|Debug", meta=(ToolTip="Draw orbit debug visuals."))
     bool bDebugOrbit = false;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Fight", meta=(ClampMin="0.1", ClampMax="45.0", ToolTip="Firing cone angle in degrees used by movement fight gating logic."))
+    float FightFiringConeDeg = 7.0f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Navigation|Debug", meta=(DisplayName="Debug Steering", ToolTip="Log steering target source and heading."))
     bool bDebugSteering = false;
 
@@ -468,6 +471,11 @@ private:
     float SafetyStatePrevGoalDistance = 0.f;
     float SafetyStateLogAccumulator = 0.f;
     float SafetyForceNavCooldown = 0.f;
+    bool bHasFightSteeringSmoothingState = false;
+    FVector LastFightSmoothedSteeringTarget = FVector::ZeroVector;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Fight", meta=(AllowPrivateAccess="true", ClampMin="0.0", ToolTip="Interpolation speed for fight movement steering target smoothing (0 disables smoothing)."))
+    float FightSteeringSmoothingSpeed = 4.0f;
 
     // Orbit runtime state (not replicated)
     bool bOrbitInitialized = false;

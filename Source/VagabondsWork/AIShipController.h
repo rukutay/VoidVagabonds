@@ -187,6 +187,7 @@ private:
     void ResetFightRunState();
     bool ShouldUseFightRunNavigation(const AShip* Ship) const;
     bool PredictFightTargetCollision(const AShip* Ship, const AActor* Target, float PredictTimeSec, float SafetyMarginCm) const;
+    FVector BuildFightInterceptPoint(const AShip* Ship, const AActor* Target) const;
     FVector BuildFightPassBehindPoint(const AShip* Ship, const AActor* Target) const;
     void UnregisterCurrentFightTarget();
     void SetExternalModulesTarget(AActor* TargetActor);

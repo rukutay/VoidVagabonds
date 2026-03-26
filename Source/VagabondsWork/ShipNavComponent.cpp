@@ -79,9 +79,11 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	const FVector ShipPos = OwnerLocation;
 	AActor* IntentTargetActor = nullptr;
 	bool bNonOrbitFightRun = false;
+	float FightFiringConeDeg = 7.0f;
 	if (const AShip* OwnerShip = Cast<AShip>(GetOwner()))
 	{
 		IntentTargetActor = OwnerShip->TargetActor;
+		FightFiringConeDeg = OwnerShip->FightFiringConeDeg;
 		if (const AAIShipController* OwnerController = Cast<AAIShipController>(OwnerShip->GetController()))
 		{
 			bNonOrbitFightRun = OwnerController->GetActionMode() == EActionMode::Fight
@@ -172,6 +174,34 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	const float ShipSpeed = ShipVelocity.Size();
 	const float NeighborRadius = ShipRadiusCm * NeighborRadiusMultiplier;
 	const FVector DesiredTarget = CurrentWaypoint;
+	float FightTargetAvoidanceScale = 1.0f;
+	if (bNonOrbitFightRun && IntentTargetActor)
+	{
+		FVector ForwardRef = GetOwner()->GetActorForwardVector();
+		if (UPrimitiveComponent* OwnerRootPrimitive = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent()))
+		{
+			const FVector RootVelocity = OwnerRootPrimitive->IsSimulatingPhysics()
+				? OwnerRootPrimitive->GetPhysicsLinearVelocity()
+				: GetOwner()->GetVelocity();
+			if (!RootVelocity.IsNearlyZero())
+			{
+				ForwardRef = RootVelocity.GetSafeNormal();
+			}
+		}
+
+		const FVector ToTarget = (IntentTargetActor->GetActorLocation() - ShipPos).GetSafeNormal();
+		const float ConeCos = FMath::Cos(FMath::DegreesToRadians(FMath::Clamp(FightFiringConeDeg, 0.1f, 45.0f)));
+		const bool bInFiringCone = !ToTarget.IsNearlyZero() && FVector::DotProduct(ForwardRef.GetSafeNormal(), ToTarget) >= ConeCos;
+		if (bInFiringCone)
+		{
+			const float CriticalDistance = ShipRadiusCm * FMath::Max(1.0f, FightTargetAvoidanceCriticalDistanceMultiplier);
+			const float TargetDistance = FVector::Dist(ShipPos, IntentTargetActor->GetActorLocation());
+			if (TargetDistance > CriticalDistance)
+			{
+				FightTargetAvoidanceScale = FMath::Clamp(FightTargetAvoidanceScaleInFiringCone, 0.0f, 1.0f);
+			}
+		}
+	}
 	AVagabondsWorkGameMode* NavigationGameMode = GetWorld()->GetAuthGameMode<AVagabondsWorkGameMode>();
 	FHitResult TraceHit;
 	const FVector ToTargetDir = (DesiredTarget - ShipPos).GetSafeNormal();
@@ -395,7 +425,10 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			const FVector TraceAvoidDir = (TraceNormal + TraceTangent * 0.35f).GetSafeNormal();
 			if (!TraceAvoidDir.IsNearlyZero())
 			{
-				AvoidDir += TraceAvoidDir;
+				const float TargetScale = (bNonOrbitFightRun && TraceActor == IntentTargetActor)
+					? FightTargetAvoidanceScale
+					: 1.0f;
+				AvoidDir += TraceAvoidDir * TargetScale;
 			}
 			FocusCandidate = TraceActor;
 
@@ -513,7 +546,10 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		if (ClosestDistance < CombinedRadius)
 		{
 			const float Penetration = CombinedRadius - ClosestDistance;
-			AvoidDir += (-Closest).GetSafeNormal() * (Penetration / CombinedRadius);
+			const float TargetScale = (bNonOrbitFightRun && NeighborActor == IntentTargetActor)
+				? FightTargetAvoidanceScale
+				: 1.0f;
+			AvoidDir += (-Closest).GetSafeNormal() * (Penetration / CombinedRadius) * TargetScale;
 
 #if !UE_BUILD_SHIPPING
 			if (bDrawNavPath)
