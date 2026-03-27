@@ -175,8 +175,19 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	const float NeighborRadius = ShipRadiusCm * NeighborRadiusMultiplier;
 	const FVector DesiredTarget = CurrentWaypoint;
 	float FightTargetAvoidanceScale = 1.0f;
+	bool bForceTargetAvoidanceInCloseRange = false;
+	float CloseRangeTargetAvoidanceAlpha = 0.0f;
 	if (bNonOrbitFightRun && IntentTargetActor)
 	{
+		const FVector TargetOffset = IntentTargetActor->GetActorLocation() - ShipPos;
+		const float TargetDistance = TargetOffset.Size();
+		const float CloseRangeThreshold = ShipRadiusCm * 3.0f;
+		if (TargetDistance < CloseRangeThreshold)
+		{
+			bForceTargetAvoidanceInCloseRange = true;
+			CloseRangeTargetAvoidanceAlpha = 1.0f - FMath::Clamp(TargetDistance / FMath::Max(CloseRangeThreshold, 1.0f), 0.0f, 1.0f);
+		}
+
 		FVector ForwardRef = GetOwner()->GetActorForwardVector();
 		if (UPrimitiveComponent* OwnerRootPrimitive = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent()))
 		{
@@ -189,17 +200,21 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			}
 		}
 
-		const FVector ToTarget = (IntentTargetActor->GetActorLocation() - ShipPos).GetSafeNormal();
+		const FVector ToTarget = TargetOffset.GetSafeNormal();
 		const float ConeCos = FMath::Cos(FMath::DegreesToRadians(FMath::Clamp(FightFiringConeDeg, 0.1f, 45.0f)));
 		const bool bInFiringCone = !ToTarget.IsNearlyZero() && FVector::DotProduct(ForwardRef.GetSafeNormal(), ToTarget) >= ConeCos;
 		if (bInFiringCone)
 		{
 			const float CriticalDistance = ShipRadiusCm * FMath::Max(1.0f, FightTargetAvoidanceCriticalDistanceMultiplier);
-			const float TargetDistance = FVector::Dist(ShipPos, IntentTargetActor->GetActorLocation());
 			if (TargetDistance > CriticalDistance)
 			{
 				FightTargetAvoidanceScale = FMath::Clamp(FightTargetAvoidanceScaleInFiringCone, 0.0f, 1.0f);
 			}
+		}
+
+		if (bForceTargetAvoidanceInCloseRange)
+		{
+			FightTargetAvoidanceScale = 1.0f;
 		}
 	}
 	AVagabondsWorkGameMode* NavigationGameMode = GetWorld()->GetAuthGameMode<AVagabondsWorkGameMode>();
@@ -573,6 +588,19 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			{
 				BestPenetration = Penetration;
 				FocusCandidate = NeighborActor;
+			}
+		}
+	}
+
+	if (bForceTargetAvoidanceInCloseRange && IntentTargetActor)
+	{
+		const FVector AwayFromTarget = (ShipPos - IntentTargetActor->GetActorLocation()).GetSafeNormal();
+		if (!AwayFromTarget.IsNearlyZero())
+		{
+			AvoidDir += AwayFromTarget * (0.75f + CloseRangeTargetAvoidanceAlpha);
+			if (!FocusCandidate)
+			{
+				FocusCandidate = IntentTargetActor;
 			}
 		}
 	}

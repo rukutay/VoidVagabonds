@@ -157,7 +157,7 @@ void AExternalModule::BeginPlay()
 	}
 	
 	// Cache initial angles
-	InitialBaseYawWorld = FRotator::NormalizeAxis(PivotBase ? PivotBase->GetComponentRotation().Yaw : 0.f);
+	InitialBaseYawWorld = FRotator::NormalizeAxis(PivotBase ? PivotBase->GetRelativeRotation().Yaw : 0.f);
 	InitialGunPitchRel  = FRotator::NormalizeAxis(PivotGun ? PivotGun->GetRelativeRotation().Pitch : 0.f);
 	
 	// Only start timer if auto aim is enabled and manual aim step is disabled
