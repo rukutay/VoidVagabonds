@@ -29,6 +29,9 @@ protected:
 	virtual void BeginPlay() override;
 
 public:	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="NavStaticBig|Custom")
+	bool Custom = false;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Planet")
 	UStaticMeshComponent* BodyMesh = nullptr;
 

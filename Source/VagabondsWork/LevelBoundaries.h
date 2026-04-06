@@ -60,11 +60,17 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Boundaries|Custom")
+	bool Custom = false;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Boundaries")
 	USphereComponent* Boudaries = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Boundaries|Atmosphere")
 	TArray<FAtmosphereSpawnConfig> AtmosphereActors;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Boundaries|Atmosphere")
+	bool bEnableAtmosphereSpawning = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Boundaries|Atmosphere", meta=(ClampMin="1", ClampMax="200"))
 	int32 MaxAtmosphereInstances = 200;

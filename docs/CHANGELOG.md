@@ -7,6 +7,11 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 ## [Unreleased]
 - Feature details were merged into project docs for this release prep.
 - See: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md), [VERSION_CHANGES.md](VERSION_CHANGES.md).
+- Added level visual scheme pipeline:
+  - New `ULevelVisualSchemeData` DataAsset for level visual tuning values.
+  - New `AVagabondsWorldSettings` with per-level `LevelVisualScheme` reference.
+  - New `ULevelVisualSchemeBlueprintLibrary` helpers for safe Blueprint access to world settings and active scheme.
+  - Added `SkyboxTexture` (`UTextureCube`) parameter to visual scheme data assets.
 - Ship navigation avoidance now ignores the current `TargetActor` (including attached parent/child actor relationships) in all AI action modes, preventing target-chase steering from fighting obstacle avoidance.
 - AI fight flow now persists across opponent chains: when the current fight target is destroyed, the controller automatically switches to the next closest valid opponent from `CurrentOpponents`.
 - AI fight flow now resumes the pre-fight task (`Patroling` / `Moving` / `Following`) only after all opponents are cleared, with fallback state caching to avoid unintended `Idle` transitions.

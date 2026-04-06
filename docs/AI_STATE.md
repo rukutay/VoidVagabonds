@@ -1,16 +1,17 @@
 # Current Branch / Version
-- Branch: `Optimization`
-- Latest commit: `d7dcd9b` (small fix)
+- Branch: `main`
+- Latest commit: `0338e19` (pre-visual-scheme baseline)
 
 # Last Completed Task
-- TASK 42: Unified player steering with AI rotation, added analog throttle, and added manual roll-align toggle.
+- Added level visual scheme pipeline (custom world settings + Blueprint helpers + skybox cubemap parameter) and synchronized docs.
 
 # Recently Touched Files (last 5–15)
-- Source/VagabondsWork/PlayerMainController.h (updated)
-- Source/VagabondsWork/PlayerMainController.cpp (updated)
-- Source/VagabondsWork/Ship.h (updated)
-- Source/VagabondsWork/Ship.cpp (updated)
-- Source/VagabondsWork/AIShipController.h (updated)
+- Source/VagabondsWork/Public/Visual/LevelVisualSchemeData.h (added)
+- Source/VagabondsWork/Private/Visual/LevelVisualSchemeData.cpp (added)
+- Source/VagabondsWork/Public/Visual/VagabondsWorldSettings.h (added)
+- Source/VagabondsWork/Private/Visual/VagabondsWorldSettings.cpp (added)
+- Source/VagabondsWork/Public/Visual/LevelVisualSchemeBlueprintLibrary.h (added)
+- Source/VagabondsWork/Private/Visual/LevelVisualSchemeBlueprintLibrary.cpp (added)
 - docs/README.md (updated)
 - docs/DEVELOPMENT_GUIDE.md (updated)
 - docs/CHANGELOG.md (updated)

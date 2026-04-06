@@ -28,6 +28,9 @@ protected:
 
 public:	
 	// Called every frame
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sun|Custom")
+	bool Custom = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sun|Lighting")
 	ADirectionalLight* SunDirectionalLight = nullptr;
 

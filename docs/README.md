@@ -51,6 +51,11 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Runtime atmosphere spawning via `ALevelBoundaries` with predictive placement and active-instance cap.
 - Sun directional light tracks current view target/player direction.
 - Ship presets (movement + TorquePD) and matching vitality presets (hull/shield/recharge/armor).
+- Level visual scheme system:
+  - `ULevelVisualSchemeData` DataAsset for level visual parameters.
+  - `AVagabondsWorldSettings` stores active level scheme (`LevelVisualScheme`).
+  - `ULevelVisualSchemeBlueprintLibrary` exposes Blueprint helpers to fetch world settings/scheme from `WorldContextObject`.
+  - Added skybox HDR cubemap parameter (`SkyboxTexture`) in the visual scheme DataAsset.
 
 > TODO: Add any additional gameplay feature claims only after verifying them in code/docs with explicit evidence.
 

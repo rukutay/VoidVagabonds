@@ -66,6 +66,10 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Faction relations ownership**: `UFactionsSubsystem` also provides `UpdateRelations(EFaction A, EFaction B, float Modifier)` for delta-based symmetric updates.
 - **Faction relation defaults**: all self-relations are `0`; `VoidRaiders` are mutual enemies (`-50`) with every other faction; all other inter-faction relations are `0`.
 - **LevelBoundaries**: Runtime atmosphere system is timer-driven and BP-configurable; spawns fog/stardust actors at BeginPlay and periodically thereafter with prediction, non-overlap-by-class, distance-based despawn (2x radius), and a hard cap on active instances.
+- **Level visual scheme pipeline**:
+  - `ULevelVisualSchemeData` stores sun/fog/space-dust/post-process parameters plus `SkyboxTexture` (`UTextureCube`) for HDR skybox selection.
+  - `AVagabondsWorldSettings` extends `AWorldSettings` and stores per-level active scheme in `LevelVisualScheme`.
+  - `ULevelVisualSchemeBlueprintLibrary` provides Blueprint-pure helpers (`GetVagabondsWorldSettings`, `GetLevelVisualScheme`) using `WorldContextObject` with safe null/world checks.
 
 ## Player Ship Manual Controls
 - **Bindings (Enhanced Input)**:

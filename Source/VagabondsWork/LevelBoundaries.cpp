@@ -39,6 +39,11 @@ void ALevelBoundaries::Tick(float DeltaTime)
 
 void ALevelBoundaries::StartAtmosphereControl()
 {
+	if (!bEnableAtmosphereSpawning)
+	{
+		return;
+	}
+
 	UWorld* World = GetWorld();
 	if (!World)
 	{
@@ -47,12 +52,16 @@ void ALevelBoundaries::StartAtmosphereControl()
 
 	const float SafeInterval = FMath::Max(EnvironmentControlIntervalSec, 0.1f);
 	GetWorldTimerManager().SetTimer(AtmosphereControlTimerHandle, this, &ALevelBoundaries::HandleAtmosphereControlTick, SafeInterval, true);
-	SpawnInitialAtmosphereAtPlayer();
 	HandleAtmosphereControlTick();
 }
 
 void ALevelBoundaries::HandleAtmosphereControlTick()
 {
+	if (!bEnableAtmosphereSpawning)
+	{
+		return;
+	}
+
 	AActor* PlayerActor = GetPrimaryPlayerActor();
 	if (!PlayerActor)
 	{
