@@ -32,6 +32,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="NavStaticBig|Custom")
 	bool Custom = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField")
+	bool AsteroidField = false;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Planet")
 	UStaticMeshComponent* BodyMesh = nullptr;
 
