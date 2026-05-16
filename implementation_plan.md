@@ -1,98 +1,112 @@
 # Implementation Plan
 
 [Overview]
-Implement a fight-specific non-orbit navigation pattern that prevents ramming the current fight target while preserving aggressive attack behavior.
+Add a minimal `AStation` actor (derived from `ANavStaticBig`) that stores blueprint-editable supply and demand goods arrays as pure economy data.
 
-The current crash behavior is caused by one core interaction: `UShipNavComponent::TickNav` treats `IntentTargetActor` as an avoidance-ignore actor in all cases, and in `Fight` mode with `bOrbitTarget=false` this removes the only collision guard against the actor being pursued directly. As a result, steering remains goal-seeking all the way into target collision when no static or dynamic substitute obstacle is selected in time.
+This implementation is limited to data representation only: goods taxonomy and per-goods integer values, attached directly to a new Station actor class so designers can edit values in Details/Blueprint defaults. No runtime processing, balancing, simulation, trade behavior, or integration with existing subsystems is included.
 
-The implementation introduces an explicit “attack run + retreat loop” for `Fight` mode when orbiting is disabled. During approach, the ship advances toward a safe attack band and predicts near-term collision with the target volume; when collision risk becomes high, it switches to retreat and steers toward a generated retreat anchor that remains within effective range. Once spacing is restored, it re-enters approach and repeats.
+The existing codebase does not currently contain a Station class, but already supports station-like categorization via marker type (`EMarkerType::Station`) and generic actor tracking in `ULevelActorsSubsystem`. Creating `AStation : ANavStaticBig` fits current architecture by reusing world actor conventions and avoids broader system changes.
 
 [Types]
-Add explicit fight run/retreat phase state in the controller so combat navigation can be phase-driven.
+Introduce one blueprint-visible goods enum and one blueprint-visible goods entry struct to represent station economy rows.
 
-- **New enum** (`Source/VagabondsWork/AIShipController.h`):
-  - `UENUM(BlueprintType) enum class EFightRunPhase : uint8`
-    - `Approach`
-    - `Retreat`
-- **New controller state**:
-  - `EFightRunPhase FightRunPhase = EFightRunPhase::Approach;`
-  - `FVector FightRetreatAnchor = FVector::ZeroVector;`
-  - `bool bHasFightRetreatAnchor = false;`
-  - `float FightPhaseSwitchCooldownUntil = 0.0f;`
-- **New tuning fields**:
-  - `FightCollisionPredictTimeSec` (float)
-  - `FightTargetSafetyMarginCm` (float)
-  - `FightRetreatDistanceMultiplier` (float)
-  - `FightApproachReentryMultiplier` (float)
-  - `FightMinPhaseHoldSec` (float)
+Detailed type definitions to add in `Source/VagabondsWork/Station.h`:
 
-Validation:
-- Clamp multipliers/ranges to positive values.
-- Reset fight phase state whenever fight target changes or fight exits.
+- `UENUM(BlueprintType) enum class EStationGoodsType : uint8`
+  - Values:
+    - `Ore`
+    - `Gas`
+    - `Metals`
+    - `Fuel`
+    - `Parts`
+    - `Food`
+    - `Medicine`
+    - `ConsumerGoods`
+    - `Electronics`
+    - `Ammunition`
+  - Validation rules: none (pure enum selection).
+
+- `USTRUCT(BlueprintType) struct FStationGoodsEntry`
+  - Fields:
+    - `GoodsType` (`EStationGoodsType`), `EditAnywhere`, `BlueprintReadWrite`
+    - `Amount` (`int32`), `EditAnywhere`, `BlueprintReadWrite`
+  - Validation rules: none (explicitly no runtime validation required).
+  - Relationship: each struct row represents one supply/demand entry.
 
 [Files]
-Modify only fight/navigation control paths.
+Add new Station class files and keep all economy storage local to Station for minimal scope.
 
-- **Modify** `Source/VagabondsWork/AIShipController.h`
-  - Add `EFightRunPhase`, state fields, tunables, helper declarations.
-- **Modify** `Source/VagabondsWork/AIShipController.cpp`
-  - Add phase reset/init in `Fight`, `ResetAction`, `ClearFightTargetState`, destruction handlers.
-  - Implement collision prediction, retreat anchor build, phase update, steering goal resolve.
-- **Modify** `Source/VagabondsWork/Ship.cpp`
-  - In `Tick`, for `Fight && !bOrbitTarget`, resolve phase-based fight goal from controller and pass it into nav/steering/rotation flow.
-- **Modify** `Source/VagabondsWork/ShipNavComponent.cpp`
-  - Update `ShouldIgnoreActorForAvoidance` so target is not ignored during non-orbit fight-run navigation.
-- **Docs to update at end of implementation**:
-  - `docs/README.md`
-  - `docs/DEVELOPMENT_GUIDE.md`
-  - `docs/CHANGELOG.md`
+- New files to create:
+  - `Source/VagabondsWork/Station.h`
+    - Declares `AStation : public ANavStaticBig`
+    - Declares `EStationGoodsType` and `FStationGoodsEntry`
+    - Adds `SupplyGoods` and `DemandGoods` arrays
+  - `Source/VagabondsWork/Station.cpp`
+    - Minimal constructor implementation and include wiring
+
+- Existing files to modify:
+  - None required for this scoped data-only feature.
+
+- Files to delete or move:
+  - None.
+
+- Configuration updates:
+  - None expected (`VagabondsWork.Build.cs` already covers required modules).
 
 [Functions]
-Add focused helpers and adapt existing flow.
+Function changes are limited to required constructor scaffolding for a new actor class.
 
-- **New (`AAIShipController`)**:
-  - `bool ShouldUseFightRunNavigation(const AShip* Ship) const;`
-  - `bool PredictFightTargetCollision(const AShip* Ship, const AActor* Target, float PredictTimeSec, float SafetyMarginCm) const;`
-  - `FVector BuildFightRetreatAnchor(const AShip* Ship, const AActor* Target) const;`
-  - `FVector ResolveFightSteeringGoal(AShip* Ship, float DeltaTime);`
-  - `void ResetFightRunState();`
-- **Modified**:
-  - `AAIShipController::Fight(AActor* TargetActor)`
-  - `AAIShipController::ResetAction()`
-  - `AAIShipController::ClearFightTargetState()`
-  - `AAIShipController::HandleFightTargetDestroyed(AActor*)`
-  - `AShip::Tick(float DeltaTime)`
-  - `UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, float ShipRadiusCm, bool bMovingGoal)`
+- New functions:
+  - `AStation::AStation()`
+    - Signature: `AStation();`
+    - File: `Source/VagabondsWork/Station.cpp`
+    - Purpose: initialize class defaults only if needed (minimal/no extra logic).
+
+- Modified functions:
+  - None.
+
+- Removed functions:
+  - None.
 
 [Classes]
-Extend existing classes only.
+Add one new class and do not alter existing classes.
 
-- **Modified**:
-  - `AAIShipController` (fight phase machine + steering goal selection)
-  - `AShip` (uses fight-phase steering goal in non-orbit fight mode)
-  - `UShipNavComponent` (target-ignore avoidance condition)
-- **No new classes**, **no removed classes**.
+- New classes:
+  - `AStation`
+    - File: `Source/VagabondsWork/Station.h` / `Source/VagabondsWork/Station.cpp`
+    - Inheritance: `ANavStaticBig`
+    - Key members:
+      - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Station|Economy") TArray<FStationGoodsEntry> SupplyGoods;`
+      - `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Station|Economy") TArray<FStationGoodsEntry> DemandGoods;`
+
+- Modified classes:
+  - None.
+
+- Removed classes:
+  - None.
 
 [Dependencies]
-No dependency/package changes are required.
+No dependency changes are required.
 
-Only internal UE C++ logic is adjusted.
+The implementation uses existing Unreal Engine modules already configured in `Source/VagabondsWork/VagabondsWork.Build.cs`.
 
 [Testing]
-Validate by scenario-based PIE runs.
+Use editor-level validation focused on Details panel/Blueprint editability.
 
-1. Fight mode + `bOrbitTarget=false` + high-speed approach to stationary target: no collision; retreat loop observed.
-2. Fight mode + moving target: repeated approach/retreat cycles without phase flicker.
-3. Fight mode + `bOrbitTarget=true`: orbit unchanged.
-4. Patrol/Follow/Move regression check.
-5. Target destroyed mid-retreat: state reset and restore behavior remains valid.
+Test requirements:
+- Create or open a Blueprint based on `AStation`.
+- Confirm both `SupplyGoods` and `DemandGoods` are visible and editable.
+- Add array entries and verify each row exposes:
+  - `GoodsType` dropdown with all required goods enum values.
+  - `Amount` integer field.
+
+No runtime simulation tests are required for this task.
 
 [Implementation Order]
-Implement controller phase logic first, then wire ship/nav integration.
+Implement in a minimal, compile-safe order centered on new Station files.
 
-1. Add new enum/state/tunables to `AIShipController.h`.
-2. Implement helpers and reset hooks in `AIShipController.cpp`.
-3. Integrate non-orbit fight steering-goal resolution in `AShip::Tick`.
-4. Refine avoidance ignore logic in `UShipNavComponent::TickNav`.
-5. Validate behavior in PIE and tune defaults.
-6. Update docs after implementation completion.
+1. Create `Station.h` with enum, struct, and `AStation` class declaration deriving from `ANavStaticBig`.
+2. Add `SupplyGoods` and `DemandGoods` properties as `EditAnywhere` + `BlueprintReadWrite` arrays of `FStationGoodsEntry`.
+3. Create `Station.cpp` with constructor implementation and required includes.
+4. Verify reflection macros/categories compile conceptually (no extra logic/helpers).
+5. Validate in editor that arrays and row fields are blueprint-editable per acceptance criteria.

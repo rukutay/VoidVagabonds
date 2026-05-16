@@ -52,9 +52,9 @@ TArray<AActor*> ULevelActorsSubsystem::GetStationsAll() const
 	return Result;
 }
 
-TArray<ANavStaticBig*> ULevelActorsSubsystem::GetPlanetsAll() const
+TArray<AActor*> ULevelActorsSubsystem::GetPlanetsAll() const
 {
-	TArray<ANavStaticBig*> Result;
+	TArray<AActor*> Result;
 	Result.Reserve(Planets.Num());
 
 	for (ANavStaticBig* Planet : Planets)
@@ -106,9 +106,9 @@ TArray<AActor*> ULevelActorsSubsystem::GetStationsOfFaction(EFaction Faction) co
 	return Result;
 }
 
-TArray<ANavStaticBig*> ULevelActorsSubsystem::GetPlanetsOfFaction(EFaction Faction) const
+TArray<AActor*> ULevelActorsSubsystem::GetPlanetsOfFaction(EFaction Faction) const
 {
-	TArray<ANavStaticBig*> Result;
+	TArray<AActor*> Result;
 	Result.Reserve(Planets.Num());
 
 	for (ANavStaticBig* Planet : Planets)
@@ -144,6 +144,146 @@ TArray<AShip*> ULevelActorsSubsystem::GetShipsOfFaction(EFaction Faction) const
 		if (IsValid(Marker) && Marker->Faction == Faction)
 		{
 			Result.Add(ShipActor);
+		}
+	}
+
+	return Result;
+}
+
+TArray<AActor*> ULevelActorsSubsystem::GetEnemyStationsOfOwner(AActor* Owner) const
+{
+	TArray<AActor*> Result;
+
+	if (!IsValid(Owner))
+	{
+		return Result;
+	}
+
+	const UMarkerComponent* OwnerMarker = Owner->FindComponentByClass<UMarkerComponent>();
+	const UFactionsSubsystem* FactionsSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UFactionsSubsystem>() : nullptr;
+	if (!IsValid(FactionsSubsystem))
+	{
+		return Result;
+	}
+
+	const EFaction OwnerFaction = IsValid(OwnerMarker) ? OwnerMarker->Faction : FactionsSubsystem->GetDefaultFaction();
+
+	for (AActor* Station : Stations)
+	{
+		if (!IsValid(Station) || Station == Owner)
+		{
+			continue;
+		}
+
+		const UMarkerComponent* Marker = Station->FindComponentByClass<UMarkerComponent>();
+		if (IsValid(Marker) && FactionsSubsystem->GetRelation(OwnerFaction, Marker->Faction) < 0)
+		{
+			Result.Add(Station);
+		}
+	}
+
+	return Result;
+}
+
+TArray<AActor*> ULevelActorsSubsystem::GetNeutralOrAlliedStationsOfOwner(AActor* Owner) const
+{
+	TArray<AActor*> Result;
+
+	if (!IsValid(Owner))
+	{
+		return Result;
+	}
+
+	const UMarkerComponent* OwnerMarker = Owner->FindComponentByClass<UMarkerComponent>();
+	const UFactionsSubsystem* FactionsSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UFactionsSubsystem>() : nullptr;
+	if (!IsValid(FactionsSubsystem))
+	{
+		return Result;
+	}
+
+	const EFaction OwnerFaction = IsValid(OwnerMarker) ? OwnerMarker->Faction : FactionsSubsystem->GetDefaultFaction();
+
+	for (AActor* Station : Stations)
+	{
+		if (!IsValid(Station) || Station == Owner)
+		{
+			continue;
+		}
+
+		const UMarkerComponent* Marker = Station->FindComponentByClass<UMarkerComponent>();
+		if (IsValid(Marker) && FactionsSubsystem->GetRelation(OwnerFaction, Marker->Faction) >= 0)
+		{
+			Result.Add(Station);
+		}
+	}
+
+	return Result;
+}
+
+TArray<AActor*> ULevelActorsSubsystem::GetEnemyPlanetsOfOwner(AActor* Owner) const
+{
+	TArray<AActor*> Result;
+
+	if (!IsValid(Owner))
+	{
+		return Result;
+	}
+
+	const UMarkerComponent* OwnerMarker = Owner->FindComponentByClass<UMarkerComponent>();
+	const UFactionsSubsystem* FactionsSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UFactionsSubsystem>() : nullptr;
+	if (!IsValid(FactionsSubsystem))
+	{
+		return Result;
+	}
+
+	const EFaction OwnerFaction = IsValid(OwnerMarker) ? OwnerMarker->Faction : FactionsSubsystem->GetDefaultFaction();
+
+	for (ANavStaticBig* Planet : Planets)
+	{
+		if (!IsValid(Planet) || Planet == Owner)
+		{
+			continue;
+		}
+
+		const UMarkerComponent* Marker = Planet->FindComponentByClass<UMarkerComponent>();
+		if (IsValid(Marker) && FactionsSubsystem->GetRelation(OwnerFaction, Marker->Faction) < 0)
+		{
+			Result.Add(Planet);
+		}
+	}
+
+	return Result;
+}
+
+TArray<AActor*> ULevelActorsSubsystem::GetNeutralOrAlliedPlanetsOfOwner(AActor* Owner) const
+{
+	TArray<AActor*> Result;
+
+	if (!IsValid(Owner))
+	{
+		return Result;
+	}
+
+	const UMarkerComponent* OwnerMarker = Owner->FindComponentByClass<UMarkerComponent>();
+	const UFactionsSubsystem* FactionsSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UFactionsSubsystem>() : nullptr;
+	if (!IsValid(FactionsSubsystem))
+	{
+		return Result;
+	}
+
+	const EFaction OwnerFaction = IsValid(OwnerMarker) ? OwnerMarker->Faction : FactionsSubsystem->GetDefaultFaction();
+
+	for (ANavStaticBig* Planet : Planets)
+	{
+		if (!IsValid(Planet) || Planet == Owner)
+		{
+			continue;
+		}
+
+		const UMarkerComponent* Marker = Planet->FindComponentByClass<UMarkerComponent>();
+		if (IsValid(Marker) && FactionsSubsystem->GetRelation(OwnerFaction, Marker->Faction) >= 0)
+		{
+			Result.Add(Planet);
 		}
 	}
 

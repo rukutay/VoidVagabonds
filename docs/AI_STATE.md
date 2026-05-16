@@ -3,19 +3,18 @@
 - Latest commit: `0338e19` (pre-visual-scheme baseline)
 
 # Last Completed Task
-- Added level visual scheme pipeline (custom world settings + Blueprint helpers + skybox cubemap parameter) and synchronized docs.
+- Added faction relation list helpers, owner-relative station/planet relation queries, assigned level station factions, and synchronized docs.
 
 # Recently Touched Files (last 5–15)
-- Source/VagabondsWork/Public/Visual/LevelVisualSchemeData.h (added)
-- Source/VagabondsWork/Private/Visual/LevelVisualSchemeData.cpp (added)
-- Source/VagabondsWork/Public/Visual/VagabondsWorldSettings.h (added)
-- Source/VagabondsWork/Private/Visual/VagabondsWorldSettings.cpp (added)
-- Source/VagabondsWork/Public/Visual/LevelVisualSchemeBlueprintLibrary.h (added)
-- Source/VagabondsWork/Private/Visual/LevelVisualSchemeBlueprintLibrary.cpp (added)
+- Source/VagabondsWork/FactionsSubsystem.h (updated)
+- Source/VagabondsWork/FactionsSubsystem.cpp (updated)
+- Source/VagabondsWork/LevelActorsSubsystem.h (updated)
+- Source/VagabondsWork/LevelActorsSubsystem.cpp (updated)
 - docs/README.md (updated)
 - docs/DEVELOPMENT_GUIDE.md (updated)
 - docs/CHANGELOG.md (updated)
 - docs/AI_STATE.md (updated)
+- docs/AI_FILEMAP.md (updated)
 
 # Known Issues / TODO
 - If safety margin still re-arms, inspect the new EscapeTarget debug logs for obstacle/normal issues and capture failing obstacle component names.
@@ -25,6 +24,13 @@
 - Steering uses forward thrust + yaw/pitch rotation (roll disabled).
 - Static obstacle caching/waypoint planning lives in `AVagabondsWorkGameMode`.
 - External modules are tick‑disabled and updated via timers.
+- Faction enemies use relation `< 0`; neutral/allied use relation `>= 0`.
 
 # Next Tasks Queue
 - Keep AI_STATE updated after future tasks.
+
+# Last Editor Layout Update
+- `TestSiteMap` was populated with named planets/stations: Aurelia, Borealis, Cygnus, Dravik, Erebus.
+- All planets are placed at separated orbit distances with minimum 18M uu Sun distance.
+- Stations are placed on safe orbit offsets around their assigned planets and grouped under `PlanetGroups/<PlanetName>`.
+- `BP_UFE` is positioned near Borealis inside expected signature range without planet-body overlap.

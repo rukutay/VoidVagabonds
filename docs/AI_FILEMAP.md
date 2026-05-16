@@ -26,6 +26,13 @@
 ## Environment / World
 - **ASun** → `Source/VagabondsWork/Sun.h` → `Source/VagabondsWork/Sun.cpp` → Sun visuals and lighting control.
 - **ALevelBoundaries** → `Source/VagabondsWork/LevelBoundaries.h` → `Source/VagabondsWork/LevelBoundaries.cpp` → World boundary helpers.
+- **ULevelActorsSubsystem** → `Source/VagabondsWork/LevelActorsSubsystem.h` → `Source/VagabondsWork/LevelActorsSubsystem.cpp` → Cached station/planet/ship lists plus faction and owner-relative relation queries.
+
+## Factions
+- **UFactionsSubsystem** → `Source/VagabondsWork/FactionsSubsystem.h` → `Source/VagabondsWork/FactionsSubsystem.cpp` → Faction enum, relation matrix, relation mutation, and faction-list helpers.
 
 ## UI / Input
 - **AVagabondsWorkCharacter** → `Source/VagabondsWork/VagabondsWorkCharacter.h` → `Source/VagabondsWork/VagabondsWorkCharacter.cpp` → Input bindings, camera boom.
+
+## Level Assets
+- `Content/TestSiteMap.umap` and `Content/__ExternalActors__/TestSiteMap/**` contain the current editor-authored star system layout: five named planets, station orbit groups, and the relocated `BP_UFE`.

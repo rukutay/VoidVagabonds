@@ -649,7 +649,18 @@ void AShip::Tick(float DeltaTime)
             const float ArrivalRange = ShipController->IsGoToActorActive()
                 ? (EffectiveRange * 0.5f)
                 : EffectiveRange;
-            if (DistanceToTarget <= ArrivalRange)
+            bool bPlanetSphereOverlap = false;
+            if (const ANavStaticBig* PlanetTarget = Cast<ANavStaticBig>(TargetActor))
+            {
+                if (const USphereComponent* SignatureSphere = PlanetTarget->SignatureSphere)
+                {
+                    const float ShipRadiusCm = ShipRadius ? ShipRadius->GetScaledSphereRadius() : 300.0f;
+                    const float CombinedRadius = ShipRadiusCm + SignatureSphere->GetScaledSphereRadius();
+                    bPlanetSphereOverlap = FVector::DistSquared(ActorLocation, SignatureSphere->GetComponentLocation()) <= FMath::Square(CombinedRadius);
+                }
+            }
+
+            if (DistanceToTarget <= ArrivalRange || bPlanetSphereOverlap)
             {
                 ShipController->ResetAction();
             }
@@ -1171,7 +1182,7 @@ FVector AShip::GetGoalLocation() const
     {
         if (ShipController->IsPatrolInProgress())
         {
-            if (ANavStaticBig* PatrolPoint = ShipController->GetCurrentPatrolPoint())
+            if (AActor* PatrolPoint = ShipController->GetCurrentPatrolPoint())
             {
                 return PatrolPoint->GetActorLocation();
             }

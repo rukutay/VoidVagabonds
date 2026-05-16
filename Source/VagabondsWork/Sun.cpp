@@ -8,6 +8,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "EngineUtils.h"
 #include "Components/LightComponentBase.h"
+#include "GameFramework/PlayerController.h"
 #include "MarkerComponent.h"
 
 static bool ComputeDir(const FVector& From, const FVector& To, FVector& OutDir)
@@ -99,9 +100,105 @@ void ASun::BeginPlay()
 	//UpdateAllPlanetLights_Force();
 }
 
+float ASun::ComputeSunViewportCoverage01() const
+{
+	if (!bEnableSunLookDimming || SunMesh == nullptr)
+	{
+		return 0.0f;
+	}
+
+	UWorld* World = GetWorld();
+	if (World == nullptr)
+	{
+		return 0.0f;
+	}
+
+	APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
+	if (PC == nullptr)
+	{
+		return 0.0f;
+	}
+
+	int32 ViewX = 0;
+	int32 ViewY = 0;
+	PC->GetViewportSize(ViewX, ViewY);
+	if (ViewX <= 0 || ViewY <= 0)
+	{
+		return 0.0f;
+	}
+
+	FVector CamLoc = FVector::ZeroVector;
+	FRotator CamRot = FRotator::ZeroRotator;
+	PC->GetPlayerViewPoint(CamLoc, CamRot);
+
+	const FVector SunCenter = SunMesh->Bounds.Origin;
+	const float SunRadius = SunMesh->Bounds.SphereRadius;
+	if (SunRadius <= KINDA_SMALL_NUMBER)
+	{
+		return 0.0f;
+	}
+
+	const FVector ToSun = SunCenter - CamLoc;
+	if (FVector::DotProduct(CamRot.Vector(), ToSun) <= 0.0f)
+	{
+		return 0.0f;
+	}
+
+	const FRotationMatrix CamMatrix(CamRot);
+	const FVector CamRight = CamMatrix.GetUnitAxis(EAxis::Y);
+	const FVector CamUp = CamMatrix.GetUnitAxis(EAxis::Z);
+
+	const int32 SampleCount = FMath::Clamp(DimmingSampleCount, 4, 64);
+	int32 InsideCount = 0;
+
+	for (int32 SampleIndex = 0; SampleIndex < SampleCount; ++SampleIndex)
+	{
+		float U = 0.0f;
+		float V = 0.0f;
+
+		if (SampleIndex > 0)
+		{
+			const float t = static_cast<float>(SampleIndex) / static_cast<float>(SampleCount - 1);
+			const float R = FMath::Sqrt(t);
+			const float Theta = t * 2.0f * PI * 2.39996323f;
+			U = R * FMath::Cos(Theta);
+			V = R * FMath::Sin(Theta);
+		}
+
+		const FVector SampleWorld = SunCenter + (CamRight * U + CamUp * V) * SunRadius;
+		FVector2D ScreenPos = FVector2D::ZeroVector;
+		if (UGameplayStatics::ProjectWorldToScreen(PC, SampleWorld, ScreenPos, false))
+		{
+			if (ScreenPos.X >= 0.0f && ScreenPos.X <= static_cast<float>(ViewX) &&
+				ScreenPos.Y >= 0.0f && ScreenPos.Y <= static_cast<float>(ViewY))
+			{
+				++InsideCount;
+			}
+		}
+	}
+
+	return static_cast<float>(InsideCount) / static_cast<float>(SampleCount);
+}
+
 void ASun::UpdateSunLighting()
 {
 	const FVector SunLoc = GetActorLocation();
+	float EffectiveIntensity = LightIntensity;
+
+	if (bEnableSunLookDimming)
+	{
+		const float Coverage01 = ComputeSunViewportCoverage01();
+		const float CoverageShaped = FMath::Pow(FMath::Clamp(Coverage01, 0.0f, 1.0f), DimmingResponseExponent);
+		const float TargetScale = FMath::Lerp(1.0f, FMath::Clamp(MinIntensityScaleWhenCentered, 0.0f, 1.0f), CoverageShaped);
+		const float DeltaSeconds = GetWorld() ? GetWorld()->GetDeltaSeconds() : (1.0f / FMath::Max(UpdateHz, 1.0f));
+		CurrentDimmingScale = FMath::FInterpTo(CurrentDimmingScale, TargetScale, DeltaSeconds, DimmingSmoothingSpeed);
+	}
+	else
+	{
+		CurrentDimmingScale = 1.0f;
+	}
+
+	EffectiveIntensity *= CurrentDimmingScale;
 
 	if (SunDirectionalLight != nullptr && bDriveGameplayLightDirectionFromViewTarget)
 	{
@@ -170,10 +267,10 @@ void ASun::UpdateSunLighting()
 		ULightComponent* LightComponent = SunDirectionalLight->GetLightComponent();
 		
 		// If abs(LightIntensity - LastAppliedIntensity) > KINDA_SMALL_NUMBER: call SetIntensity
-		if (FMath::Abs(LightIntensity - LastAppliedIntensity) > KINDA_SMALL_NUMBER)
+		if (FMath::Abs(EffectiveIntensity - LastAppliedIntensity) > KINDA_SMALL_NUMBER)
 		{
-			LightComponent->SetIntensity(LightIntensity);
-			LastAppliedIntensity = LightIntensity;
+			LightComponent->SetIntensity(EffectiveIntensity);
+			LastAppliedIntensity = EffectiveIntensity;
 		}
 		
 		// If bUseTemperature != LastAppliedUseTemp OR abs(LightTemperature-LastAppliedTemp) > KINDA_SMALL_NUMBER:

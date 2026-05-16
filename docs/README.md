@@ -8,9 +8,9 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Platforms (from config/docs): **Windows (DX12/SM6)**, **Linux (Vulkan/SM6)**.
 - Core module: **VagabondsWork** (Runtime).
 - Primary systems (ownership map):
-  - `UFactionsSubsystem` → faction enum ownership + fixed 6x6 relation matrix (`int8`, flat cache-friendly storage).
+  - `UFactionsSubsystem` → faction enum ownership + fixed relation matrix (`int8`, flat cache-friendly storage) with faction-list relation helpers.
   - `UNavigationSubsystem` → subsystem implementation for static/runtime obstacle cache + global path anchor planning APIs.
-  - `ULevelActorsSubsystem` → tracked stations/planets/ships lists with periodic refresh + faction-filtered queries.
+  - `ULevelActorsSubsystem` → tracked stations/planets/ships lists with periodic refresh + faction/relation-filtered queries.
   - `UVagabondsGameInstance` → actor filtering utilities and subsystem bootstrap.
   - `AVagabondsWorkGameMode` → default pawn setup + active static/runtime obstacle cache and global path anchor planning used by ship navigation.
   - `UShipNavComponent` → global replanning + avoidance + stuck recovery.
@@ -22,7 +22,7 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 ## Features (verified)
 - Timer-driven navigation/avoidance with cached static obstacles (no per-tick heavy pathfinding).
 - Current ship navigation path/obstacle queries run through `AVagabondsWorkGameMode`; `UNavigationSubsystem` mirror APIs are present for subsystem migration.
-- Faction relations in `UFactionsSubsystem`: allocation-free flat matrix with Blueprint `GetRelation` / `SetRelation` / `UpdateRelations` / `ResetDefaults` API.
+- Faction relations in `UFactionsSubsystem`: allocation-free flat matrix with Blueprint `GetRelation` / `SetRelation` / `UpdateRelations` / `ResetDefaults` API plus enemy and neutral/allied faction list helpers.
 - Forced replans + unstuck recovery for stuck/static-blocked states; temp avoidance targets are honored.
 - Safety/local avoidance hardening: self/invalid overlap filtering, `PhysicsBody` handling, and robust closest-approach prediction.
 - `ShipNavComponent` ignores the current intent target actor during avoidance checks (prevents false blocking).
@@ -34,7 +34,7 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - AI fight mode now resumes pre-fight `Patroling` / `Moving` / `Following` only after opponents are fully cleared, using suspended-state + last-task fallback caching to prevent unintended `Idle` transitions.
 - Following mode behavior: disables orbit, follows assigned ship target, and matches target speed when within `EffectiveRange`.
 - Move-to-target behavior: enters `Moving`, disables orbit, moves toward target actor, then auto-resets to idle on arrival (`<= EffectiveRange`).
-- AI movement gate via `bMovementAllowed` and nearest-neighbor patrol route generation from `NavStaticBig` candidates.
+- AI movement gate via `bMovementAllowed` and nearest-neighbor patrol route generation from generic actor candidates.
 - Patrol flow cleanup: pause clears `TargetActor`; final point exits patrol back to idle.
 - Shared yaw-bank tuning (`YawBankScale`) for AI + player; AI default keeps forward-only passive roll leveling.
 
@@ -48,6 +48,7 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - `NavStaticBig` asteroid pipeline: spline generation, near/mid/far HISM streaming, organic jitter/noise/dropout, and near-field actor swap for collision/avoidance.
 
 - Marker taxonomy expanded with `Station` and `Debris` marker kinds.
+- Level actor subsystem station and planet queries expose actor lists for consistent Blueprint routing/filtering usage, including owner-relative enemy and neutral/allied station/planet lookups.
 - Runtime atmosphere spawning via `ALevelBoundaries` with predictive placement and active-instance cap.
 - Sun directional light tracks current view target/player direction.
 - Ship presets (movement + TorquePD) and matching vitality presets (hull/shield/recharge/armor).
@@ -101,3 +102,9 @@ See [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) for setup, build, and packaging
 - [CHANGELOG.md](CHANGELOG.md)
 - [VERSION_CHANGES.md](VERSION_CHANGES.md)
 - [marketing.md](marketing.md)
+
+## Current TestSiteMap star system layout
+- `TestSiteMap` contains five named planets (`Aurelia`, `Borealis`, `Cygnus`, `Dravik`, `Erebus`) placed on separated solar orbit shells.
+- Planet actors use custom planet texture/faction/asteroid-field settings; station actors are named with Roman numerals and inherit their planet faction.
+- Stations are positioned on safe orbit offsets around their owning planet and organized with planets in `PlanetGroups/<PlanetName>` Outliner folders.
+- `BP_UFE` is placed near Borealis inside its expected signature area without overlapping the planet body.

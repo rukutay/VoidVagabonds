@@ -294,7 +294,7 @@ void AAIShipController::PruneInvalidPatrolHead()
     }
 }
 
-void AAIShipController::StartPatrol(const TArray<ANavStaticBig*>& NavStaticActors, float InPointDelaySeconds)
+void AAIShipController::StartPatrol(const TArray<AActor*>& RouteActors, float InPointDelaySeconds)
 {
     CurrentGoToActorTarget.Reset();
     bGoToActorActive = false;
@@ -303,8 +303,8 @@ void AAIShipController::StartPatrol(const TArray<ANavStaticBig*>& NavStaticActor
 
     PatrolPointDelaySeconds = FMath::Max(0.0f, InPointDelaySeconds);
     PatrolRoute.Reset();
-    PatrolRoute.Reserve(NavStaticActors.Num());
-    for (ANavStaticBig* RouteActor : NavStaticActors)
+    PatrolRoute.Reserve(RouteActors.Num());
+    for (AActor* RouteActor : RouteActors)
     {
         if (!IsValid(RouteActor))
         {
@@ -317,13 +317,14 @@ void AAIShipController::StartPatrol(const TArray<ANavStaticBig*>& NavStaticActor
     if (PatrolRoute.Num() == 0)
     {
         ActionMode = EActionMode::Idle;
-        UE_LOG(LogTemp, Warning, TEXT("StartPatrol failed: no valid patrol route points provided (Input=%d)"), NavStaticActors.Num());
+        UE_LOG(LogTemp, Warning, TEXT("StartPatrol failed: no valid patrol route points provided (Input=%d)"), RouteActors.Num());
         return;
     }
 
-    for (ANavStaticBig* RouteActor : PatrolRoute)
+    for (AActor* RouteActor : PatrolRoute)
     {
-        if (!IsValid(RouteActor) || !RouteActor->SignatureSphere)
+        const ANavStaticBig* NavStaticRouteActor = Cast<ANavStaticBig>(RouteActor);
+        if (!IsValid(RouteActor) || !NavStaticRouteActor || !NavStaticRouteActor->SignatureSphere)
         {
             continue;
         }
@@ -782,7 +783,7 @@ void AAIShipController::UnregisterCurrentFightTarget()
     CurrentFightTarget.Reset();
 }
 
-ANavStaticBig* AAIShipController::GetCurrentPatrolPoint() const
+AActor* AAIShipController::GetCurrentPatrolPoint() const
 {
     if (!bPatrolActive || bPatrolPauseActive || ActionMode != EActionMode::Patroling || PatrolRoute.Num() == 0)
     {
@@ -811,7 +812,7 @@ void AAIShipController::HandlePatrolPointOverlap(UPrimitiveComponent* OtherComp,
     }
 
     PruneInvalidPatrolHead();
-    ANavStaticBig* CurrentPoint = CurrentPatrolTarget.Get();
+    AActor* CurrentPoint = CurrentPatrolTarget.Get();
     if (!CurrentPoint)
     {
 #if !UE_BUILD_SHIPPING
@@ -923,13 +924,13 @@ void AAIShipController::StopPatrol(bool bClearRoute)
     }
 }
 
-TArray<ANavStaticBig*> AAIShipController::CreatePatrolRoute(const TArray<ANavStaticBig*>& NavStaticActors)
+TArray<AActor*> AAIShipController::CreatePatrolRoute(const TArray<AActor*>& RouteActors)
 {
-    TArray<ANavStaticBig*> ValidActors;
-    ValidActors.Reserve(NavStaticActors.Num());
+    TArray<AActor*> ValidActors;
+    ValidActors.Reserve(RouteActors.Num());
 
-    TSet<const ANavStaticBig*> UniqueActors;
-    for (ANavStaticBig* Actor : NavStaticActors)
+    TSet<const AActor*> UniqueActors;
+    for (AActor* Actor : RouteActors)
     {
         if (!IsValid(Actor) || UniqueActors.Contains(Actor))
         {
@@ -943,7 +944,7 @@ TArray<ANavStaticBig*> AAIShipController::CreatePatrolRoute(const TArray<ANavSta
     PatrolRoute.Reset();
     if (ValidActors.Num() < 2)
     {
-        return PatrolRoute;
+        return TArray<AActor*>();
     }
 
     for (int32 i = ValidActors.Num() - 1; i > 0; --i)
@@ -956,7 +957,7 @@ TArray<ANavStaticBig*> AAIShipController::CreatePatrolRoute(const TArray<ANavSta
     }
 
     const int32 RoutePointCount = FMath::RandRange(2, ValidActors.Num());
-    TArray<ANavStaticBig*> RemainingActors;
+    TArray<AActor*> RemainingActors;
     RemainingActors.Reserve(RoutePointCount);
     for (int32 i = 0; i < RoutePointCount; ++i)
     {
@@ -981,15 +982,15 @@ TArray<ANavStaticBig*> AAIShipController::CreatePatrolRoute(const TArray<ANavSta
             }
         }
 
-        ANavStaticBig* NextActor = RemainingActors[ClosestIdx];
+        AActor* NextActor = RemainingActors[ClosestIdx];
         PatrolRoute.Add(NextActor);
         RemainingActors.RemoveAtSwap(ClosestIdx, 1, EAllowShrinking::No);
         CurrentPoint = NextActor->GetActorLocation();
     }
 
-    TArray<ANavStaticBig*> RouteResult;
+    TArray<AActor*> RouteResult;
     RouteResult.Reserve(PatrolRoute.Num());
-    for (ANavStaticBig* RouteActor : PatrolRoute)
+    for (AActor* RouteActor : PatrolRoute)
     {
         RouteResult.Add(RouteActor);
     }

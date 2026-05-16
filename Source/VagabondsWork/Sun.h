@@ -58,6 +58,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sun|Lighting", meta=(ClampMin="0.0"))
 	float LightIntensity = 10000.f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sun|Dimming")
+	bool bEnableSunLookDimming = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sun|Dimming", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float MinIntensityScaleWhenCentered = 0.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sun|Dimming", meta=(ClampMin="0.1"))
+	float DimmingResponseExponent = 1.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sun|Dimming", meta=(ClampMin="0.0"))
+	float DimmingSmoothingSpeed = 6.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sun|Dimming", meta=(ClampMin="4", ClampMax="64"))
+	int32 DimmingSampleCount = 24;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sun|Lighting")
 	bool bUseTemperature = true;
 
@@ -90,7 +105,10 @@ private:
 	float LastAppliedTemp = -1.f;
 	bool  LastAppliedUseTemp = false;
 	FLinearColor LastAppliedColor = FLinearColor(-1,-1,-1,1);
+	float CurrentDimmingScale = 1.0f;
 
 	UFUNCTION()
 	void UpdateSunLighting();
+
+	float ComputeSunViewportCoverage01() const;
 };

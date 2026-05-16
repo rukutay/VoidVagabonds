@@ -173,9 +173,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Meshes")
 	TArray<UStaticMesh*> AsteroidMeshes;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AsteroidField|Spline")
-	float SplineRadiusOverride = 0.0f;
-
 	UFUNCTION(BlueprintCallable, Category="AsteroidField")
 	void GenerateAsteroidField();
 

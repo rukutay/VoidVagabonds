@@ -28,6 +28,18 @@ static void EndHISMBatch(UHierarchicalInstancedStaticMeshComponent* HISM)
 	HISM->MarkRenderStateDirty();
 }
 
+static bool IsDefaultSpline(const USplineComponent* Spline)
+{
+	if (!Spline || Spline->GetNumberOfSplinePoints() != 2)
+	{
+		return false;
+	}
+
+	const FVector FirstPoint = Spline->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::Local);
+	const FVector SecondPoint = Spline->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::Local);
+	return FirstPoint.IsNearlyZero() && SecondPoint.Equals(FVector(100.0f, 0.0f, 0.0f));
+}
+
 // Sets default values
 ANavStaticBig::ANavStaticBig()
 {
@@ -62,7 +74,7 @@ void ANavStaticBig::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 
-	if (FieldSpline && FieldSpline->GetNumberOfSplinePoints() == 0)
+	if (AsteroidField && FieldSpline && (FieldSpline->GetNumberOfSplinePoints() == 0 || IsDefaultSpline(FieldSpline)))
 	{
 		BuildCircularSpline();
 	}
@@ -91,24 +103,17 @@ void ANavStaticBig::BeginPlay()
 	}
 }
 
-void ANavStaticBig::BuildCircularSpline(float Radius, int32 NumPoints)
+void ANavStaticBig::BuildCircularSpline(float, int32 NumPoints)
 {
 	if (!FieldSpline)
 	{
 		return;
 	}
 
-	float EffectiveRadius = Radius;
-	if (EffectiveRadius <= 0.0f)
+	float EffectiveRadius = 0.0f;
+	if (SignatureSphere)
 	{
-		if (SplineRadiusOverride > 0.0f)
-		{
-			EffectiveRadius = SplineRadiusOverride;
-		}
-		else if (SignatureSphere)
-		{
-			EffectiveRadius = SignatureSphere->GetScaledSphereRadius() * 1.5f;
-		}
+		EffectiveRadius = SignatureSphere->GetUnscaledSphereRadius();
 	}
 
 	FieldSpline->ClearSplinePoints(false);
@@ -154,6 +159,15 @@ UStaticMesh* ANavStaticBig::GetRandomAsteroidMesh(FRandomStream& RandomStream) c
 
 void ANavStaticBig::GenerateAsteroidField()
 {
+	if (!AsteroidField)
+	{
+		if (AsteroidHISM)
+		{
+			AsteroidHISM->ClearInstances();
+		}
+		return;
+	}
+
 	if (bEnableStreaming)
 	{
 		UpdateAsteroidStreaming();
@@ -163,6 +177,11 @@ void ANavStaticBig::GenerateAsteroidField()
 	if (!FieldSpline || !AsteroidHISM)
 	{
 		return;
+	}
+
+	if (FieldSpline->GetNumberOfSplinePoints() == 0 || IsDefaultSpline(FieldSpline))
+	{
+		BuildCircularSpline();
 	}
 
 	if (FieldSpline->GetNumberOfSplinePoints() < 2 || FieldSpline->GetSplineLength() <= 0.0f)
@@ -218,8 +237,11 @@ void ANavStaticBig::GenerateAsteroidField()
 			break;
 		}
 
-		const float Jitter = RandomStream.FRandRange(ClampedJitterMin, ClampedJitterMax);
-		const float Distance = FMath::Min(static_cast<float>(StepIndex) * Step * Jitter, SplineLength);
+		const float SegmentStart = static_cast<float>(StepIndex) * Step;
+		const float SegmentEnd = FMath::Min(SegmentStart + Step, SplineLength);
+		const float SegmentAlpha = RandomStream.FRandRange(ClampedJitterMin, ClampedJitterMax) - ClampedJitterMin;
+		const float NormalizedAlpha = SegmentAlpha / FMath::Max(ClampedJitterMax - ClampedJitterMin, KINDA_SMALL_NUMBER);
+		const float Distance = FMath::Lerp(SegmentStart, SegmentEnd, NormalizedAlpha);
 		const FVector Location = FieldSpline->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 		const FVector Tangent = FieldSpline->GetTangentAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 		const FVector Forward = Tangent.GetSafeNormal();
@@ -249,9 +271,25 @@ void ANavStaticBig::GenerateAsteroidField()
 
 void ANavStaticBig::UpdateAsteroidStreaming()
 {
+	if (!AsteroidField)
+	{
+		if (AsteroidHISM)
+		{
+			BeginHISMBatch(AsteroidHISM);
+			AsteroidHISM->ClearInstances();
+			EndHISMBatch(AsteroidHISM);
+		}
+		return;
+	}
+
 	if (!FieldSpline || !AsteroidHISM)
 	{
 		return;
+	}
+
+	if (FieldSpline->GetNumberOfSplinePoints() == 0 || IsDefaultSpline(FieldSpline))
+	{
+		BuildCircularSpline();
 	}
 
 	if (FieldSpline->GetNumberOfSplinePoints() < 2 || FieldSpline->GetSplineLength() <= 0.0f)

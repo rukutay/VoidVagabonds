@@ -16,6 +16,10 @@
 	],
 	"Plugins": [
 		{
+			"Name": "UnrealMCP",
+			"Enabled": true
+		},
+		{
 			"Name": "ModelingToolsEditorMode",
 			"Enabled": true,
 			"TargetAllowList": [

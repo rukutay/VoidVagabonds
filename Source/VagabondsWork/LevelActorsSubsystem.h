@@ -21,7 +21,7 @@ public:
 	TArray<AActor*> GetStationsAll() const;
 
 	UFUNCTION(BlueprintCallable, Category = "World|Actors")
-	TArray<ANavStaticBig*> GetPlanetsAll() const;
+	TArray<AActor*> GetPlanetsAll() const;
 
 	UFUNCTION(BlueprintCallable, Category = "World|Actors")
 	TArray<AShip*> GetShipsAll() const;
@@ -30,10 +30,22 @@ public:
 	TArray<AActor*> GetStationsOfFaction(EFaction Faction) const;
 
 	UFUNCTION(BlueprintCallable, Category = "World|Actors")
-	TArray<ANavStaticBig*> GetPlanetsOfFaction(EFaction Faction) const;
+	TArray<AActor*> GetPlanetsOfFaction(EFaction Faction) const;
 
 	UFUNCTION(BlueprintCallable, Category = "World|Actors")
 	TArray<AShip*> GetShipsOfFaction(EFaction Faction) const;
+
+	UFUNCTION(BlueprintCallable, Category = "World|Actors")
+	TArray<AActor*> GetEnemyStationsOfOwner(AActor* Owner) const;
+
+	UFUNCTION(BlueprintCallable, Category = "World|Actors")
+	TArray<AActor*> GetNeutralOrAlliedStationsOfOwner(AActor* Owner) const;
+
+	UFUNCTION(BlueprintCallable, Category = "World|Actors")
+	TArray<AActor*> GetEnemyPlanetsOfOwner(AActor* Owner) const;
+
+	UFUNCTION(BlueprintCallable, Category = "World|Actors")
+	TArray<AActor*> GetNeutralOrAlliedPlanetsOfOwner(AActor* Owner) const;
 
 private:
 	void RefreshTrackedActors();

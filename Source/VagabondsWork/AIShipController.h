@@ -83,11 +83,11 @@ public:
     UFUNCTION(BlueprintCallable, Category="Navigation|Movement", meta=(ToolTip="Returns whether movement is currently allowed for the controlled ship."))
     bool IsMovementAllowed() const { return bMovementAllowed; }
 
-    UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Build and store an effective patrol route from a random subset of provided NavStaticBig actors."))
-    TArray<ANavStaticBig*> CreatePatrolRoute(const TArray<ANavStaticBig*>& NavStaticActors);
+    UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Build and store an effective patrol route from a random subset of provided actors."))
+    TArray<AActor*> CreatePatrolRoute(const TArray<AActor*>& RouteActors);
 
     UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Start patrol progression using generated route and per-point delay."))
-    void StartPatrol(const TArray<ANavStaticBig*>& NavStaticActors, float InPointDelaySeconds);
+    void StartPatrol(const TArray<AActor*>& RouteActors, float InPointDelaySeconds);
 
     UFUNCTION(BlueprintCallable, Category="Navigation|Follow", meta=(ToolTip="Start following a target ship."))
     void StartFollowing(AShip* TargetShip);
@@ -114,7 +114,7 @@ public:
     void ResumeTaskStateAfterManualControl();
 
     UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Get current patrol route head target."))
-    ANavStaticBig* GetCurrentPatrolPoint() const;
+    AActor* GetCurrentPatrolPoint() const;
 
     UFUNCTION(BlueprintCallable, Category="Navigation|Patrol", meta=(ToolTip="Handle overlap for patrol point completion checks."))
     void HandlePatrolPointOverlap(UPrimitiveComponent* OtherComp, AActor* OtherActor);
@@ -251,7 +251,7 @@ private:
     bool bSuspendedGoToActorActive = false;
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Suspended patrol route before fight."))
-    TArray<TObjectPtr<ANavStaticBig>> SuspendedPatrolRoute;
+    TArray<TObjectPtr<AActor>> SuspendedPatrolRoute;
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Suspended patrol active state before fight."))
     bool bSuspendedPatrolActive = false;
@@ -263,7 +263,7 @@ private:
     float SuspendedPatrolPointDelaySeconds = 0.0f;
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Suspended current patrol target before fight."))
-    TWeakObjectPtr<ANavStaticBig> SuspendedCurrentPatrolTarget;
+    TWeakObjectPtr<AActor> SuspendedCurrentPatrolTarget;
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="True when last non-fight task state is cached."))
     bool bHasLastTaskState = false;
@@ -281,7 +281,7 @@ private:
     bool bLastTaskGoToActorActive = false;
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Last non-fight patrol route."))
-    TArray<TObjectPtr<ANavStaticBig>> LastTaskPatrolRoute;
+    TArray<TObjectPtr<AActor>> LastTaskPatrolRoute;
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Last non-fight patrol active state."))
     bool bLastTaskPatrolActive = false;
@@ -293,7 +293,7 @@ private:
     float LastTaskPatrolPointDelaySeconds = 0.0f;
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Fight", meta=(ToolTip="Last non-fight patrol target."))
-    TWeakObjectPtr<ANavStaticBig> LastTaskCurrentPatrolTarget;
+    TWeakObjectPtr<AActor> LastTaskCurrentPatrolTarget;
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Movement", meta=(ToolTip="Currently tracked GoToActor target."))
     TWeakObjectPtr<AActor> CurrentGoToActorTarget;
@@ -320,7 +320,7 @@ private:
     bool bMovementAllowed = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Navigation|Patrol", meta=(AllowPrivateAccess="true", ToolTip="Stored ordered patrol route points in world space."))
-    TArray<TObjectPtr<ANavStaticBig>> PatrolRoute;
+    TArray<TObjectPtr<AActor>> PatrolRoute;
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Patrol", meta=(ToolTip="True when patrol progression is active."))
     bool bPatrolActive = false;
@@ -334,7 +334,7 @@ private:
     FTimerHandle PatrolResumeTimerHandle;
 
     UPROPERTY(VisibleAnywhere, Category = "Navigation|Patrol", meta=(ToolTip="Cached current patrol route head when valid."))
-    TWeakObjectPtr<ANavStaticBig> CurrentPatrolTarget;
+    TWeakObjectPtr<AActor> CurrentPatrolTarget;
 
     UPROPERTY(EditDefaultsOnly, Category = "Navigation|Debug", meta=(ToolTip="Draw safety margin debug points."))
     bool bDebugSafetyMargin = false;

@@ -35,6 +35,36 @@ void UFactionsSubsystem::UpdateRelations(EFaction A, EFaction B, float Modifier)
 	SetRelation(A, B, CurrentValue + Delta);
 }
 
+TArray<EFaction> UFactionsSubsystem::GetNeutralOrAlliedFactions(EFaction Faction) const
+{
+	TArray<EFaction> Factions;
+	for (int32 FactionIndex = 0; FactionIndex < FactionCount; ++FactionIndex)
+	{
+		const EFaction OtherFaction = static_cast<EFaction>(FactionIndex);
+		if (GetRelation(Faction, OtherFaction) >= 0)
+		{
+			Factions.Add(OtherFaction);
+		}
+	}
+
+	return Factions;
+}
+
+TArray<EFaction> UFactionsSubsystem::GetEnemyFactions(EFaction Faction) const
+{
+	TArray<EFaction> Factions;
+	for (int32 FactionIndex = 0; FactionIndex < FactionCount; ++FactionIndex)
+	{
+		const EFaction OtherFaction = static_cast<EFaction>(FactionIndex);
+		if (GetRelation(Faction, OtherFaction) < 0)
+		{
+			Factions.Add(OtherFaction);
+		}
+	}
+
+	return Factions;
+}
+
 void UFactionsSubsystem::ResetDefaults()
 {
 	for (int32 Index = 0; Index < (FactionCount * FactionCount); ++Index)

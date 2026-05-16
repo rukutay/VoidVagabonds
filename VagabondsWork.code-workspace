@@ -3,10 +3,6 @@
 		{
 			"name": "VagabondsWork",
 			"path": "."
-		},
-		{
-			"name": "UE5",
-			"path": "/home/rukutay/Apps/UnrealEngine-5.5/UnrealEngine-5.5"
 		}
 	],
 	"settings": {

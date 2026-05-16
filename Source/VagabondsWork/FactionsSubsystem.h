@@ -36,6 +36,12 @@ public:
 	void UpdateRelations(EFaction A, EFaction B, float Modifier);
 
 	UFUNCTION(BlueprintCallable, Category = "Faction|Relations")
+	TArray<EFaction> GetNeutralOrAlliedFactions(EFaction Faction) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Faction|Relations")
+	TArray<EFaction> GetEnemyFactions(EFaction Faction) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Faction|Relations")
 	void ResetDefaults();
 
 	static FORCEINLINE int32 ToIndex(EFaction F)

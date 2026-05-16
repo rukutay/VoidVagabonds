@@ -24,7 +24,7 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Safety margin avoidance**: Filter self/invalid obstacles, skip tangent escape offsets when no target actor is set, suppress safety checks after forced Nav fallback, and guard invalid escape targets with debug reasons.
 - **AI roll behavior (Default mode)**: AI ships use shared yaw-banking (`YawBankScale`) and also passively level roll while moving forward to avoid fighting steering.
 - **AI movement gating**: `AAIShipController::bMovementAllowed` (Blueprint-editable, default true) gates AI ship movement/rotation; when false, ship AI steering/rotation is not applied.
-- **AI patrol routing**: `AAIShipController::CreatePatrolRoute(const TArray<ANavStaticBig*>&)` builds a patrol route from a provided actor list, chooses a random subset size `[2..N]`, orders route by nearest-neighbor from current ship location, and returns/stores ordered `ANavStaticBig` actors.
+- **AI patrol routing**: `AAIShipController::CreatePatrolRoute(const TArray<AActor*>&)` builds a patrol route from a provided actor list, chooses a random subset size `[2..N]`, orders route by nearest-neighbor from current ship location, and returns/stores ordered actor route points.
 - **AI action mode enum**: `AAIShipController` includes `EActionMode` values `Idle`, `Moving`, `Following`, `Patroling`, and `Fight` for controller-level action state selection.
 - **AI action helpers**:
   - `StartFollowing(AShip* TargetShip)`: sets mode to `Following`, stops patrol state, disables orbit (`bOrbitTarget=false`), assigns `TargetActor`.
@@ -59,11 +59,13 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **NavStaticBig**: Incremental chunk-based streaming with hysteresis bands plus stratified random sampling (double-buffer fallback) to avoid visible blinking during movement. Chunk rebuilds only trigger when a chunk changes band or when streaming config changes. Streaming adds deterministic along-spline jitter, frame roll, distance/radial noise, micro-clusters, and per-candidate dropout (low-frequency modulation) for less grid-like placement; dropout also scales per-tier budgets for visible thinning. Per-chunk instance budgets prevent late spline sections from starving.
 - **NavStaticBig**: Blueprint helper can replace a HISM instance with a spawned actor using the same transform/mesh for manual swaps.
 - **NavStaticBig**: Near-field asteroid swap can replace near HISM instances with actors on a timer, using enter/exit hysteresis radii for stable collision/avoidance behavior; actors that wake physics remain actors (no HISM restore) and sleeping swaps feed runtime navigation anchors.
-- **Level actor tracking ownership**: `ULevelActorsSubsystem` owns tracked `Stations`/`Planets`/`Ships` lists, refreshes them on a timer, and exposes all/faction-filtered queries.
+- **Level actor tracking ownership**: `ULevelActorsSubsystem` owns tracked `Stations`/`Planets`/`Ships` lists, refreshes them on a timer, and exposes all/faction-filtered queries. Station and planet queries return `TArray<AActor*>` for consistent Blueprint use.
+- **Level actor relation queries**: `ULevelActorsSubsystem` exposes owner-relative station/planet helpers: `GetEnemyStationsOfOwner`, `GetNeutralOrAlliedStationsOfOwner`, `GetEnemyPlanetsOfOwner`, and `GetNeutralOrAlliedPlanetsOfOwner`. These use the owner marker faction when available, otherwise `UFactionsSubsystem::GetDefaultFaction()`, and classify relation `< 0` as enemy and `>= 0` as neutral/allied.
 - **Marker types**: `EMarkerType` includes `Station` and `Debris` in addition to existing actor categories.
 - **Navigation ownership**: static/runtime obstacle caches and global anchor pathfinding are owned by `UNavigationSubsystem`; `UVagabondsGameInstance` keeps tracked actor lists/filtering, and `AVagabondsWorkGameMode` stays minimal (default pawn setup).
-- **Faction relations ownership**: `UFactionsSubsystem` owns `EFaction` and a fixed 6x6 flat `int8` relation matrix. Use `GetRelation`, `SetRelation`, and `ResetDefaults` for access/mutation.
+- **Faction relations ownership**: `UFactionsSubsystem` owns `EFaction` and a fixed flat `int8` relation matrix. Use `GetRelation`, `SetRelation`, and `ResetDefaults` for access/mutation.
 - **Faction relations ownership**: `UFactionsSubsystem` also provides `UpdateRelations(EFaction A, EFaction B, float Modifier)` for delta-based symmetric updates.
+- **Faction relation list helpers**: `UFactionsSubsystem` provides `GetNeutralOrAlliedFactions(EFaction)` and `GetEnemyFactions(EFaction)` for Blueprint access to faction groups from the current relation matrix.
 - **Faction relation defaults**: all self-relations are `0`; `VoidRaiders` are mutual enemies (`-50`) with every other faction; all other inter-faction relations are `0`.
 - **LevelBoundaries**: Runtime atmosphere system is timer-driven and BP-configurable; spawns fog/stardust actors at BeginPlay and periodically thereafter with prediction, non-overlap-by-class, distance-based despawn (2x radius), and a hard cap on active instances.
 - **Level visual scheme pipeline**:
@@ -110,3 +112,8 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 
 ## Contribution Workflow
 > TODO: Define branch strategy and commit conventions (none currently documented).
+
+## Editor level population notes
+- When placing planets in `BP_LevelBoundaries`, keep planet orbit radii separated and at least 18M uu from the Sun for the current `TestSiteMap` scale.
+- Place stations on orbit offsets around their owning planet, not at/inside the planet mesh; keep station labels as `<PlanetName> I/II/III` and match `MarkerComponent.Faction` to the planet.
+- Use Outliner folders `PlanetGroups/<PlanetName>` to keep each planet and its stations grouped.
