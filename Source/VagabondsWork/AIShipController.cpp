@@ -947,27 +947,17 @@ TArray<AActor*> AAIShipController::CreatePatrolRoute(const TArray<AActor*>& Rout
         return TArray<AActor*>();
     }
 
-    for (int32 i = ValidActors.Num() - 1; i > 0; --i)
-    {
-        const int32 SwapIndex = FMath::RandRange(0, i);
-        if (SwapIndex != i)
-        {
-            ValidActors.Swap(i, SwapIndex);
-        }
-    }
-
-    const int32 RoutePointCount = FMath::RandRange(2, ValidActors.Num());
     TArray<AActor*> RemainingActors;
-    RemainingActors.Reserve(RoutePointCount);
-    for (int32 i = 0; i < RoutePointCount; ++i)
+    RemainingActors.Reserve(ValidActors.Num());
+    for (AActor* ValidActor : ValidActors)
     {
-        RemainingActors.Add(ValidActors[i]);
+        RemainingActors.Add(ValidActor);
     }
 
     const APawn* ControlledPawn = GetPawn();
     FVector CurrentPoint = ControlledPawn ? ControlledPawn->GetActorLocation() : FVector::ZeroVector;
 
-    PatrolRoute.Reserve(RoutePointCount);
+    PatrolRoute.Reserve(RemainingActors.Num());
     while (RemainingActors.Num() > 0)
     {
         int32 ClosestIdx = 0;

@@ -3,7 +3,7 @@
 - Latest commit: `0338e19` (pre-visual-scheme baseline)
 
 # Last Completed Task
-- Added faction relation list helpers, owner-relative station/planet relation queries, assigned level station factions, and synchronized docs.
+- Updated `AAIShipController::CreatePatrolRoute` to remove random patrol selection and generate deterministic nearest-neighbor routes through all provided valid actor candidates from the ship location.
 
 # Recently Touched Files (last 5–15)
 - Source/VagabondsWork/FactionsSubsystem.h (updated)
@@ -15,6 +15,7 @@
 - docs/CHANGELOG.md (updated)
 - docs/AI_STATE.md (updated)
 - docs/AI_FILEMAP.md (updated)
+- Source/VagabondsWork/AIShipController.cpp (updated)
 
 # Known Issues / TODO
 - If safety margin still re-arms, inspect the new EscapeTarget debug logs for obstacle/normal issues and capture failing obstacle component names.

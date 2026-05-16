@@ -24,7 +24,7 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Safety margin avoidance**: Filter self/invalid obstacles, skip tangent escape offsets when no target actor is set, suppress safety checks after forced Nav fallback, and guard invalid escape targets with debug reasons.
 - **AI roll behavior (Default mode)**: AI ships use shared yaw-banking (`YawBankScale`) and also passively level roll while moving forward to avoid fighting steering.
 - **AI movement gating**: `AAIShipController::bMovementAllowed` (Blueprint-editable, default true) gates AI ship movement/rotation; when false, ship AI steering/rotation is not applied.
-- **AI patrol routing**: `AAIShipController::CreatePatrolRoute(const TArray<AActor*>&)` builds a patrol route from a provided actor list, chooses a random subset size `[2..N]`, orders route by nearest-neighbor from current ship location, and returns/stores ordered actor route points.
+- **AI patrol routing**: `AAIShipController::CreatePatrolRoute(const TArray<AActor*>&)` filters invalid/duplicate actors, then builds a deterministic nearest-neighbor route through all provided actor candidates, starting from the current ship location, and returns/stores the ordered actor route points.
 - **AI action mode enum**: `AAIShipController` includes `EActionMode` values `Idle`, `Moving`, `Following`, `Patroling`, and `Fight` for controller-level action state selection.
 - **AI action helpers**:
   - `StartFollowing(AShip* TargetShip)`: sets mode to `Following`, stops patrol state, disables orbit (`bOrbitTarget=false`), assigns `TargetActor`.
