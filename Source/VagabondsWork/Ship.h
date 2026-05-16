@@ -169,6 +169,9 @@ public:
     UFUNCTION(BlueprintCallable, Category="Ship|AI", meta=(ToolTip="Get current goal location for AI navigation."))
     FVector GetGoalLocation() const;
 
+    UFUNCTION(BlueprintPure, Category="Ship|AI", meta=(ToolTip="Calculate seconds left to reach the current route point using distance and current ship speed. Returns -1 when speed is too low."))
+    float CalculateTimeLeftToCurrentRoutePoint() const;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|Navigation", meta=(ToolTip="Target actor used for AI navigation and orbiting."))
     AActor* TargetActor = nullptr;
 

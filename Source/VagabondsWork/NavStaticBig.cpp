@@ -73,11 +73,6 @@ ANavStaticBig::ANavStaticBig()
 void ANavStaticBig::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-
-	if (AsteroidField && FieldSpline && (FieldSpline->GetNumberOfSplinePoints() == 0 || IsDefaultSpline(FieldSpline)))
-	{
-		BuildCircularSpline();
-	}
 }
 
 // Called when the game starts or when spawned
@@ -90,9 +85,14 @@ void ANavStaticBig::BeginPlay()
 		AsteroidHISM->OnComponentHit.AddDynamic(this, &ANavStaticBig::OnAsteroidHit);
 	}
 
+	if (AsteroidField)
+	{
+		BuildCircularSpline();
+		GenerateAsteroidField();
+	}
+
 	if (bEnableStreaming && StreamingUpdateInterval > 0.0f)
 	{
-		UpdateAsteroidStreaming();
 		GetWorldTimerManager().SetTimer(StreamingTimerHandle, this, &ANavStaticBig::UpdateAsteroidStreaming, StreamingUpdateInterval, true);
 	}
 

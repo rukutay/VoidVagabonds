@@ -77,6 +77,28 @@ FTransform AShip::GetShipCameraTransform() const
     return GetActorTransform();
 }
 
+float AShip::CalculateTimeLeftToCurrentRoutePoint() const
+{
+    const FVector CurrentLocation = GetActorLocation();
+    const FVector Destination = GetGoalLocation();
+    const float DistanceCm = FVector::Dist(CurrentLocation, Destination);
+    if (DistanceCm <= KINDA_SMALL_NUMBER)
+    {
+        return 0.0f;
+    }
+
+    const float SpeedCmS = ShipBase
+        ? ShipBase->GetPhysicsLinearVelocity().Size()
+        : GetVelocity().Size();
+
+    if (SpeedCmS <= KINDA_SMALL_NUMBER)
+    {
+        return -1.0f;
+    }
+
+    return DistanceCm / SpeedCmS;
+}
+
 void AShip::BeginPlay()
 {
     Super::BeginPlay();
