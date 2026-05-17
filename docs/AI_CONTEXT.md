@@ -4,10 +4,11 @@
 - UE5 space flight project focused on AI ship navigation in zero‑gravity (no navmesh, no gravity).
 - Scales to 500+ active ships via timer‑driven navigation and avoidance.
 - Physics‑driven thrust/rotation with stable, low‑oscillation steering.
-- Static obstacle caching and waypoint planning handled centrally in the game mode.
+- Static obstacle caching and waypoint planning handled centrally in `UNavigationSubsystem`.
 
 ## Architecture Ownership Map
-- **AVagabondsWorkGameMode**: Static obstacle caching (`NavStaticBig`), anchor generation, global path anchor planning.
+- **UNavigationSubsystem**: Static/runtime obstacle caching, `ANavStaticBig` class discovery, signature-sphere anchor generation, global path anchor planning.
+- **AVagabondsWorkGameMode**: Minimal GameMode setup (default pawn class).
 - **UShipNavComponent**: Global replanning, waypoint selection, dynamic/static avoidance, stuck recovery.
 - **AShip**: Physics steering forces, soft separation (airbag), applies rotation via controller.
 - **AAIShipController**: Focus sourcing, rotation/aim application, helper spatial queries.
@@ -43,13 +44,13 @@
 - **Custom channels**:
   - `Projectile` (ECC_GameTraceChannel1, default overlap)
   - `Ship` (ECC_GameTraceChannel2, default block)
-- **Tags used in navigation**: `NavStaticBig`, `NavStaticMoving` (for periodic refresh).
+- **Static nav obstacle recognition**: `ANavStaticBig` and child classes; anchors use each actor's `SignatureSphere` scaled world radius.
 
 ## How to Add Features (Pattern)
 - **New tuning properties**: Add to the owning class with `UPROPERTY(EditAnywhere, BlueprintReadWrite)` and a scoped category.
-- **Global/shared data**: Store in `AVagabondsWorkGameMode` (e.g., cached obstacles, shared nav data).
+- **Global/shared navigation data**: Store in `UNavigationSubsystem` (e.g., cached obstacles, shared nav data).
 - **Navigation changes**:
-  - Global planning → GameMode + `UShipNavComponent`.
+  - Global planning → `UNavigationSubsystem` + `UShipNavComponent`.
   - Steering/forces → `AShip` only (keep physics‑driven thrust model).
   - Rotation/aim math → `AAIShipController` helpers.
 - **Modules/attachments**: Subclass `AExternalModule` and keep tick disabled; prefer timer updates.

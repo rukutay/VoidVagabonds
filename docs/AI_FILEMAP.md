@@ -1,7 +1,7 @@
 # AI File Map — VagabondsWork
 
 ## Common Entry Points
-- **AVagabondsWorkGameMode** → `Source/VagabondsWork/VagabondsWorkGameMode.h` → `Source/VagabondsWork/VagabondsWorkGameMode.cpp` → GameMode setup, static obstacle caching, global path anchors.
+- **AVagabondsWorkGameMode** → `Source/VagabondsWork/VagabondsWorkGameMode.h` → `Source/VagabondsWork/VagabondsWorkGameMode.cpp` → Minimal GameMode setup/default pawn.
 - **AVagabondsWorkCharacter** → `Source/VagabondsWork/VagabondsWorkCharacter.h` → `Source/VagabondsWork/VagabondsWorkCharacter.cpp` → Player character input/camera.
 - **AAIShipController** → `Source/VagabondsWork/AIShipController.h` → `Source/VagabondsWork/AIShipController.cpp` → AI focus/rotation + safety margin checks.
 - **VagabondsWork module** → `Source/VagabondsWork/VagabondsWork.Build.cs` → `Source/VagabondsWork/VagabondsWork.Build.cs` → build/module config.
@@ -13,8 +13,8 @@
 
 ## Navigation & Avoidance
 - **UShipNavComponent** → `Source/VagabondsWork/ShipNavComponent.h` → `Source/VagabondsWork/ShipNavComponent.cpp` → Global replanning + dynamic/static avoidance.
-- **AVagabondsWorkGameMode** → `Source/VagabondsWork/VagabondsWorkGameMode.h` → `Source/VagabondsWork/VagabondsWorkGameMode.cpp` → Static obstacle cache, anchor planning, LOS checks.
-- **ANavStaticBig** → `Source/VagabondsWork/NavStaticBig.h` → `Source/VagabondsWork/NavStaticBig.cpp` → Large static bodies used by nav cache.
+- **UNavigationSubsystem** → `Source/VagabondsWork/NavigationSubsystem.h` → `Source/VagabondsWork/NavigationSubsystem.cpp` → Static/runtime obstacle cache, signature-sphere anchor generation, segment checks, global path anchors.
+- **ANavStaticBig** → `Source/VagabondsWork/NavStaticBig.h` → `Source/VagabondsWork/NavStaticBig.cpp` → Large static bodies used by nav cache; runtime near-swap obstacles register with `UNavigationSubsystem`.
 
 ## Steering & Safety
 - **AAIShipController** → `Source/VagabondsWork/AIShipController.h` → `Source/VagabondsWork/AIShipController.cpp` → Rotation control, safety margin, unstuck helpers.

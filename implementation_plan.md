@@ -1,179 +1,157 @@
 # Implementation Plan
 
 [Overview]
-Implement a level-wide, real-time station-to-station trading simulation driven by supply/demand imbalance, using the existing station data model and subsystem architecture.
+Fix ship navigation so `ANavStaticBig` obstacles are always respected by global path planning, including when the target is another actor behind the obstacle and when the target actor itself is an `ANavStaticBig`.
 
-The current project already contains foundational economy data in `AStation` (`SupplyGoods`, `DemandGoods`, `StationArchetype`, `TradeImportance`) and faction/ownership infrastructure in `UFactionsSubsystem` and `ULevelActorsSubsystem`, but no runtime market logic exists yet. Specifically, there is no periodic economy tick, no price discovery mechanism, no transfer execution between stations, and no persistence of market state beyond static authored arrays.
+The current navigation stack already centralizes large static obstacle proxies and generated anchor nodes in `UNavigationSubsystem`, while `UShipNavComponent` requests `FindGlobalPathAnchors()` during timer-driven replans and `AShip` steers toward the resulting navigation target. The observed failure is consistent with two existing behaviors: initial path generation is skipped until movement/replan thresholds are met, and global path segment checks treat the destination `ANavStaticBig` as a blocking obstacle even when the ship should approach its signature sphere boundary instead of its center.
 
-The implementation should add a dedicated economy subsystem (`UGameInstanceSubsystem`) to remain aligned with existing architectural patterns (timer-driven, centralized, low-overhead systems). This allows us to keep `AStation` as an authored data owner while moving simulation logic into a reusable, testable, runtime service. Per your clarification, trade scope is **station↔station only** and should run in **real-time via timer**.
+The implementation should keep the existing subsystem ownership model: obstacle discovery, path anchor selection, and static segment checks stay in `UNavigationSubsystem`; movement integration remains in `UShipNavComponent`; `AShip` only supplies the correct navigation goal/target actor context. No per-tick heavy pathfinding should be added. Replans remain interval/threshold gated, but the first valid navigation tick must initialize a path immediately.
 
-At a high level, each tick will: discover active stations, normalize station goods into runtime maps, compute local per-good pressure (demand vs supply), derive price, find eligible station pairs, execute bounded transfers from surplus to deficit, and emit summary telemetry for Blueprint/UI debugging. This gives a practical first version of general trade relations based on demand/supply while preserving performance constraints and existing gameplay systems.
+The high-level approach is to add target-aware global path planning. `UNavigationSubsystem` will receive an optional target actor, ignore that actor only as a terminal obstacle, and use a safe approach point on/near that target obstacle’s inflated shell instead of routing to the obstacle center. `UShipNavComponent` will pass the owning ship’s intent target into the subsystem and force first-time replanning when no waypoint data exists. `AShip` will preserve the existing steering model while allowing NavStaticBig targets to be approached via navigation anchors rather than being treated as direct center goals.
 
 [Types]
-Add economy runtime structs and policy enums while reusing existing `EStationGoodsType`/`FStationGoodsEntry` as authored input types.
+Add target-aware planning state without introducing new public gameplay types.
 
-Detailed type definitions and validation:
+Existing `FNavObstacleSphereProxy` remains the shared obstacle data structure:
+- `Actor: TWeakObjectPtr<AActor>` identifies the represented obstacle actor.
+- `Center: FVector` is the obstacle proxy center, usually `SignatureSphere` world location for `ANavStaticBig`.
+- `BaseRadius: float` is the physical/signature radius before nav inflation.
+- `InflatedRadius: float` is `BaseRadius + DefaultShipRadiusCm + NavSafetyMarginCm`.
+- `SignatureSphere: TWeakObjectPtr<USphereComponent>` records the source sphere when available.
+- `bFromSignatureSphere: bool` records whether signature bounds were used.
+- `Anchors: TArray<FVector>` are generated shell points used by global path planning.
 
-1. `UENUM(BlueprintType) enum class ETradeLinkPolicy : uint8` (new)
-   - `Open` — all stations may trade.
-   - `FactionAlliedOrNeutral` — only if faction relation `>= 0`.
-   - `SameFactionOnly` — only same faction.
-   - Validation/default: default to `FactionAlliedOrNeutral`.
+No new `USTRUCT`, `UENUM`, or `UCLASS` is required. Function signatures will gain optional actor context:
+- `UNavigationSubsystem::IsSegmentClearOfStaticObstacles(...)` should accept an optional ignored obstacle actor for terminal target checks.
+- `UNavigationSubsystem::FindGlobalPathAnchors(...)` should accept an optional target actor and derive an effective goal when the target actor is a cached nav obstacle.
+- `UShipNavComponent::TickNav(...)` should accept an optional target actor and forward it to global planning.
 
-2. `USTRUCT(BlueprintType) struct FStationGoodsRuntime`
-   - `EStationGoodsType GoodsType`
-   - `int32 SupplyAmount` (clamp >= 0)
-   - `int32 DemandAmount` (clamp >= 0)
-   - `int32 NetImbalance` (= `DemandAmount - SupplyAmount`)
-   - `float LocalPrice` (clamp to min/max price)
-   - Relationship: computed from one station’s authored arrays.
-
-3. `USTRUCT(BlueprintType) struct FTradeTransaction`
-   - `TWeakObjectPtr<AStation> Seller`
-   - `TWeakObjectPtr<AStation> Buyer`
-   - `EStationGoodsType GoodsType`
-   - `int32 UnitsTransferred` (> 0)
-   - `float UnitPrice` (>= 0)
-   - `float TotalValue` (= `UnitsTransferred * UnitPrice`)
-   - `float DistanceCm` (optional balancing telemetry)
-
-4. `USTRUCT(BlueprintType) struct FStationEconomyRuntimeState`
-   - `TWeakObjectPtr<AStation> Station`
-   - `float Credits` (clamp >= 0)
-   - `TMap<EStationGoodsType, int32> SupplyByGood`
-   - `TMap<EStationGoodsType, int32> DemandByGood`
-   - `TMap<EStationGoodsType, float> PriceByGood`
-   - `float LastTickUnits`
-   - `float LastTickValue`
-
-5. `USTRUCT(BlueprintType) struct FEconomyTickSummary`
-   - `int32 StationsProcessed`
-   - `int32 TradesExecuted`
-   - `float TotalUnitsTransferred`
-   - `float TotalTradeValue`
-   - `float DeltaSeconds`
-
-6. `AStation` data extensions (existing class)
-   - `float StationCredits` (default e.g. `10000.f`, clamp >= 0)
-   - `float BasePriceMultiplier` (default `1.0f`, clamp `[0.1, 10.0]`)
-   - `bool bEconomyEnabled` (default true)
-   - Optional tuning:
-     - `int32 MaxUnitsPerTradeTickPerGood`
+Validation rules:
+- Optional target actor must be considered only when `IsValid(TargetActor)`.
+- A target obstacle may be ignored only for final approach/terminal edge checks; unrelated `ANavStaticBig` obstacles must still block segments.
+- Effective target approach point must remain outside the target obstacle’s inflated radius with a small positive clearance.
+- If no valid target obstacle proxy exists, behavior must match current non-target-aware planning.
 
 [Files]
-Add a dedicated economy subsystem and minimally extend station data to support real-time trade simulation.
+Modify only the navigation-related source files needed for the fix.
 
-Detailed breakdown:
+New files to be created:
+- None.
 
-- New files to create:
-  - `Source/VagabondsWork/EconomySubsystem.h`
-    - New subsystem class, policies, runtime structs, and Blueprint getters.
-  - `Source/VagabondsWork/EconomySubsystem.cpp`
-    - Tick loop, station ingest, price computation, eligibility checks, transfer execution.
+Existing files to be modified:
+- `Source/VagabondsWork/NavigationSubsystem.h`
+  - Add optional ignored actor/target actor parameters to static segment query and global path API declarations.
+  - Add private helper declarations for target-aware segment checks and effective target approach point selection.
+- `Source/VagabondsWork/NavigationSubsystem.cpp`
+  - Update `IsSegmentClearOfStaticObstacles` and internal edge checks to skip a specified ignored obstacle actor when appropriate.
+  - Update `FindGlobalPathAnchors` to compute an effective goal when `TargetActor` maps to a `FNavObstacleSphereProxy`.
+  - Add helper logic to choose a safe approach point from target obstacle anchors, preferring anchors visible from `Start` and nearest to the requested goal/target side.
+  - Ensure returned waypoint array ends in the effective approach point for NavStaticBig targets, not the blocked actor center.
+- `Source/VagabondsWork/ShipNavComponent.h`
+  - Change `TickNav` signature to accept `AActor* IntentTargetActor` or equivalent optional target context.
+  - Add a first-plan state member if existing waypoint/last replan values are insufficient.
+- `Source/VagabondsWork/ShipNavComponent.cpp`
+  - Forward `IntentTargetActor` into `UNavigationSubsystem::FindGlobalPathAnchors`.
+  - Force initial global path request when no valid waypoints have been built yet.
+  - Keep local static avoidance behavior unchanged except for compatible signature updates.
+- `Source/VagabondsWork/Ship.cpp`
+  - Pass `TargetActor` into `ShipNav->TickNav(...)`.
+  - Keep current steering target/rotation/thrust model unchanged.
+  - Review NavStaticBig arrival logic so it does not reset movement before reaching the computed safe approach/acceptance zone.
 
-- Existing files to modify:
-  - `Source/VagabondsWork/Station.h`
-    - Add credits/price/economy-enable properties and optional per-station caps.
-  - `Source/VagabondsWork/Station.cpp`
-    - Keep marker setup; optionally initialize/validate new economy defaults only.
-  - `Source/VagabondsWork/VagabondsWork.Build.cs`
-    - Verify dependency list supports added subsystem includes (minimal/no change expected).
+Files to be deleted or moved:
+- None.
 
-- Files to delete or move:
-  - None.
+Configuration file updates:
+- None.
 
-- Configuration file updates:
-  - None required for initialization (subsystem auto lifecycle).
-  - Optional later: add economy tuning defaults to config if needed.
+Documentation updates at end of implementation, after user confirmation per project rules:
+- `docs/AI_STATE.md`
+- `docs/AI_FILEMAP.md` only if signatures/ownership descriptions need adjustment.
+- `docs/README.md`, `docs/DEVELOPMENT_GUIDE.md`, and `docs/CHANGELOG.md` only if the user approves documentation updates after code changes.
 
 [Functions]
-Introduce new subsystem functions for simulation lifecycle and trade clearing; keep existing station constructor behavior intact.
+Update global path planning and nav component integration functions.
 
-Detailed breakdown:
-
-New functions in `EconomySubsystem`:
-
-1. `virtual void Initialize(FSubsystemCollectionBase& Collection) override;`
-2. `virtual void Deinitialize() override;`
-3. `void RunEconomyTick();` — timer callback.
-4. `void RefreshStationsFromLevelActors();` — pulls station list from `ULevelActorsSubsystem`.
-5. `void BuildOrUpdateStationRuntimeState(AStation* Station);`
-6. `float ComputeUnitPrice(const AStation* Station, EStationGoodsType GoodsType, int32 Supply, int32 Demand) const;`
-7. `bool CanTradeBetweenStations(const AStation* A, const AStation* B) const;`
-8. `int32 ComputeTransferAmount(const FStationEconomyRuntimeState& Seller, const FStationEconomyRuntimeState& Buyer, EStationGoodsType GoodsType, float UnitPrice) const;`
-9. `void ExecuteTrade(AStation* Seller, AStation* Buyer, EStationGoodsType GoodsType, int32 Units, float UnitPrice);`
-10. `UFUNCTION(BlueprintCallable) FEconomyTickSummary GetLastTickSummary() const;`
-11. `UFUNCTION(BlueprintCallable) TArray<FTradeTransaction> GetLastTickTransactions() const;`
+New functions:
+- `bool UNavigationSubsystem::ShouldSkipObstacleForSegment(const FNavObstacleSphereProxy& Proxy, const AActor* IgnoredActor) const`
+  - File: `Source/VagabondsWork/NavigationSubsystem.cpp`
+  - Purpose: centralize target obstacle skip logic for segment tests.
+  - Behavior: returns true only when ignored actor is valid and equals `Proxy.Actor.Get()`.
+- `FVector UNavigationSubsystem::ResolveEffectiveGoalForTargetObstacle(const FVector& Start, const FVector& RequestedGoal, const AActor* TargetActor) const`
+  - File: `Source/VagabondsWork/NavigationSubsystem.cpp`
+  - Purpose: for `ANavStaticBig` targets, select a reachable shell/anchor approach point instead of routing to center.
+  - Behavior: if target proxy not found, returns `RequestedGoal`; otherwise chooses best anchor/approach point outside the inflated target radius.
 
 Modified functions:
-- `AStation::AStation()` (`Source/VagabondsWork/Station.cpp`)
-  - Keep current marker behavior.
-  - Optional: enforce sensible defaults for new economy properties.
+- `bool UNavigationSubsystem::IsSegmentClearOfStaticObstacles(const FVector& A, const FVector& B, int32* OutFirstHitIndex = nullptr) const`
+  - File: `Source/VagabondsWork/NavigationSubsystem.h/.cpp`
+  - Required change: add optional ignored actor parameter, e.g. `const AActor* IgnoredObstacleActor = nullptr`, and skip that proxy during intersection tests.
+- `TArray<FVector> UNavigationSubsystem::FindGlobalPathAnchors(const FVector& Start, const FVector& Goal) const`
+  - File: `Source/VagabondsWork/NavigationSubsystem.h/.cpp`
+  - Required change: add optional `const AActor* TargetActor = nullptr`; route to effective target approach point if target is a cached obstacle; pass ignored target actor only where needed to prevent target center/shell from invalidating terminal path construction.
+- Internal `IsEdgeClear` lambda in `UNavigationSubsystem::FindGlobalPathAnchors`
+  - File: `Source/VagabondsWork/NavigationSubsystem.cpp`
+  - Required change: use the target-aware segment clear function so candidate graph edges are evaluated consistently.
+- `void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, float ShipRadiusCm, bool bMovingGoal)`
+  - File: `Source/VagabondsWork/ShipNavComponent.h/.cpp`
+  - Required change: add `AActor* IntentTargetActor` parameter and use it when calling global path planning.
+  - Required change: force the first path build when `GlobalWaypoints.Num() == 0` and no initial plan has been recorded.
+- `void AShip::Tick(float DeltaTime)` navigation section
+  - File: `Source/VagabondsWork/Ship.cpp`
+  - Required change: pass `TargetActor` to `ShipNav->TickNav(...)`.
 
 Removed functions:
 - None.
 
 [Classes]
-Add one new subsystem class and extend one existing class with economy state inputs.
+No new classes are required; only existing navigation classes are extended.
 
-Detailed breakdown:
+New classes:
+- None.
 
-- New classes:
-  - `UEconomySubsystem` (`Source/VagabondsWork/EconomySubsystem.h/.cpp`)
-    - Inherits `UGameInstanceSubsystem`.
-    - Key methods: initialization/deinitialization, economy tick, transfer and pricing methods.
-    - Key properties:
-      - `float EconomyTickInterval` (e.g. 0.5–2.0 s)
-      - `ETradeLinkPolicy TradeLinkPolicy`
-      - `float BaseUnitPrice`, `MinUnitPrice`, `MaxUnitPrice`
-      - `int32 GlobalMaxUnitsPerTrade`
-      - runtime caches and last tick telemetry.
+Modified classes:
+- `UNavigationSubsystem`
+  - File: `Source/VagabondsWork/NavigationSubsystem.h/.cpp`
+  - Specific modifications: target-aware segment checking, target obstacle approach-point resolution, and optional target actor support in `FindGlobalPathAnchors`.
+- `UShipNavComponent`
+  - File: `Source/VagabondsWork/ShipNavComponent.h/.cpp`
+  - Specific modifications: pass target context into the subsystem and ensure first path request is not blocked by replan thresholds.
+- `AShip`
+  - File: `Source/VagabondsWork/Ship.cpp`
+  - Specific modifications: pass `TargetActor` into nav component; preserve existing steering, safety margin, and unstuck behavior.
 
-- Modified classes:
-  - `AStation` (`Source/VagabondsWork/Station.h/.cpp`)
-    - Add economy tuning/properties only, no major behavioral logic.
-
-- Removed classes:
-  - None.
+Removed classes:
+- None.
 
 [Dependencies]
-No third-party dependency changes are needed.
+No dependency changes are required.
 
-Integration requirements:
-- Reuse existing project subsystems:
-  - `ULevelActorsSubsystem` for station discovery.
-  - `UFactionsSubsystem` for relation-based eligibility.
-- Preserve timer-driven architecture and avoid heavy per-tick operations.
-- Keep includes narrow and prefer forward declarations to minimize compile impact.
+No new packages, plugins, modules, or Unreal Build.cs dependencies are needed. Existing dependencies already include `Engine`, `AIModule`, and project navigation headers. Header changes should use forward declarations where possible (`class AActor;`) and avoid adding heavy includes.
 
 [Testing]
-Use deterministic runtime verification with Blueprint-readable telemetry and controlled map scenarios.
+Validate with targeted in-editor scenarios and optional log/debug draw checks; do not compile unless the user permits.
 
-Test scope and validation:
-- Setup: place 3–6 `AStation` actors with distinct supply/demand profiles.
-- Verify on multiple ticks:
-  - trade occurs only station↔station,
-  - surplus decreases at sellers, demand decreases at buyers,
-  - credits update and never drop below zero,
-  - no trade for ineligible faction links under selected policy,
-  - disabled stations do not participate.
-- Edge cases:
-  - empty goods arrays,
-  - duplicated goods rows in station arrays (runtime aggregation should be stable),
-  - destroyed station during active timer,
-  - zero/negative authored amounts (sanitized to zero in runtime ingest).
-- Non-functional checks:
-  - tick interval tuning does not introduce frame hitches,
-  - transaction array size stays bounded (configurable cap if needed).
+Manual validation scenarios:
+- Place a ship, a target actor, and an `ANavStaticBig` between them. Command ship to move to target. Expected: `UShipNavComponent` receives global waypoints from `UNavigationSubsystem`, steering target becomes an anchor/shell path, and ship moves around obstacle rather than directly through/into it.
+- Command ship to move to a target that is itself an `ANavStaticBig`. Expected: path routes to a safe approach anchor/shell point outside the signature sphere/inflated radius and movement does not immediately fail due to target sphere intersection.
+- Verify direct unobstructed movement still returns a single goal waypoint and does not add unnecessary detours.
+- Verify local static avoidance remains disabled by default unless explicitly enabled; global anchor planning should solve the described issue without per-tick static avoidance.
+- If `bDrawNavPath` or `bNavDebugDrawStatic` is enabled, confirm debug lines show purple/cyan path around the obstacle and yellow anchor points around NavStaticBig proxies.
+
+Code validation:
+- Inspect all call sites of `TickNav`, `FindGlobalPathAnchors`, and `IsSegmentClearOfStaticObstacles` after signature changes.
+- Ensure no per-tick full graph pathfinding is introduced beyond existing replan gates.
+- Do not run compilation unless the user explicitly grants permission.
 
 [Implementation Order]
-Implement subsystem and simulation core first, then station data integration, then validation and balancing.
+Implement the fix from subsystem outward, then update call sites and validate signatures.
 
-1. Create `UEconomySubsystem` skeleton (`.h/.cpp`) with timer lifecycle.
-2. Implement station discovery and runtime-state normalization from `AStation` arrays.
-3. Implement pricing formula and trade eligibility (including faction policy).
-4. Implement transfer execution and state mutation safeguards.
-5. Add Blueprint telemetry (`GetLastTickSummary`, `GetLastTickTransactions`).
-6. Extend `AStation` with credits/tuning toggles and minimal constructor/default support.
-7. Validate in `TestSiteMap` with controlled station scenarios; tune default parameters.
-8. After implementation completion and your approval, update docs (`docs/README.md`, `docs/CHANGELOG.md`, optional `docs/DEVELOPMENT_GUIDE.md`).
+1. Update `UNavigationSubsystem` declarations in `Source/VagabondsWork/NavigationSubsystem.h` for optional target/ignored actor context.
+2. Implement target-aware obstacle skipping and effective NavStaticBig approach-point selection in `Source/VagabondsWork/NavigationSubsystem.cpp`.
+3. Update `FindGlobalPathAnchors` graph construction and edge checks to use the effective goal and target-aware segment tests.
+4. Update `UShipNavComponent::TickNav` signature and implementation to pass `IntentTargetActor` and force the initial path request.
+5. Update `AShip::Tick` navigation call to pass `TargetActor` into `ShipNav->TickNav`.
+6. Search all affected function names to update every call site and ensure signatures are coherent.
+7. Perform non-compiling static validation by reviewing the edited diff and searching for stale signatures.
+8. Ask user whether to update documentation files and whether they want a compile/test run.

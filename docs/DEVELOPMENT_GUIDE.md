@@ -41,6 +41,10 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Navigation avoidance**: Dynamic ship avoidance uses repulsion at predicted closest approach with relative-speed prediction for high-speed safety.
 - **Navigation avoidance**: Dynamic/awakened asteroid actors (WorldDynamic) are included in neighbor avoidance queries.
 - **Navigation avoidance**: Local avoidance considers blocking PhysicsBody components using bounds-derived radii for non-ship obstacles.
+- **Navigation ownership**: static/runtime obstacle caches and global anchor pathfinding are owned by `UNavigationSubsystem`; `AVagabondsWorkGameMode` stays minimal (default pawn setup).
+- **Large static obstacle recognition**: static obstacle discovery uses `TActorIterator<ANavStaticBig>`, so stations/planets and Blueprint/C++ child classes are included without requiring a `NavStaticBig` actor tag.
+- **Large static obstacle anchors**: `UNavigationSubsystem` builds obstacle proxies from `ANavStaticBig::SignatureSphere` when valid, using `GetComponentLocation()` and `GetScaledSphereRadius()`; anchors are generated on the inflated signature sphere shell.
+- **Ship static avoidance**: `UShipNavComponent` consumes `UNavigationSubsystem` APIs and enables local static avoidance via `bEnableLocalStaticAvoidance`.
 - Ship presets: `AShip` supports movement presets (Fighter/Interceptor/Gunship/Cruiser/Carrier) that also apply TorquePD rotation tuning on BeginPlay; disable `bApplyPresetOnBeginPlay` to keep manual BP edits.
 - Ship vitality: presets also tune hull/shield/recharge/armor values and reset current hull/shield to max when applied.
 - **Timers**: Prefer `FTimerHandle` updates; keep external modules tick-disabled.
@@ -62,7 +66,7 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Level actor tracking ownership**: `ULevelActorsSubsystem` owns tracked `Stations`/`Planets`/`Ships` lists, refreshes them on a timer, and exposes all/faction-filtered queries. Station and planet queries return `TArray<AActor*>` for consistent Blueprint use.
 - **Level actor relation queries**: `ULevelActorsSubsystem` exposes owner-relative station/planet helpers: `GetEnemyStationsOfOwner`, `GetNeutralOrAlliedStationsOfOwner`, `GetEnemyPlanetsOfOwner`, and `GetNeutralOrAlliedPlanetsOfOwner`. These use the owner marker faction when available, otherwise `UFactionsSubsystem::GetDefaultFaction()`, and classify relation `< 0` as enemy and `>= 0` as neutral/allied.
 - **Marker types**: `EMarkerType` includes `Station` and `Debris` in addition to existing actor categories.
-- **Navigation ownership**: static/runtime obstacle caches and global anchor pathfinding are owned by `UNavigationSubsystem`; `UVagabondsGameInstance` keeps tracked actor lists/filtering, and `AVagabondsWorkGameMode` stays minimal (default pawn setup).
+- **Tracked actor ownership**: `UVagabondsGameInstance` keeps tracked actor lists/filtering separate from navigation path planning.
 - **Faction relations ownership**: `UFactionsSubsystem` owns `EFaction` and a fixed flat `int8` relation matrix. Use `GetRelation`, `SetRelation`, and `ResetDefaults` for access/mutation.
 - **Faction relations ownership**: `UFactionsSubsystem` also provides `UpdateRelations(EFaction A, EFaction B, float Modifier)` for delta-based symmetric updates.
 - **Faction relation list helpers**: `UFactionsSubsystem` provides `GetNeutralOrAlliedFactions(EFaction)` and `GetEnemyFactions(EFaction)` for Blueprint access to faction groups from the current relation matrix.

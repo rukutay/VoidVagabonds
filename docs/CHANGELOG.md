@@ -13,6 +13,7 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
   - New `ULevelVisualSchemeBlueprintLibrary` helpers for safe Blueprint access to world settings and active scheme.
   - Added `SkyboxTexture` (`UTextureCube`) parameter to visual scheme data assets.
 - Ship navigation avoidance now ignores the current `TargetActor` (including attached parent/child actor relationships) in all AI action modes, preventing target-chase steering from fighting obstacle avoidance.
+- Ship navigation for large static obstacles now runs through `UNavigationSubsystem`, recognizes `ANavStaticBig` planets/stations by class inheritance instead of actor tags, and generates avoidance anchors from each obstacle's `SignatureSphere` scaled world radius.
 - AI fight flow now persists across opponent chains: when the current fight target is destroyed, the controller automatically switches to the next closest valid opponent from `CurrentOpponents`.
 - AI fight flow now resumes the pre-fight task (`Patroling` / `Moving` / `Following`) only after all opponents are cleared, with fallback state caching to avoid unintended `Idle` transitions.
 - Level actor planet queries now return actor lists like station queries, and AI patrol route creation now accepts generic actors instead of only `NavStaticBig` actors.

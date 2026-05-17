@@ -795,7 +795,7 @@ void AShip::Tick(float DeltaTime)
         }
         else if (ShipNav && (!ShipController || !ShipController->IsUnstucking()))
         {
-            ShipNav->TickNav(DeltaTime, Goal, ShipRadiusCm, bMovingGoal);
+            ShipNav->TickNav(DeltaTime, Goal, ShipRadiusCm, bMovingGoal, TargetActor);
             SteeringTarget = ShipNav->GetNavTarget(Goal);
             SteeringSource = TEXT("Nav");
         }

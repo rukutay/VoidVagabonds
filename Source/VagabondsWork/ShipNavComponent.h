@@ -32,7 +32,7 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-    void TickNav(float DeltaTime, const FVector& GoalLocation, float ShipRadiusCm, bool bMovingGoal);
+    void TickNav(float DeltaTime, const FVector& GoalLocation, float ShipRadiusCm, bool bMovingGoal, AActor* IntentTargetActor = nullptr);
     FVector GetNavTarget(const FVector& GoalLocation) const;
 
 protected:
@@ -108,6 +108,9 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Navigation|StaticAvoid", meta=(ToolTip="Extra radius margin for static obstacles."))
 	float StaticAvoidMarginMultiplier = 0.75f;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|StaticAvoid", meta=(ToolTip="Enable local static obstacle avoidance using navigation subsystem obstacle proxies. Disabled for solar-system global anchor testing."))
+	bool bEnableLocalStaticAvoidance = false;
+
     UPROPERTY(EditDefaultsOnly, Category = "Navigation|StaticAvoid", meta=(ToolTip="Shell multiplier for tangent avoidance."))
 	float StaticAvoidShellMultiplier = 1.25f;
 
@@ -168,5 +171,6 @@ protected:
 	float NextReplanTime = 0.0f;
 	FVector LastReplanShipPos = FVector::ZeroVector;
 	FVector LastReplanGoal = FVector::ZeroVector;
+	bool bHasRequestedInitialPath = false;
 	float StaticBlockedAccumTime = 0.0f;
 };
