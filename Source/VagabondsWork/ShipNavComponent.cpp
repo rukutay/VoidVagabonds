@@ -753,7 +753,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			FocusStaticObstacleIndex = INDEX_NONE;
 		}
 	}
-	if (CurrentTime >= NextStuckCheckTime)
+	if (bEnableStuckChecks && CurrentTime >= NextStuckCheckTime)
 	{
 		const float MinProgress = ShipRadiusCm * MinProgressMultiplier;
 		const float DistToTarget = FVector::Dist(ShipPos, CurrentNavTarget);
@@ -791,6 +791,12 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			}
 #endif
 		}
+	}
+	else if (!bEnableStuckChecks)
+	{
+		StuckCounter = 0;
+		LastDistanceToTarget = 0.0f;
+		NextStuckCheckTime = CurrentTime + StuckCheckInterval;
 	}
 
 #if !UE_BUILD_SHIPPING

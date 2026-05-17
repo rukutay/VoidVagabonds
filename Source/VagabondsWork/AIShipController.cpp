@@ -1605,6 +1605,16 @@ FVector AAIShipController::ComputeEscapeTarget(const FVector& ShipLocation, USph
 
 void AAIShipController::HandleStuckCheck()
 {
+	if (!bEnableUnstuckSystem)
+	{
+		bIsUnstucking = false;
+		StuckAccumulatedTime = 0.0f;
+		PrevDistanceToGoal = 0.0f;
+		UnstuckEndTime = 0.0f;
+		LastUnstuckForceTime = 0.0f;
+		return;
+	}
+
 	const bool bWasUnstucking = bIsUnstucking;
 	AShip* Ship = Cast<AShip>(GetPawn());
 	if (!Ship)

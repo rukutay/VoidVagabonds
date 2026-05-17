@@ -85,7 +85,7 @@ float AShip::CalculateTimeLeftToCurrentRoutePoint() const
     if (DistanceCm <= KINDA_SMALL_NUMBER)
     {
         return 0.0f;
-    }
+    } 
 
     const float SpeedCmS = ShipBase
         ? ShipBase->GetPhysicsLinearVelocity().Size()

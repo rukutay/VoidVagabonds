@@ -304,6 +304,9 @@ private:
     UPROPERTY(EditDefaultsOnly, Category = "Unstuck|Config", meta=(ToolTip="Interval (seconds) between stuck checks."))
     float StuckCheckInterval = 0.15f;
 
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Unstuck|Config", meta=(AllowPrivateAccess="true", ToolTip="Enable/disable unstuck detection and unstuck force application."))
+    bool bEnableUnstuckSystem = true;
+
     UPROPERTY(EditDefaultsOnly, Category = "Navigation|Avoidance", meta=(ToolTip="Extra safety margin added beyond ship radius."))
     float NavSafetyMargin = 0.0f;
 

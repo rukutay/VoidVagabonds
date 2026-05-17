@@ -102,6 +102,9 @@ protected:
     UPROPERTY(EditAnywhere, Category = "Navigation|Stuck", meta=(ToolTip="Consecutive failed checks before stuck recovery."))
 	int32 StuckThreshold = 6;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Navigation|Stuck", meta=(ToolTip="Enable/disable stuck checks and stuck-triggered replans."))
+	bool bEnableStuckChecks = true;
+
     UPROPERTY(EditDefaultsOnly, Category = "Navigation|StaticAvoid", meta=(ToolTip="Extra radius margin for static obstacles."))
 	float StaticAvoidMarginMultiplier = 0.75f;
 
