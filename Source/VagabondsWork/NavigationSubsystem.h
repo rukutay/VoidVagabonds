@@ -75,7 +75,7 @@ protected:
 	float DefaultShipRadiusCm = 1500.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Navigation")
-	bool bNavDebugDrawStatic = false;
+	bool bNavDebugDrawStatic = true;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Navigation|Debug")
 	bool bNavDebugDrawLineTrace = true;
