@@ -3,18 +3,14 @@
 - Latest commit: `0338e19` (pre-visual-scheme baseline)
 
 # Last Completed Task
-- Refined `NavStaticBig` avoidance pathing: `UNavigationSubsystem` now prefers greedy reachable anchors for the blocking obstacle, `UShipNavComponent` periodically shortcuts to clear target/next-anchor paths, and nav debug draws all stored anchors.
+- Fixed `NavStaticBig` shortcut tracing while ships are inside `SignatureSphere`/atmosphere volumes: `UNavigationSubsystem` now ignores cached signature components in object trace queries while preserving traces from the ship position to real blocking geometry.
 
 # Recently Touched Files (last 5–15)
-- Source/VagabondsWork/NavigationSubsystem.h (updated)
 - Source/VagabondsWork/NavigationSubsystem.cpp (updated)
-- Source/VagabondsWork/ShipNavComponent.h (updated)
-- Source/VagabondsWork/ShipNavComponent.cpp (updated)
+- docs/CHANGELOG.md (updated)
 - docs/README.md (updated)
 - docs/DEVELOPMENT_GUIDE.md (updated)
-- docs/CHANGELOG.md (updated)
 - docs/AI_STATE.md (updated)
-- docs/AI_FILEMAP.md (updated)
 
 # Known Issues / TODO
 - Verify in-editor that greedy `NavStaticBig` anchor choices do not oscillate for very sparse anchor counts or unusual target positions.

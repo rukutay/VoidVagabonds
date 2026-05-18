@@ -237,6 +237,13 @@ bool UNavigationSubsystem::FindLineTraceNavStaticBigObstacle(const FVector& A, c
 
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(NavStaticBigLineTrace), false);
 	QueryParams.bReturnPhysicalMaterial = false;
+	for (const FNavObstacleSphereProxy& Proxy : CombinedNavObstacles)
+	{
+		if (Proxy.SignatureSphere.IsValid())
+		{
+			QueryParams.AddIgnoredComponent(Proxy.SignatureSphere.Get());
+		}
+	}
 
 	TArray<FHitResult> Hits;
 	if (!World->LineTraceMultiByObjectType(Hits, A, B, ObjectQueryParams, QueryParams))
@@ -254,6 +261,13 @@ bool UNavigationSubsystem::FindLineTraceNavStaticBigObstacle(const FVector& A, c
 		if (!IsValid(HitNavActor) || HitNavActor == IgnoredActor)
 		{
 			continue;
+		}
+		if (const ANavStaticBig* HitNavStaticBig = Cast<ANavStaticBig>(HitNavActor))
+		{
+			if (Hit.GetComponent() == HitNavStaticBig->SignatureSphere)
+			{
+				continue;
+			}
 		}
 
 		for (int32 Index = 0; Index < CombinedNavObstacles.Num(); ++Index)
@@ -322,9 +336,9 @@ bool UNavigationSubsystem::IsPointInsideNavStaticBigProxy(const FVector& Point, 
 bool UNavigationSubsystem::IsDirectPathBlockedByNavStaticBig(const FVector& A, const FVector& B, const AActor* IgnoredActor, int32* OutObstacleIndex) const
 {
 	EnsureNavObstaclesInitialized();
-	if (IsPointInsideNavStaticBigProxy(A, IgnoredActor, OutObstacleIndex))
+	if (OutObstacleIndex)
 	{
-		return true;
+		*OutObstacleIndex = INDEX_NONE;
 	}
 	return FindLineTraceNavStaticBigObstacle(A, B, IgnoredActor, OutObstacleIndex);
 }
@@ -424,7 +438,7 @@ TArray<FVector> UNavigationSubsystem::FindGlobalPathAnchors(const FVector& Start
 		TraceBlockedObstacleIndex = ContainingObstacleIndex;
 	}
 
-	if (!bTraceBlockedByNavStaticBig && !bStartsInsideNavStaticBig && IsSegmentClearOfStaticObstacles(Start, EffectiveGoal, nullptr, IgnoredTargetObstacle))
+	if (!bTraceBlockedByNavStaticBig)
 	{
 		Result.Add(EffectiveGoal);
 		if (bNavDebugDrawStatic)
