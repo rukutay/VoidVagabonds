@@ -479,135 +479,65 @@ TArray<FVector> UNavigationSubsystem::FindGlobalPathAnchors(const FVector& Start
 				&& !FindLineTraceNavStaticBigObstacle(A, B, TraceIgnoredActor, nullptr);
 		};
 
-		auto BuildAnchorSequence = [&](int32 EntryIndex, int32 ExitIndex, int32 Direction)
+		int32 EndAnchorIndex = INDEX_NONE;
+		float BestEndDistSq = TNumericLimits<float>::Max();
+		for (int32 AnchorIndex = 0; AnchorIndex < AnchorCount; ++AnchorIndex)
 		{
-			TArray<int32> Sequence;
-			if (!BlockedProxy.Anchors.IsValidIndex(EntryIndex) || !BlockedProxy.Anchors.IsValidIndex(ExitIndex) || Direction == 0)
+			const float DistSq = FVector::DistSquared(BlockedProxy.Anchors[AnchorIndex], EffectiveGoal);
+			if (DistSq < BestEndDistSq)
 			{
-				return Sequence;
-			}
-
-			Sequence.Add(EntryIndex);
-			int32 CurrentIndex = EntryIndex;
-			int32 Safety = 0;
-			while (CurrentIndex != ExitIndex && Safety < AnchorCount)
-			{
-				const int32 NextIndex = (CurrentIndex + Direction + AnchorCount) % AnchorCount;
-				if (!IsSegmentUsableAroundBlockedObstacle(BlockedProxy.Anchors[CurrentIndex], BlockedProxy.Anchors[NextIndex], nullptr))
-				{
-					Sequence.Reset();
-					return Sequence;
-				}
-				Sequence.Add(NextIndex);
-				CurrentIndex = NextIndex;
-				++Safety;
-			}
-
-			if (CurrentIndex != ExitIndex)
-			{
-				Sequence.Reset();
-			}
-			return Sequence;
-		};
-
-		auto ScoreSequence = [&](const TArray<int32>& Sequence)
-		{
-			float Score = 0.0f;
-			FVector PrevPoint = Start;
-			for (const int32 AnchorIndex : Sequence)
-			{
-				const FVector& Anchor = BlockedProxy.Anchors[AnchorIndex];
-				Score += FVector::Dist(PrevPoint, Anchor);
-				PrevPoint = Anchor;
-			}
-			Score += FVector::Dist(PrevPoint, EffectiveGoal);
-			return Score;
-		};
-
-		TArray<int32> BestSequence;
-		float BestScore = TNumericLimits<float>::Max();
-
-		for (int32 EntryIndex = 0; EntryIndex < AnchorCount; ++EntryIndex)
-		{
-			const FVector& EntryAnchor = BlockedProxy.Anchors[EntryIndex];
-			if (!IsSegmentUsableAroundBlockedObstacle(Start, EntryAnchor, nullptr))
-			{
-				continue;
-			}
-
-			for (int32 ExitIndex = 0; ExitIndex < AnchorCount; ++ExitIndex)
-			{
-				const FVector& ExitAnchor = BlockedProxy.Anchors[ExitIndex];
-				if (!IsSegmentClearOfStaticObstacles(ExitAnchor, EffectiveGoal, nullptr, IgnoredTargetObstacle)
-					|| FindLineTraceNavStaticBigObstacle(ExitAnchor, EffectiveGoal, IgnoredTargetObstacle, nullptr))
-				{
-					continue;
-				}
-
-				TArray<int32> ForwardSequence = BuildAnchorSequence(EntryIndex, ExitIndex, 1);
-				if (ForwardSequence.Num() > 0)
-				{
-					const float Score = ScoreSequence(ForwardSequence);
-					if (Score < BestScore)
-					{
-						BestScore = Score;
-						BestSequence = MoveTemp(ForwardSequence);
-					}
-				}
-
-				TArray<int32> BackwardSequence = BuildAnchorSequence(EntryIndex, ExitIndex, -1);
-				if (BackwardSequence.Num() > 0)
-				{
-					const float Score = ScoreSequence(BackwardSequence);
-					if (Score < BestScore)
-					{
-						BestScore = Score;
-						BestSequence = MoveTemp(BackwardSequence);
-					}
-				}
+				BestEndDistSq = DistSq;
+				EndAnchorIndex = AnchorIndex;
 			}
 		}
 
-		if (BestSequence.Num() == 0)
+		TArray<int32> BestSequence;
+		TSet<int32> UsedAnchors;
+		FVector CurrentPoint = Start;
+		constexpr float ProgressWeight = 0.25f;
+
+		for (int32 Step = 0; Step < MaxWaypoints && EndAnchorIndex != INDEX_NONE; ++Step)
 		{
-			int32 BestEntryIndex = INDEX_NONE;
-			BestScore = TNumericLimits<float>::Max();
-			for (int32 EntryIndex = 0; EntryIndex < AnchorCount; ++EntryIndex)
+			if (!UsedAnchors.Contains(EndAnchorIndex)
+				&& IsSegmentUsableAroundBlockedObstacle(CurrentPoint, BlockedProxy.Anchors[EndAnchorIndex], IgnoredTargetObstacle))
 			{
-				const FVector& EntryAnchor = BlockedProxy.Anchors[EntryIndex];
-				if (!IsSegmentUsableAroundBlockedObstacle(Start, EntryAnchor, nullptr))
+				BestSequence.Add(EndAnchorIndex);
+				break;
+			}
+
+			int32 BestAnchorIndex = INDEX_NONE;
+			float BestScore = TNumericLimits<float>::Max();
+			for (int32 AnchorIndex = 0; AnchorIndex < AnchorCount; ++AnchorIndex)
+			{
+				if (AnchorIndex == EndAnchorIndex || UsedAnchors.Contains(AnchorIndex))
 				{
 					continue;
 				}
 
-				const FVector FromCenter = (EntryAnchor - BlockedProxy.Center).GetSafeNormal();
-				const FVector ToGoal = (EffectiveGoal - BlockedProxy.Center).GetSafeNormal();
-				const float SideScore = FVector::DotProduct(FromCenter, ToGoal);
-				const float Score = FVector::DistSquared(Start, EntryAnchor) - (SideScore * FMath::Square(BlockedProxy.InflatedRadius));
+				const FVector& Anchor = BlockedProxy.Anchors[AnchorIndex];
+				if (!IsSegmentUsableAroundBlockedObstacle(CurrentPoint, Anchor, nullptr))
+				{
+					continue;
+				}
+
+				const float DistToGoalSq = FVector::DistSquared(Anchor, EffectiveGoal);
+				const float ProgressDistSq = FVector::DistSquared(CurrentPoint, Anchor);
+				const float Score = DistToGoalSq - (ProgressDistSq * ProgressWeight);
 				if (Score < BestScore)
 				{
 					BestScore = Score;
-					BestEntryIndex = EntryIndex;
+					BestAnchorIndex = AnchorIndex;
 				}
 			}
 
-			if (BestEntryIndex != INDEX_NONE)
+			if (BestAnchorIndex == INDEX_NONE)
 			{
-				const int32 StepCount = FMath::Min(AnchorCount / 2, MaxWaypoints);
-				const int32 Direction = FVector::DotProduct(FVector::CrossProduct(Start - BlockedProxy.Center, EffectiveGoal - BlockedProxy.Center), FVector::UpVector) >= 0.0f ? 1 : -1;
-				BestSequence.Add(BestEntryIndex);
-				int32 CurrentIndex = BestEntryIndex;
-				for (int32 Step = 1; Step < StepCount; ++Step)
-				{
-					const int32 NextIndex = (CurrentIndex + Direction + AnchorCount) % AnchorCount;
-					if (!IsSegmentUsableAroundBlockedObstacle(BlockedProxy.Anchors[CurrentIndex], BlockedProxy.Anchors[NextIndex], nullptr))
-					{
-						break;
-					}
-					BestSequence.Add(NextIndex);
-					CurrentIndex = NextIndex;
-				}
+				break;
 			}
+
+			BestSequence.Add(BestAnchorIndex);
+			UsedAnchors.Add(BestAnchorIndex);
+			CurrentPoint = BlockedProxy.Anchors[BestAnchorIndex];
 		}
 
 		for (const int32 AnchorIndex : BestSequence)
@@ -635,6 +565,15 @@ TArray<FVector> UNavigationSubsystem::FindGlobalPathAnchors(const FVector& Start
 
 		return FallbackResult;
 	};
+
+	if (CombinedNavObstacles.IsValidIndex(TraceBlockedObstacleIndex))
+	{
+		TArray<FVector> GreedyBlockedObstaclePath = BuildFallbackAnchorPath();
+		if (GreedyBlockedObstaclePath.Num() > 0)
+		{
+			return GreedyBlockedObstaclePath;
+		}
+	}
 
 	if (CandidateObstacles.Num() == 0)
 	{

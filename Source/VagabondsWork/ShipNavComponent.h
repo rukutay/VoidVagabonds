@@ -123,6 +123,12 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Navigation|StaticAvoid", meta=(ToolTip="Interval between static rechecks (seconds)."))
 	float StaticAvoidRecheckInterval = 0.05f;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|StaticAvoid", meta=(ToolTip="Seconds to keep static avoidance after the focused obstacle stops blocking the direct path."))
+	float StaticAvoidClearDelaySeconds = 3.0f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Navigation|StaticAvoid", meta=(ToolTip="Interval between normal static path-shortening checks (seconds)."))
+	float StaticPathShortcutCheckInterval = 5.0f;
+
     UPROPERTY(EditAnywhere, Category = "Navigation|Debug", meta=(ToolTip="Draw navigation debug visuals."))
 	bool bDrawNavPath = false;
 
@@ -164,6 +170,8 @@ protected:
 	float AvoidWeightBaseValue = 0.0f;
 	float NextStaticRecheckTime = 0.0f;
 	int32 FocusStaticObstacleIndex = INDEX_NONE;
+	float StaticAvoidClearSinceTime = 0.0f;
+	float NextStaticShortcutCheckTime = 0.0f;
 
 	float NextNeighborQueryTime = 0.0f;
 	TArray<TWeakObjectPtr<AActor>> CachedNeighbors;

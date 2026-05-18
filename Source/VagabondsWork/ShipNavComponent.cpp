@@ -35,6 +35,8 @@ void UShipNavComponent::BeginPlay()
 	StuckCounter = 0;
 	NextStaticRecheckTime = 0.0f;
 	FocusStaticObstacleIndex = INDEX_NONE;
+	StaticAvoidClearSinceTime = 0.0f;
+	NextStaticShortcutCheckTime = 0.0f;
 	LastReplanShipPos = FVector::ZeroVector;
 	LastReplanGoal = FVector::ZeroVector;
 	bHasRequestedInitialPath = false;
@@ -129,6 +131,12 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 
 		return false;
 	};
+
+	UNavigationSubsystem* NavigationSubsystem = nullptr;
+	if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+	{
+		NavigationSubsystem = GameInstance->GetSubsystem<UNavigationSubsystem>();
+	}
 	
 	const bool bTime = (CurrentTime >= NextReplanTime);
 	const bool bMoved = FVector::DistSquared(ShipPos, LastReplanShipPos) >
@@ -139,23 +147,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 
 	const bool bForce = (StuckCounter >= StuckThreshold) || !bHasRequestedInitialPath;
 	const bool bHasActiveGlobalPath = WaypointIndex < GlobalWaypoints.Num();
-	bool bDirectPathBlocked = false;
-	if (bHasActiveGlobalPath)
-	{
-		if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
-		{
-			if (UNavigationSubsystem* NavigationSubsystem = GameInstance->GetSubsystem<UNavigationSubsystem>())
-			{
-				bDirectPathBlocked = NavigationSubsystem->IsDirectPathBlockedByNavStaticBig(ShipPos, GoalLocation, IntentTargetActor, nullptr)
-					|| !NavigationSubsystem->IsSegmentClearOfStaticObstacles(ShipPos, GoalLocation, nullptr, IntentTargetActor);
-			}
-		}
-		if (!bDirectPathBlocked)
-		{
-			GlobalWaypoints.Reset();
-			WaypointIndex = 0;
-		}
-	}
+	bool bPromotedToReachablePathTarget = false;
 
 	if (bForce || (!bHasActiveGlobalPath && bTime && (bMoved || bGoalChanged)))
 	{
@@ -173,7 +165,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		}
 	}
 
-	const FVector CurrentWaypoint = (WaypointIndex < GlobalWaypoints.Num())
+	FVector CurrentWaypoint = (WaypointIndex < GlobalWaypoints.Num())
 		? GlobalWaypoints[WaypointIndex]
 		: GoalLocation;
 
@@ -182,6 +174,42 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		&& FVector::DistSquared(OwnerLocation, CurrentWaypoint) <= FMath::Square(AcceptanceRadius))
 	{
 		++WaypointIndex;
+	}
+	if (NavigationSubsystem && CurrentTime >= NextStaticShortcutCheckTime)
+	{
+		auto IsDirectNavStaticBigPathClear = [&](const FVector& CandidateTarget) -> bool
+		{
+			return !NavigationSubsystem->IsDirectPathBlockedByNavStaticBig(ShipPos, CandidateTarget, IntentTargetActor, nullptr);
+		};
+
+		NextStaticShortcutCheckTime = CurrentTime + StaticPathShortcutCheckInterval;
+
+		if (IsDirectNavStaticBigPathClear(GoalLocation))
+		{
+			GlobalWaypoints.Reset();
+			WaypointIndex = 0;
+			bPromotedToReachablePathTarget = true;
+		}
+		else
+		{
+			const int32 CandidateIndex = WaypointIndex + 1;
+			if (GlobalWaypoints.IsValidIndex(CandidateIndex) && IsDirectNavStaticBigPathClear(GlobalWaypoints[CandidateIndex]))
+			{
+				WaypointIndex = CandidateIndex;
+				bPromotedToReachablePathTarget = true;
+			}
+		}
+		CurrentWaypoint = (WaypointIndex < GlobalWaypoints.Num())
+			? GlobalWaypoints[WaypointIndex]
+			: GoalLocation;
+	}
+	if (bPromotedToReachablePathTarget && TempReason == ETempWaypointReason::Static)
+	{
+		bHasTempWaypoint = false;
+		TempReason = ETempWaypointReason::None;
+		TempWaypoint = FVector::ZeroVector;
+		FocusStaticObstacleIndex = INDEX_NONE;
+		StaticAvoidClearSinceTime = 0.0f;
 	}
 	if (GoalLocation.Equals(ShipPos, KINDA_SMALL_NUMBER))
 	{
@@ -242,11 +270,6 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			FightTargetAvoidanceScale = 1.0f;
 		}
 	}
-	UNavigationSubsystem* NavigationSubsystem = nullptr;
-	if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
-	{
-		NavigationSubsystem = GameInstance->GetSubsystem<UNavigationSubsystem>();
-	}
 	FHitResult TraceHit;
 	const FVector ToTargetDir = (DesiredTarget - ShipPos).GetSafeNormal();
 	FVector TraceDir = ShipVelocity.GetSafeNormal();
@@ -259,12 +282,13 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 											  * ForwardTraceDistanceMultiplier,
 		TraceBaseDistance,
 		ShipRadiusCm * 20.0f);
-	const bool bLocalStaticAvoidanceEnabled = bEnableLocalStaticAvoidance;
+	const bool bLocalStaticAvoidanceEnabled = bEnableLocalStaticAvoidance && !bPromotedToReachablePathTarget;
 	int32 StaticHitIndex = INDEX_NONE;
 	bool bStaticBlocked = false;
 	if (!bLocalStaticAvoidanceEnabled)
 	{
 		FocusStaticObstacleIndex = INDEX_NONE;
+		StaticAvoidClearSinceTime = 0.0f;
 		StaticBlockedAccumTime = 0.0f;
 		if (TempReason == ETempWaypointReason::Static)
 		{
@@ -360,6 +384,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 				SideSign = (Hash % 2u == 0u) ? 1 : -1;
 				CommitUntilTime = CurrentTime + 0.9f;
 				FocusStaticObstacleIndex = StaticHitIndex;
+				StaticAvoidClearSinceTime = 0.0f;
 			}
 
 			const float AvoidRadius = Obstacle.InflatedRadius + (ShipRadiusCm * StaticAvoidMarginMultiplier);
@@ -670,12 +695,30 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 
 	if (bStaticAvoidanceActive)
 	{
+		if (NavigationSubsystem && FocusStaticObstacleIndex != INDEX_NONE)
+		{
+			int32 BlockingObstacleIndex = INDEX_NONE;
+			const bool bDirectPathStillBlocked = !NavigationSubsystem->IsSegmentClearOfStaticObstacles(ShipPos, CurrentWaypoint, &BlockingObstacleIndex);
+			const bool bFocusedObstacleStillBlocks = bDirectPathStillBlocked && BlockingObstacleIndex == FocusStaticObstacleIndex;
+			if (bFocusedObstacleStillBlocks)
+			{
+				StaticAvoidClearSinceTime = 0.0f;
+			}
+			else if (StaticAvoidClearSinceTime <= 0.0f)
+			{
+				StaticAvoidClearSinceTime = CurrentTime;
+			}
+		}
+
 		const float TempDistanceSq = FVector::DistSquared(ShipPos, StaticTempWaypoint);
 		const float TempAcceptSq = FMath::Square(ShipRadiusCm * 2.0f);
-		if ((CurrentTime >= CommitUntilTime && !bStaticBlocked) || TempDistanceSq <= TempAcceptSq)
+		const bool bClearDelayExpired = StaticAvoidClearSinceTime > 0.0f
+			&& (CurrentTime - StaticAvoidClearSinceTime) >= StaticAvoidClearDelaySeconds;
+		if (bClearDelayExpired || TempDistanceSq <= TempAcceptSq)
 		{
 			bStaticAvoidanceActive = false;
 			FocusStaticObstacleIndex = INDEX_NONE;
+			StaticAvoidClearSinceTime = 0.0f;
 		}
 	}
 
@@ -734,20 +777,31 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 		}
 		else if (TempReason == ETempWaypointReason::Static)
 		{
-			bool bStillBlocked = false;
-
 			if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
 			{
 				if (UNavigationSubsystem* NavigationSubsystemLocal = GameInstance->GetSubsystem<UNavigationSubsystem>())
 				{
-					bStillBlocked = !NavigationSubsystemLocal->IsSegmentClearOfStaticObstacles(ShipPos, CurrentWaypoint, nullptr);
+					int32 BlockingObstacleIndex = INDEX_NONE;
+					const bool bDirectPathStillBlocked = bHasTempWaypoint
+						&& !NavigationSubsystemLocal->IsSegmentClearOfStaticObstacles(ShipPos, CurrentWaypoint, &BlockingObstacleIndex);
+					const bool bFocusedObstacleStillBlocks = bDirectPathStillBlocked && BlockingObstacleIndex == FocusStaticObstacleIndex;
+					if (bFocusedObstacleStillBlocks)
+					{
+						StaticAvoidClearSinceTime = 0.0f;
+					}
+					else if (StaticAvoidClearSinceTime <= 0.0f)
+					{
+						StaticAvoidClearSinceTime = CurrentTime;
+					}
 				}
 			}
-
-			if (!bStillBlocked || bCommitExpired)
+			const bool bClearDelayExpired = StaticAvoidClearSinceTime > 0.0f
+				&& (CurrentTime - StaticAvoidClearSinceTime) >= StaticAvoidClearDelaySeconds;
+			if (bClearDelayExpired || bCommitExpired)
 			{
 				bHasTempWaypoint = false;
 				TempReason = ETempWaypointReason::None;
+				StaticAvoidClearSinceTime = 0.0f;
 				FocusStaticObstacleIndex = INDEX_NONE;
 			}
 		}
@@ -795,6 +849,7 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 			bHasTempWaypoint = false;
 			TempReason = ETempWaypointReason::None;
 			FocusStaticObstacleIndex = INDEX_NONE;
+			StaticAvoidClearSinceTime = 0.0f;
 		}
 	}
 	if (bEnableStuckChecks && CurrentTime >= NextStuckCheckTime)
@@ -847,10 +902,16 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	if (bDrawNavPath)
 	{
 		FVector From = OwnerLocation;
-		for (int32 Index = WaypointIndex; Index < GlobalWaypoints.Num(); ++Index)
+		for (int32 Index = 0; Index < GlobalWaypoints.Num(); ++Index)
 		{
 			const FVector& Waypoint = GlobalWaypoints[Index];
-			DrawDebugLine(GetWorld(), From, Waypoint, FColor::Cyan, false, 0.0f, 0, 2.0f);
+			const bool bUpcomingWaypoint = Index >= WaypointIndex;
+			const FColor WaypointColor = bUpcomingWaypoint ? FColor::Cyan : FColor::Silver;
+			DrawDebugLine(GetWorld(), From, Waypoint, WaypointColor, false, 0.0f, 0, bUpcomingWaypoint ? 2.0f : 0.75f);
+			DrawDebugSphere(GetWorld(), Waypoint, ShipRadiusCm * 0.35f, 12, WaypointColor, false, 0.0f, 0, 1.0f);
+			DrawDebugString(GetWorld(), Waypoint + FVector(0.0f, 0.0f, ShipRadiusCm * 0.5f),
+				FString::Printf(TEXT("Anchor %d%s"), Index, Index == WaypointIndex ? TEXT(" CURRENT") : TEXT("")),
+				nullptr, WaypointColor, 0.0f, true);
 			From = Waypoint;
 		}
 		DrawDebugPoint(GetWorld(), CurrentNavTarget, 14.0f, FColor::Cyan, false, 0.0f, 0);

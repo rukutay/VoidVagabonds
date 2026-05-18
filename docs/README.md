@@ -23,6 +23,7 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Timer-driven navigation/avoidance with cached static obstacles (no per-tick heavy pathfinding).
 - Ship navigation path/obstacle queries run through `UNavigationSubsystem`; static obstacles are discovered by `ANavStaticBig` class/children rather than actor tags.
 - Large static obstacle anchors are generated from each `ANavStaticBig::SignatureSphere` scaled world radius plus safety margins.
+- Ship static avoidance uses greedy reachable `NavStaticBig` anchor paths, checks periodic line-trace shortcuts to the next anchor/goal, draws all planned anchors when nav debug is enabled, and drops focused obstacles after a 3s clear-path grace period.
 - Faction relations in `UFactionsSubsystem`: allocation-free flat matrix with Blueprint `GetRelation` / `SetRelation` / `UpdateRelations` / `ResetDefaults` API plus enemy and neutral/allied faction list helpers.
 - Forced replans + unstuck recovery for stuck/static-blocked states; temp avoidance targets are honored.
 - Safety/local avoidance hardening: self/invalid overlap filtering, `PhysicsBody` handling, and robust closest-approach prediction.

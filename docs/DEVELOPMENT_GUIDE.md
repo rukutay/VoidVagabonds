@@ -45,6 +45,9 @@ Related docs: [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [VERSION_CHA
 - **Large static obstacle recognition**: static obstacle discovery uses `TActorIterator<ANavStaticBig>`, so stations/planets and Blueprint/C++ child classes are included without requiring a `NavStaticBig` actor tag.
 - **Large static obstacle anchors**: `UNavigationSubsystem` builds obstacle proxies from `ANavStaticBig::SignatureSphere` when valid, using `GetComponentLocation()` and `GetScaledSphereRadius()`; anchors are generated on the inflated signature sphere shell.
 - **Ship static avoidance**: `UShipNavComponent` consumes `UNavigationSubsystem` APIs and enables local static avoidance via `bEnableLocalStaticAvoidance`.
+- **Ship static avoidance pathing**: `UNavigationSubsystem::FindGlobalPathAnchors` prefers a greedy reachable-anchor path for the first blocking `NavStaticBig`: choose the end anchor closest to the target, then repeatedly choose a line-trace-clear anchor that makes best progress toward that end anchor/target.
+- **Ship static avoidance release/shortcutting**: focused static obstacles are held until they no longer block the direct path for `StaticAvoidClearDelaySeconds` (default 3s); `UShipNavComponent` checks `StaticPathShortcutCheckInterval` (default 5s) to skip to the target or next anchor when `NavStaticBig` line trace is clear.
+- **Ship navigation debug**: when `bDrawNavPath` is enabled, all stored global anchors are drawn and labeled; upcoming/current anchors are cyan and passed anchors are silver.
 - Ship presets: `AShip` supports movement presets (Fighter/Interceptor/Gunship/Cruiser/Carrier) that also apply TorquePD rotation tuning on BeginPlay; disable `bApplyPresetOnBeginPlay` to keep manual BP edits.
 - Ship vitality: presets also tune hull/shield/recharge/armor values and reset current hull/shield to max when applied.
 - **Timers**: Prefer `FTimerHandle` updates; keep external modules tick-disabled.

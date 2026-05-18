@@ -3,16 +3,13 @@
 - Latest commit: `0338e19` (pre-visual-scheme baseline)
 
 # Last Completed Task
-- Migrated large static obstacle navigation from `AVagabondsWorkGameMode` to `UNavigationSubsystem`: `ANavStaticBig`/child-class obstacle discovery, `SignatureSphere`-based proxy radius/anchors, subsystem ship path queries, and local static avoidance enabled by property.
+- Refined `NavStaticBig` avoidance pathing: `UNavigationSubsystem` now prefers greedy reachable anchors for the blocking obstacle, `UShipNavComponent` periodically shortcuts to clear target/next-anchor paths, and nav debug draws all stored anchors.
 
 # Recently Touched Files (last 5–15)
 - Source/VagabondsWork/NavigationSubsystem.h (updated)
 - Source/VagabondsWork/NavigationSubsystem.cpp (updated)
 - Source/VagabondsWork/ShipNavComponent.h (updated)
 - Source/VagabondsWork/ShipNavComponent.cpp (updated)
-- Source/VagabondsWork/NavStaticBig.cpp (updated)
-- Source/VagabondsWork/VagabondsWorkGameMode.h (updated)
-- Source/VagabondsWork/VagabondsWorkGameMode.cpp (updated)
 - docs/README.md (updated)
 - docs/DEVELOPMENT_GUIDE.md (updated)
 - docs/CHANGELOG.md (updated)
@@ -20,7 +17,7 @@
 - docs/AI_FILEMAP.md (updated)
 
 # Known Issues / TODO
-- If safety margin still re-arms, inspect the new EscapeTarget debug logs for obstacle/normal issues and capture failing obstacle component names.
+- Verify in-editor that greedy `NavStaticBig` anchor choices do not oscillate for very sparse anchor counts or unusual target positions.
 
 # Assumptions Confirmed (important!)
 - Navigation is timer‑driven; avoid per‑tick heavy traces/pathfinding.

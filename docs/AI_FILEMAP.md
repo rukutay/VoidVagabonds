@@ -12,8 +12,8 @@
 - **UShipVitalityComponent** → `Source/VagabondsWork/ShipVitalityComponent.h` → `Source/VagabondsWork/ShipVitalityComponent.cpp` → Health/shields/damage application.
 
 ## Navigation & Avoidance
-- **UShipNavComponent** → `Source/VagabondsWork/ShipNavComponent.h` → `Source/VagabondsWork/ShipNavComponent.cpp` → Global replanning + dynamic/static avoidance.
-- **UNavigationSubsystem** → `Source/VagabondsWork/NavigationSubsystem.h` → `Source/VagabondsWork/NavigationSubsystem.cpp` → Static/runtime obstacle cache, signature-sphere anchor generation, segment checks, global path anchors.
+- **UShipNavComponent** → `Source/VagabondsWork/ShipNavComponent.h` → `Source/VagabondsWork/ShipNavComponent.cpp` → Global replanning + dynamic/static avoidance, timed target/anchor shortcut checks, nav anchor debug drawing.
+- **UNavigationSubsystem** → `Source/VagabondsWork/NavigationSubsystem.h` → `Source/VagabondsWork/NavigationSubsystem.cpp` → Static/runtime obstacle cache, signature-sphere anchor generation, segment checks, greedy `NavStaticBig` global path anchors.
 - **ANavStaticBig** → `Source/VagabondsWork/NavStaticBig.h` → `Source/VagabondsWork/NavStaticBig.cpp` → Large static bodies used by nav cache; runtime near-swap obstacles register with `UNavigationSubsystem`.
 
 ## Steering & Safety
