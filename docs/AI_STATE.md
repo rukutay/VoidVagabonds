@@ -3,14 +3,14 @@
 - Latest commit: `0338e19` (pre-visual-scheme baseline)
 
 # Last Completed Task
-- Fixed `NavStaticBig` shortcut tracing while ships are inside `SignatureSphere`/atmosphere volumes: `UNavigationSubsystem` now ignores cached signature components in object trace queries while preserving traces from the ship position to real blocking geometry.
+- Populated `TestSiteMap` through MCP with a new randomly named solar-system layout and corrected it to use real `BP_LevelBoundaries` scale and planet `SignatureSphere` orbit distances.
 
 # Recently Touched Files (last 5–15)
-- Source/VagabondsWork/NavigationSubsystem.cpp (updated)
-- docs/CHANGELOG.md (updated)
-- docs/README.md (updated)
-- docs/DEVELOPMENT_GUIDE.md (updated)
+- .clinerules/MCP_LEVEL_POPULATION.md (added)
 - docs/AI_STATE.md (updated)
+- docs/AI_FILEMAP.md (updated)
+- docs/AI_CONTEXT.md (updated)
+- Content/TestSiteMap.umap / external actor data (updated via MCP/editor)
 
 # Known Issues / TODO
 - Verify in-editor that greedy `NavStaticBig` anchor choices do not oscillate for very sparse anchor counts or unusual target positions.
@@ -26,7 +26,10 @@
 - Keep AI_STATE updated after future tasks.
 
 # Last Editor Layout Update
-- `TestSiteMap` was populated with named planets/stations: Aurelia, Borealis, Cygnus, Dravik, Erebus.
-- All planets are placed at separated orbit distances with minimum 18M uu Sun distance.
-- Stations are placed on safe orbit offsets around their assigned planets and grouped under `PlanetGroups/<PlanetName>`.
-- `BP_UFE` is positioned near Borealis inside expected signature range without planet-body overlap.
+- `TestSiteMap` was populated via MCP with new randomly named planets: `Veloria`, `Kharos`, `Nemorin`, `Solmara`, `Thalren`.
+- New planet positions use placed `BP_LevelBoundaries` data: actor scale `[3,3,3]`, serialized `Boudaries` `SphereRadius` `31,250,000`, effective radius about `93,750,000 uu`.
+- New planets are spread across large solar-system radii instead of clustering near origin.
+- New stations are named with `{PlanetName} {RomanNumeral}` and positioned around parent planets at inferred `SignatureSphere` edge distance (`~100 * PlanetActorScale`).
+- New planets have small non-zero pitch/roll rotations in the 3–16 degree range for visual realism.
+- Outliner labels were fixed via MCP `set_actor_property ActorLabel` for the new planets and stations.
+- MCP limitation observed: actor property setter can set `Custom` and `CustomPlanetTexture`, but `CustomPlanetSize` was not visible to the current setter; actor scale was used for planet size.

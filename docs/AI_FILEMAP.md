@@ -35,4 +35,5 @@
 - **AVagabondsWorkCharacter** → `Source/VagabondsWork/VagabondsWorkCharacter.h` → `Source/VagabondsWork/VagabondsWorkCharacter.cpp` → Input bindings, camera boom.
 
 ## Level Assets
-- `Content/TestSiteMap.umap` and `Content/__ExternalActors__/TestSiteMap/**` contain the current editor-authored star system layout: five named planets, station orbit groups, and the relocated `BP_UFE`.
+- `Content/TestSiteMap.umap` and `Content/__ExternalActors__/TestSiteMap/**` contain the current editor-authored star system layout, including MCP-spawned planets/stations (`Veloria`, `Kharos`, `Nemorin`, `Solmara`, `Thalren`) and station orbit groups.
+- `.clinerules/MCP_LEVEL_POPULATION.md` captures MCP editor-placement workflow, boundary sizing notes, planet/station naming rules, and known MCP limitations for future level-population tasks.

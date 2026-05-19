@@ -16,6 +16,14 @@
 - **NavStaticBig**: Planet/large body visuals + lighting channel setup (no tick).
 - **ASun**: Directional light splitting and sun visuals (mesh root).
 
+## MCP Level Population Notes
+- Use full BP paths for MCP spawning, e.g. `/Game/Assets/BPs/Level/BP_Planet`, `/Game/Assets/BPs/Level/BP_Station`, `/Game/Assets/BPs/Level/BP_StationA`.
+- Outliner labels are the authoritative gameplay/editor names for spawned planets and stations; set `ActorLabel` explicitly through MCP after spawning.
+- Placed `BP_LevelBoundaries` in `TestSiteMap` uses actor scale `[3,3,3]` and serialized `Boudaries` sphere radius `31,250,000`, giving an effective radius of about `93,750,000 uu`.
+- Station orbits should use each planet `SignatureSphere` edge; current MCP cannot read component radius directly, so infer orbit radius from project convention as about `100 * PlanetActorScale` when component radius is unavailable.
+- MCP can set `Custom` and `CustomPlanetTexture`; `CustomPlanetSize` may not be available through the current actor-property setter, so set actor scale directly when needed.
+- Add small pitch/roll rotations in the 3–16 degree range to spawned planets for more natural orbital presentation.
+
 ## Do Not Break Invariants
 - **Performance**
   - Avoid per‑tick heavy traces/pathfinding; keep timers (jittered replans).
