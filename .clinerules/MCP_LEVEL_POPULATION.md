@@ -8,8 +8,9 @@ WHEN POPULATING PLANETS/STATIONS VIA MCP
   - `property_value="<Desired Outliner Name>"`
 - Spawn planet BP with full path: `/Game/Assets/BPs/Level/BP_Planet`.
 - Spawn station BPs with full paths:
-  - `/Game/Assets/BPs/Level/BP_Station`
-  - `/Game/Assets/BPs/Level/BP_StationA`
+  - `/Game/Assets/BPs/Level/BP_Station`   (inherits AStation — archetype/security/trade)
+  - `/Game/Assets/BPs/Level/BP_StationB`  (inherits AStation — archetype/security/trade)
+  - `/Game/Assets/BPs/Level/BP_StationA`  (does NOT inherit AStation — avoid for economy stations)
 - Set planet `Custom=true` via `set_actor_property`.
 - Set planet `CustomPlanetTexture` via `set_actor_property` using `/Game/Assets/PlanetTextures/<Asset>.<Asset>` paths.
 - `CustomPlanetSize` may not be visible to the current MCP actor-property setter even though it exists in the BP; set actor scale directly as the practical size control.
@@ -32,6 +33,17 @@ PLANET/STATION PLACEMENT RULES
 - Place stations on the parent planet `SignatureSphere` edge, not close to the body.
 - If MCP cannot read component radius directly, infer the orbit edge from BP scale convention used in this project: station orbit radius is approximately `100 * PlanetActorScale`.
 - Preserve parent/child correlation by moving stations relative to their parent planet center.
+
+ACTOR REPLACEMENT (DELETE + RESPAWN) — CRITICAL
+- **Never spawn a new actor with the same internal `Name` as a just-deleted actor.**
+- Deleting an actor via MCP may leave the internal name reserved in the level's actor name map until the level is saved/reloaded.
+- Spawning with the same name causes a fatal crash: `Cannot generate unique name for '<Name>' in level`.
+- **Workaround**: Spawn with a temporary unique internal name (e.g., `PlanetName_RomanNumeral_Temp`), then immediately set `ActorLabel` to the desired outliner name via `set_actor_property`.
+  ```
+  spawn_blueprint_actor(name="Veloria_II_Temp", ...)
+  set_actor_property(name="Veloria_II_Temp", property_name="ActorLabel", property_value="Veloria II")
+  ```
+- The internal name remains the temporary one; only `ActorLabel` controls what appears in the outliner.
 
 KNOWN MCP LIMITATIONS
 - `get_actor_properties` returns only actor-level transform/class/name for these BPs; it does not expose component internals like `SignatureSphere->GetScaledSphereRadius()`.
