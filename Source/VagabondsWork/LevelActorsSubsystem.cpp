@@ -290,6 +290,76 @@ TArray<AActor*> ULevelActorsSubsystem::GetNeutralOrAlliedPlanetsOfOwner(AActor* 
 	return Result;
 }
 
+TArray<AShip*> ULevelActorsSubsystem::GetEnemyShipsOfOwner(AActor* Owner) const
+{
+	TArray<AShip*> Result;
+
+	if (!IsValid(Owner))
+	{
+		return Result;
+	}
+
+	const UMarkerComponent* OwnerMarker = Owner->FindComponentByClass<UMarkerComponent>();
+	const UFactionsSubsystem* FactionsSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UFactionsSubsystem>() : nullptr;
+	if (!IsValid(FactionsSubsystem))
+	{
+		return Result;
+	}
+
+	const EFaction OwnerFaction = IsValid(OwnerMarker) ? OwnerMarker->Faction : FactionsSubsystem->GetDefaultFaction();
+
+	for (AShip* ShipActor : Ships)
+	{
+		if (!IsValid(ShipActor) || ShipActor == Owner)
+		{
+			continue;
+		}
+
+		const UMarkerComponent* Marker = ShipActor->FindComponentByClass<UMarkerComponent>();
+		if (IsValid(Marker) && FactionsSubsystem->GetRelation(OwnerFaction, Marker->Faction) < 0)
+		{
+			Result.Add(ShipActor);
+		}
+	}
+
+	return Result;
+}
+
+TArray<AShip*> ULevelActorsSubsystem::GetNeutralOrAlliedShipsOfOwner(AActor* Owner) const
+{
+	TArray<AShip*> Result;
+
+	if (!IsValid(Owner))
+	{
+		return Result;
+	}
+
+	const UMarkerComponent* OwnerMarker = Owner->FindComponentByClass<UMarkerComponent>();
+	const UFactionsSubsystem* FactionsSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UFactionsSubsystem>() : nullptr;
+	if (!IsValid(FactionsSubsystem))
+	{
+		return Result;
+	}
+
+	const EFaction OwnerFaction = IsValid(OwnerMarker) ? OwnerMarker->Faction : FactionsSubsystem->GetDefaultFaction();
+
+	for (AShip* ShipActor : Ships)
+	{
+		if (!IsValid(ShipActor) || ShipActor == Owner)
+		{
+			continue;
+		}
+
+		const UMarkerComponent* Marker = ShipActor->FindComponentByClass<UMarkerComponent>();
+		if (IsValid(Marker) && FactionsSubsystem->GetRelation(OwnerFaction, Marker->Faction) >= 0)
+		{
+			Result.Add(ShipActor);
+		}
+	}
+
+	return Result;
+}
+
 void ULevelActorsSubsystem::RefreshTrackedActors()
 {
 	Stations.Reset();

@@ -7,6 +7,7 @@
 #include "ShipNavComponent.h"
 #include "ShipVitalityComponent.h"
 #include "MarkerComponent.h"
+#include "FactionsSubsystem.h"
 #include "NavStaticBig.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
@@ -164,6 +165,35 @@ void AShip::BeginPlay()
 #endif
 }
 
+bool AShip::IsEnemy(AActor* Self, AActor* Target) const
+{
+	if (!Self || !Target)
+	{
+		return false;
+	}
+
+	const UMarkerComponent* SelfMarker = Self->FindComponentByClass<UMarkerComponent>();
+	const UMarkerComponent* TargetMarker = Target->FindComponentByClass<UMarkerComponent>();
+
+	if (!SelfMarker || !TargetMarker)
+	{
+		return false;
+	}
+
+	const UGameInstance* GameInstance = GetGameInstance();
+	if (!GameInstance)
+	{
+		return false;
+	}
+
+	const UFactionsSubsystem* FactionsSubsystem = GameInstance->GetSubsystem<UFactionsSubsystem>();
+	if (!FactionsSubsystem)
+	{
+		return false;
+	}
+
+	return FactionsSubsystem->GetRelation(SelfMarker->Faction, TargetMarker->Faction) < 0;
+}
 void AShip::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     for (AActor* OpponentActor : CurrentOpponents)
@@ -936,6 +966,11 @@ void AShip::AddOpponent(AActor* OpponentActor)
     CurrentOpponents.Add(OpponentActor);
     OpponentActor->OnDestroyed.RemoveDynamic(this, &AShip::HandleOpponentDestroyed);
     OpponentActor->OnDestroyed.AddDynamic(this, &AShip::HandleOpponentDestroyed);
+
+    if (ShipController && ShipController->ActionMode != EActionMode::Fight)
+    {
+        ShipController->Fight(OpponentActor);
+    }
 }
 
 void AShip::RemoveOpponent(AActor* OpponentActor)
@@ -1093,6 +1128,13 @@ void AShip::HandleShipRadiusBeginOverlap(
 	{
 		return;
 	}
+
+    AShip* OtherShip = Cast<AShip>(OtherActor);
+    const bool bOverlappedOtherShipBody = OtherShip && OtherComp == OtherShip->GetShipBase();
+    if (bOverlappedOtherShipBody && IsEnemy(this, OtherShip))
+    {
+        EnemyShipRadiusBeginOverlap(OtherShip, OtherComp);
+    }
 
     // Update overlap filtering logic to also accept Pawns as blockers
     const bool bBlocksAvoidance = OtherComp->GetCollisionResponseToChannel(ECC_GameTraceChannel3) == ECR_Block;

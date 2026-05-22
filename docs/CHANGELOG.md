@@ -5,6 +5,7 @@ User-facing changes only. Technical/internal details live in `VERSION_CHANGES.md
 Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md), [VERSION_CHANGES.md](VERSION_CHANGES.md).
 
 ## [Unreleased]
+- Added `EnemyShipRadiusBeginOverlap` Blueprint-implementable event to `AShip` that fires when `ShipRadius` begins overlapping an enemy ship's body (`ShipBase`). Only triggers for ships from enemy factions (relation < 0); does not fire for scanner/radius components or non-ship actors. Intended for threat detection / combat state entry in Blueprints.
 - Feature details were merged into project docs for this release prep.
 - See: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md), [VERSION_CHANGES.md](VERSION_CHANGES.md).
 - Added level visual scheme pipeline:
@@ -21,11 +22,10 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Level actor planet queries now return actor lists like station queries, and AI patrol route creation now accepts generic actors instead of only `NavStaticBig` actors.
 - AI patrol route creation now uses all provided valid actor candidates and orders them by nearest-neighbor from the ship location instead of selecting a random subset.
 - Added Blueprint faction relation list helpers and owner-relative station/planet relation queries for enemy vs neutral/allied filtering.
+- Added `GetEnemyShipsOfOwner` and `GetNeutralOrAlliedShipsOfOwner` Blueprint-callable functions to `ULevelActorsSubsystem`, completing the ship owner-relative query set alongside existing station and planet equivalents.
 
 ## [Unknown (needs tag/commit reference)]
 - Earlier release history is not tagged in this repo. Add versioned entries once tags/commits are identified.
 
 ## 2026-05-16 - Editor star system population
-- Populated `TestSiteMap` with five named `BP_Planet` actors arranged on separated solar orbit shells with minimum 18M uu Sun distance.
 - Added matching faction stations on safe planet-orbit offsets and grouped planet/station actors under `PlanetGroups/<PlanetName>` Outliner folders.
-- Moved existing `BP_UFE` into Borealis space inside the expected signature area while avoiding planet mesh overlap.

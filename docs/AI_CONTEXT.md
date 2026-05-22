@@ -8,6 +8,7 @@
 
 ## Architecture Ownership Map
 - **UNavigationSubsystem**: Static/runtime obstacle caching, `ANavStaticBig` class discovery, signature-sphere anchor generation, global path anchor planning.
+- **ULevelActorsSubsystem**: Cached station/planet/ship registration, faction-filtered queries, owner-relative enemy/neutral/allied lookups.
 - **AVagabondsWorkGameMode**: Minimal GameMode setup (default pawn class).
 - **UShipNavComponent**: Global replanning, waypoint selection, dynamic/static avoidance, stuck recovery.
 - **AShip**: Physics steering forces, soft separation (airbag), applies rotation via controller.

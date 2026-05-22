@@ -153,7 +153,8 @@ void UShipNavComponent::TickNav(float DeltaTime, const FVector& GoalLocation, fl
 	{
 		if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
 		{
-			if (UNavigationSubsystem* NavigationSubsystem = GameInstance->GetSubsystem<UNavigationSubsystem>())
+			NavigationSubsystem = GameInstance->GetSubsystem<UNavigationSubsystem>();
+			if (NavigationSubsystem)
 			{
 				GlobalWaypoints = NavigationSubsystem->FindGlobalPathAnchors(GetOwner()->GetActorLocation(), GoalLocation, IntentTargetActor);
 				WaypointIndex = 0;

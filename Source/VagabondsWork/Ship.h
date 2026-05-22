@@ -26,6 +26,16 @@ enum class EShipPreset : uint8
     Custom      UMETA(DisplayName="Custom")
 };
 
+UENUM(BlueprintType)
+enum class EShipRole : uint8
+{
+    Freighter        UMETA(DisplayName="Freighter"),
+    PatrolShip       UMETA(DisplayName="Patrol Ship"),
+    EscortShip       UMETA(DisplayName="Escort Ship"),
+    PirateRaider     UMETA(DisplayName="Pirate Raider"),
+    CivilianTraveler UMETA(DisplayName="Civilian Traveler")
+};
+
 USTRUCT(BlueprintType)
 struct FShipTuningSnapshot
 {
@@ -222,6 +232,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Tuning|Preset", meta=(ToolTip="Apply the selected preset at BeginPlay."))
     bool bApplyPresetOnBeginPlay = true;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ship|Role", meta=(ToolTip="Role of this ship in the game level."))
+    EShipRole ShipRole = EShipRole::CivilianTraveler;
+
     UFUNCTION(BlueprintCallable, Category="Ship|Tuning|Preset", meta=(ToolTip="Apply the current ship preset to movement/rotation values."))
     void ApplyShipPreset();
 
@@ -347,6 +360,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Ship|Combat", meta=(ToolTip="Remove invalid or destroyed actors from opponents list."))
     void PruneOpponents();
+
+    UFUNCTION(BlueprintCallable, Category="Faction", meta=(ToolTip="Returns true if Self and Target belong to enemy factions."))
+    bool IsEnemy(AActor* Ship, AActor* Check) const;
+
+    UFUNCTION(BlueprintImplementableEvent, Category="Ship|Combat", meta=(DisplayName="Enemy Ship Radius Begin Overlap", ToolTip="Called when ShipRadius starts overlapping another ship's body from an enemy faction."))
+    void EnemyShipRadiusBeginOverlap(AShip* EnemyShip, UPrimitiveComponent* EnemyComponent);
 
     UFUNCTION(BlueprintImplementableEvent, Category="Ship|Combat", meta=(ToolTip="Called when this ship is attacked."))
     void Attacked(AActor* AggressorActor);

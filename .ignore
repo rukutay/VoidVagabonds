@@ -1,5 +1,11 @@
 /Content
 /Saved
-/Intermediate
 /.vscode
 /DerivedDataCache
+/.git
+/docs
+/.cline
+/.clinerules
+/Intermediate
+/Plugins/UnrealMCP/Content
+/Plugins/UnrealMCP/Intermediate

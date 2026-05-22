@@ -47,6 +47,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "World|Actors")
 	TArray<AActor*> GetNeutralOrAlliedPlanetsOfOwner(AActor* Owner) const;
 
+	UFUNCTION(BlueprintCallable, Category = "World|Actors")
+	TArray<AShip*> GetEnemyShipsOfOwner(AActor* Owner) const;
+
+	UFUNCTION(BlueprintCallable, Category = "World|Actors")
+	TArray<AShip*> GetNeutralOrAlliedShipsOfOwner(AActor* Owner) const;
+
 private:
 	void RefreshTrackedActors();
 

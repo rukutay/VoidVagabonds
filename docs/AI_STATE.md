@@ -1,16 +1,16 @@
 # Current Branch / Version
 - Branch: `main`
-- Latest commit: `0338e19` (pre-visual-scheme baseline)
+- Latest commit: `74e53b8` (post-ship-relation-queries)
 
 # Last Completed Task
-- Populated `TestSiteMap` through MCP with a new randomly named solar-system layout and corrected it to use real `BP_LevelBoundaries` scale and planet `SignatureSphere` orbit distances.
+- Added `GetEnemyShipsOfOwner` and `GetNeutralOrAlliedShipsOfOwner` Blueprint-callable functions to `ULevelActorsSubsystem`. Both iterate the cached `Ships` array and filter by faction relation via `UFactionsSubsystem::GetRelation`: enemies `< 0`, neutral/allied `>= 0`. Follows the existing station/planet owner-relative query pattern exactly.
 
 # Recently Touched Files (last 5–15)
-- .clinerules/MCP_LEVEL_POPULATION.md (added)
+- Source/VagabondsWork/LevelActorsSubsystem.h (added GetEnemyShipsOfOwner, GetNeutralOrAlliedShipsOfOwner declarations)
+- Source/VagabondsWork/LevelActorsSubsystem.cpp (added matching definitions)
+- docs/AI_CONTEXT.md (added ULevelActorsSubsystem to architecture ownership map)
 - docs/AI_STATE.md (updated)
-- docs/AI_FILEMAP.md (updated)
-- docs/AI_CONTEXT.md (updated)
-- Content/TestSiteMap.umap / external actor data (updated via MCP/editor)
+- docs/CHANGELOG.md (updated)
 
 # Known Issues / TODO
 - Verify in-editor that greedy `NavStaticBig` anchor choices do not oscillate for very sparse anchor counts or unusual target positions.

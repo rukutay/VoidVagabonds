@@ -1189,7 +1189,7 @@ void AAIShipController::ApplyShipRotation(FVector TargetLocation)
                 ? (DesiredYawRateForBank / Ship->MaxYawSpeed)
                 : 0.0f;
             const float RollTargetRad = -YawRateNorm * Ship->YawBankScale * Ship->MaxRollSpeed * (PI / 180.f);
-            const float RollErrRad = RollTargetRad - CurAngVelLocalRad.X;
+            RollErrRad = RollTargetRad - CurAngVelLocalRad.X;
             TorqueRoll = (Ix * (TorqueKpPitch * RollErrRad)) - (Ix * (TorqueRollDamping * CurAngVelLocalRad.X));
 
             bool bApplyForwardRollLevel = false;
