@@ -30,7 +30,7 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - Safety/local avoidance hardening: self/invalid overlap filtering, `PhysicsBody` handling, and robust closest-approach prediction.
 - `ShipNavComponent` ignores the current intent target actor during avoidance checks (prevents false blocking).
 
-- AI controller action state enum: `Idle`, `Moving`, `Following`, `Patroling`, `Fight`.
+- AI controller action state enum: `Idle`, `Moving`, `Following`, `Patroling`, `Fight`, `Flee`.
 - AI action helpers in `AAIShipController`: `StartFollowing(AShip*)`, `MoveToTarget(AActor*)`, `ResetAction()`.
 - AI fight mode (`AAIShipController::Fight`) now pushes target assignment to both the controlled ship and all attached `AExternalModule` children, and clears state automatically when target actor is destroyed.
 - AI fight mode now chains targets: when the current target is destroyed, controller selects the next closest valid opponent from `AShip::CurrentOpponents` and continues fighting.
@@ -51,7 +51,7 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
 - `NavStaticBig` asteroid pipeline: spline generation, near/mid/far HISM streaming, organic jitter/noise/dropout, and near-field actor swap for collision/avoidance.
 
 - Marker taxonomy expanded with `Station` and `Debris` marker kinds.
-- Level actor subsystem station and planet queries expose actor lists for consistent Blueprint routing/filtering usage, including owner-relative enemy and neutral/allied station/planet lookups.
+- Level actor subsystem station, planet, and ship queries expose actor lists for consistent Blueprint routing/filtering usage, including owner-relative enemy and neutral/allied station/planet/ship lookups (`GetEnemyShipsOfOwner`, `GetNeutralOrAlliedShipsOfOwner`).
 - Runtime atmosphere spawning via `ALevelBoundaries` with predictive placement and active-instance cap.
 - Sun directional light tracks current view target/player direction.
 - Ship presets (movement + TorquePD) and matching vitality presets (hull/shield/recharge/armor).
@@ -60,8 +60,6 @@ VagabondsWork is an Unreal Engine space-flight project focused on AI ship naviga
   - `AVagabondsWorldSettings` stores active level scheme (`LevelVisualScheme`).
   - `ULevelVisualSchemeBlueprintLibrary` exposes Blueprint helpers to fetch world settings/scheme from `WorldContextObject`.
   - Added skybox HDR cubemap parameter (`SkyboxTexture`) in the visual scheme DataAsset.
-
-> TODO: Add any additional gameplay feature claims only after verifying them in code/docs with explicit evidence.
 
 ## Build / Run (current setup)
 See [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) for setup, build, and packaging steps.
@@ -107,7 +105,7 @@ See [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) for setup, build, and packaging
 - [marketing.md](marketing.md)
 
 ## Current TestSiteMap star system layout
-- `TestSiteMap` contains five named planets (`Aurelia`, `Borealis`, `Cygnus`, `Dravik`, `Erebus`) placed on separated solar orbit shells.
+- `TestSiteMap` contains five named planets (`Veloria`, `Kharos`, `Nemorin`, `Solmara`, `Thalren`) placed on separated solar orbit shells.
 - Planet actors use custom planet texture/faction/asteroid-field settings; station actors are named with Roman numerals and inherit their planet faction.
 - Stations are positioned on safe orbit offsets around their owning planet and organized with planets in `PlanetGroups/<PlanetName>` Outliner folders.
-- `BP_UFE` is placed near Borealis inside its expected signature area without overlapping the planet body.
+- `BP_UFE` is placed near Kharos inside its expected signature area without overlapping the planet body.

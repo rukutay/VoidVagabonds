@@ -1,6 +1,6 @@
 # VagabondsWork: Zero-G Fleet Survival
 
-VagabondsWork is a space-flight prototype where you pilot a physics-driven ship through dense asteroid fields while AI squadrons navigate and fight alongside you. The experience is all about momentum, precision steering, and surviving in a living zero-gravity battlefield where every maneuver matters.
+VagabondsWork is a space-flight game where you pilot a physics-driven ship through dense asteroid fields while AI squadrons navigate and fight alongside you. The experience is all about momentum, precision steering, and surviving in a living zero-gravity battlefield where every maneuver matters.
 
 ## Core Experience
 - **Zero-gravity dogfighting.** Manual thrust and pitch/yaw steering make every turn feel physical and earned.
@@ -21,4 +21,4 @@ VagabondsWork is a space-flight prototype where you pilot a physics-driven ship 
 - **Streaming + swap logic.** Asteroid instances swap to physics actors near the player while preserving navigation anchors for AI.
 
 ## Current Status
-VagabondsWork is an active prototype focused on building a scalable, physics-led combat playground. The systems above represent verified in-engine features and serve as the foundation for future gameplay expansion.
+VagabondsWork is an active project focused on building a scalable, physics-led combat playground. The systems above represent verified in-engine features currently shipping on the main branch.

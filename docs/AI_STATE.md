@@ -1,6 +1,6 @@
 # Current Branch / Version
 - Branch: `main`
-- Latest commit: `74e53b8` (post-ship-relation-queries)
+- Latest commit: `7e91ed2` (released baseline — Ship navigation, AI controller, LevelActorsSubsystem, and content updates)
 
 # Last Completed Task
 - Added `GetEnemyShipsOfOwner` and `GetNeutralOrAlliedShipsOfOwner` Blueprint-callable functions to `ULevelActorsSubsystem`. Both iterate the cached `Ships` array and filter by faction relation via `UFactionsSubsystem::GetRelation`: enemies `< 0`, neutral/allied `>= 0`. Follows the existing station/planet owner-relative query pattern exactly.
@@ -12,7 +12,7 @@
 - docs/AI_STATE.md (updated)
 - docs/CHANGELOG.md (updated)
 
-# Known Issues / TODO
+# Known Issues
 - Verify in-editor that greedy `NavStaticBig` anchor choices do not oscillate for very sparse anchor counts or unusual target positions.
 
 # Assumptions Confirmed (important!)
@@ -21,9 +21,6 @@
 - Static obstacle caching/waypoint planning lives in `UNavigationSubsystem`; `AVagabondsWorkGameMode` stays minimal.
 - External modules are tick‑disabled and updated via timers.
 - Faction enemies use relation `< 0`; neutral/allied use relation `>= 0`.
-
-# Next Tasks Queue
-- Keep AI_STATE updated after future tasks.
 
 # Last Editor Layout Update
 - `TestSiteMap` was populated via MCP with new randomly named planets: `Veloria`, `Kharos`, `Nemorin`, `Solmara`, `Thalren`.

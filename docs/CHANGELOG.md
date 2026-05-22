@@ -4,10 +4,8 @@ User-facing changes only. Technical/internal details live in `VERSION_CHANGES.md
 
 Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md), [VERSION_CHANGES.md](VERSION_CHANGES.md).
 
-## [Unreleased]
+## 2026-05-22 — Ship navigation, AI controller, LevelActorsSubsystem, and content updates
 - Added `EnemyShipRadiusBeginOverlap` Blueprint-implementable event to `AShip` that fires when `ShipRadius` begins overlapping an enemy ship's body (`ShipBase`). Only triggers for ships from enemy factions (relation < 0); does not fire for scanner/radius components or non-ship actors. Intended for threat detection / combat state entry in Blueprints.
-- Feature details were merged into project docs for this release prep.
-- See: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md), [VERSION_CHANGES.md](VERSION_CHANGES.md).
 - Added level visual scheme pipeline:
   - New `ULevelVisualSchemeData` DataAsset for level visual tuning values.
   - New `AVagabondsWorldSettings` with per-level `LevelVisualScheme` reference.
@@ -24,8 +22,10 @@ Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.m
 - Added Blueprint faction relation list helpers and owner-relative station/planet relation queries for enemy vs neutral/allied filtering.
 - Added `GetEnemyShipsOfOwner` and `GetNeutralOrAlliedShipsOfOwner` Blueprint-callable functions to `ULevelActorsSubsystem`, completing the ship owner-relative query set alongside existing station and planet equivalents.
 
-## [Unknown (needs tag/commit reference)]
-- Earlier release history is not tagged in this repo. Add versioned entries once tags/commits are identified.
+## 2026-05-19 — Station economy & archetype assignment
+- Applied `StationArchetype`, `SecurityLevel`, `TradeImportance` to all 10 TestSiteMap stations.
+- Replaced station A BPs with station B BPs where appropriate; all replacements use temporary internal names with ActorLabel fix to avoid UE5 name-collision crash.
+- Documented supply/demand tables and distance-based price logic per station.
 
-## 2026-05-16 - Editor star system population
+## 2026-05-16 — Editor star system population
 - Added matching faction stations on safe planet-orbit offsets and grouped planet/station actors under `PlanetGroups/<PlanetName>` Outliner folders.
