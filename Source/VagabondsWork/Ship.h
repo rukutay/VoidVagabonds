@@ -367,6 +367,9 @@ public:
     UFUNCTION(BlueprintImplementableEvent, Category="Ship|Combat", meta=(DisplayName="Enemy Ship Radius Begin Overlap", ToolTip="Called when ShipRadius starts overlapping another ship's body from an enemy faction."))
     void EnemyShipRadiusBeginOverlap(AShip* EnemyShip, UPrimitiveComponent* EnemyComponent);
 
+    UFUNCTION(BlueprintImplementableEvent, Category="Ship|Combat", meta=(ToolTip="Called when this ship scanner detects an enemy ship."))
+    void EnemyAppears(AShip* EnemyShip);
+
     UFUNCTION(BlueprintImplementableEvent, Category="Ship|Combat", meta=(ToolTip="Called when this ship is attacked."))
     void Attacked(AActor* AggressorActor);
 
@@ -459,6 +462,24 @@ private:
 
     UFUNCTION()
     void UpdateWithinScaner();
+
+    UFUNCTION()
+    void HandleInternalScanerBeginOverlap(
+        UPrimitiveComponent* OverlappedComponent,
+        AActor* OtherActor,
+        UPrimitiveComponent* OtherComp,
+        int32 OtherBodyIndex,
+        bool bFromSweep,
+        const FHitResult& SweepResult);
+
+    UFUNCTION()
+    void HandleInternalScanerEndOverlap(
+        UPrimitiveComponent* OverlappedComponent,
+        AActor* OtherActor,
+        UPrimitiveComponent* OtherComp,
+        int32 OtherBodyIndex);
+
+    void NotifyScannerRegisteredActor(AActor* RegisteredActor);
 
     void UpdateNiagaraVelocity();
 

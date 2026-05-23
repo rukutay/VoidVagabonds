@@ -137,6 +137,33 @@ void AShip::BeginPlay()
 #endif
     }
 
+    if (InternalScanerRadius)
+    {
+        InternalScanerRadius->OnComponentBeginOverlap.RemoveDynamic(this, &AShip::HandleInternalScanerBeginOverlap);
+        InternalScanerRadius->OnComponentBeginOverlap.AddDynamic(this, &AShip::HandleInternalScanerBeginOverlap);
+
+        InternalScanerRadius->OnComponentEndOverlap.RemoveDynamic(this, &AShip::HandleInternalScanerEndOverlap);
+        InternalScanerRadius->OnComponentEndOverlap.AddDynamic(this, &AShip::HandleInternalScanerEndOverlap);
+
+        TArray<AActor*> InitialOverlaps;
+        InternalScanerRadius->GetOverlappingActors(InitialOverlaps);
+        for (AActor* OverlappedActor : InitialOverlaps)
+        {
+            if (IsValid(OverlappedActor)
+                && OverlappedActor != this
+                && (OverlappedActor->IsA<AShip>() || OverlappedActor->IsA<ANavStaticBig>()))
+            {
+                const bool bWasAdded = !WithinScaner.Contains(OverlappedActor);
+                WithinScaner.AddUnique(OverlappedActor);
+
+                if (bWasAdded)
+                {
+                    NotifyScannerRegisteredActor(OverlappedActor);
+                }
+            }
+        }
+    }
+
     GetWorldTimerManager().SetTimer(WithinScanerUpdateTimer, this, &AShip::UpdateWithinScaner, 0.25f, true);
     UpdateWithinScaner();
 
@@ -205,6 +232,17 @@ void AShip::EndPlay(const EEndPlayReason::Type EndPlayReason)
     }
 
     CurrentOpponents.Reset();
+
+    GetWorldTimerManager().ClearTimer(WithinScanerUpdateTimer);
+
+    if (InternalScanerRadius)
+    {
+        InternalScanerRadius->OnComponentBeginOverlap.RemoveDynamic(this, &AShip::HandleInternalScanerBeginOverlap);
+        InternalScanerRadius->OnComponentEndOverlap.RemoveDynamic(this, &AShip::HandleInternalScanerEndOverlap);
+    }
+
+    WithinScaner.Reset();
+
     Super::EndPlay(EndPlayReason);
 }
 
@@ -1629,45 +1667,77 @@ bool AShip::EnsureShipController()
 
 void AShip::UpdateWithinScaner()
 {
-    WithinScaner.Reset();
-
-    UWorld* World = GetWorld();
-    if (!World)
-    {
-        return;
-    }
-
     const FVector ShipLocation = GetActorLocation();
     const float ScanRadius = InternalScanerRadius ? InternalScanerRadius->GetScaledSphereRadius() : 0.0f;
     const float ScanRadiusSq = ScanRadius * ScanRadius;
 
-    TArray<AActor*> FoundActors;
-    FoundActors.Reserve(64);
-
-    UGameplayStatics::GetAllActorsOfClass(World, AShip::StaticClass(), FoundActors);
-
-    TArray<AActor*> FoundNavStaticBig;
-    UGameplayStatics::GetAllActorsOfClass(World, ANavStaticBig::StaticClass(), FoundNavStaticBig);
-    FoundActors.Append(FoundNavStaticBig);
-
-    for (AActor* Actor : FoundActors)
+    WithinScaner.RemoveAllSwap([this, ShipLocation, ScanRadiusSq](AActor* Actor)
     {
-        if (!IsValid(Actor))
+        if (!IsValid(Actor) || Actor == this)
         {
-            continue;
+            return true;
         }
 
-        const float DistanceSq = FVector::DistSquared(ShipLocation, Actor->GetActorLocation());
-        if (DistanceSq <= ScanRadiusSq)
+        if (!Actor->IsA<AShip>() && !Actor->IsA<ANavStaticBig>())
         {
-            WithinScaner.Add(Actor);
+            return true;
         }
-    }
+
+        return FVector::DistSquared(ShipLocation, Actor->GetActorLocation()) > ScanRadiusSq;
+    }, EAllowShrinking::No);
 
     WithinScaner.Sort([ShipLocation](const AActor& A, const AActor& B)
     {
         return FVector::DistSquared(ShipLocation, A.GetActorLocation()) < FVector::DistSquared(ShipLocation, B.GetActorLocation());
     });
+}
+
+void AShip::HandleInternalScanerBeginOverlap(
+    UPrimitiveComponent* OverlappedComponent,
+    AActor* OtherActor,
+    UPrimitiveComponent* OtherComp,
+    int32 OtherBodyIndex,
+    bool bFromSweep,
+    const FHitResult& SweepResult)
+{
+    if (!IsValid(OtherActor) || OtherActor == this)
+    {
+        return;
+    }
+
+    if (!OtherActor->IsA<AShip>() && !OtherActor->IsA<ANavStaticBig>())
+    {
+        return;
+    }
+
+    const bool bWasAdded = !WithinScaner.Contains(OtherActor);
+    WithinScaner.AddUnique(OtherActor);
+
+    if (bWasAdded)
+    {
+        NotifyScannerRegisteredActor(OtherActor);
+    }
+}
+
+void AShip::NotifyScannerRegisteredActor(AActor* RegisteredActor)
+{
+    AShip* EnemyShip = Cast<AShip>(RegisteredActor);
+    if (EnemyShip && IsEnemy(this, EnemyShip))
+    {
+        EnemyAppears(EnemyShip);
+    }
+}
+
+void AShip::HandleInternalScanerEndOverlap(
+    UPrimitiveComponent* OverlappedComponent,
+    AActor* OtherActor,
+    UPrimitiveComponent* OtherComp,
+    int32 OtherBodyIndex)
+{
+    if (OtherActor)
+    {
+        WithinScaner.Remove(OtherActor);
+    }
 }
 
 void AShip::ApplySoftSeparation(float DeltaTime)

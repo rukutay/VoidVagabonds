@@ -1,16 +1,16 @@
 # Current Branch / Version
 - Branch: `main`
-- Latest commit: `7e91ed2` (released baseline — Ship navigation, AI controller, LevelActorsSubsystem, and content updates)
+- Latest commit: `b495f4e` (Ship scanner refactor & EnemyAppears event)
 
 # Last Completed Task
-- Added `GetEnemyShipsOfOwner` and `GetNeutralOrAlliedShipsOfOwner` Blueprint-callable functions to `ULevelActorsSubsystem`. Both iterate the cached `Ships` array and filter by faction relation via `UFactionsSubsystem::GetRelation`: enemies `< 0`, neutral/allied `>= 0`. Follows the existing station/planet owner-relative query pattern exactly.
+- Replaced `WithinScaner` global `GetAllActorsOfClass` polling with overlap-event-driven membership via `InternalScanerRadius` begin/end overlap handlers. `UpdateWithinScaner` now only prunes + sorts.
+- Added `EnemyAppears(AShip* EnemyShip)` Blueprint-implementable event to `AShip`, fired when scanner detects a new enemy ship. Uses `bWasAdded` guard to suppress duplicate firings.
 
 # Recently Touched Files (last 5–15)
-- Source/VagabondsWork/LevelActorsSubsystem.h (added GetEnemyShipsOfOwner, GetNeutralOrAlliedShipsOfOwner declarations)
-- Source/VagabondsWork/LevelActorsSubsystem.cpp (added matching definitions)
-- docs/AI_CONTEXT.md (added ULevelActorsSubsystem to architecture ownership map)
-- docs/AI_STATE.md (updated)
+- Source/VagabondsWork/Ship.h (added EnemyAppears event, HandleInternalScanerBeginOverlap/EndOverlap, NotifyScannerRegisteredActor)
+- Source/VagabondsWork/Ship.cpp (rewrote UpdateWithinScaner, added overlap handlers + helper, updated BeginPlay seeding + EndPlay cleanup)
 - docs/CHANGELOG.md (updated)
+- docs/AI_STATE.md (updated)
 
 # Known Issues
 - Verify in-editor that greedy `NavStaticBig` anchor choices do not oscillate for very sparse anchor counts or unusual target positions.

@@ -4,6 +4,10 @@ User-facing changes only. Technical/internal details live in `VERSION_CHANGES.md
 
 Related docs: [README.md](README.md), [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md), [VERSION_CHANGES.md](VERSION_CHANGES.md).
 
+## 2026-05-23 — Ship scanner refactor & EnemyAppears event
+- Replaced `WithinScaner` global `GetAllActorsOfClass` polling with overlap-event-driven membership via `InternalScanerRadius` begin/end overlap handlers. `UpdateWithinScaner` now only prunes invalid/out-of-range actors and re-sorts nearest-first; no longer scans all world actors. Significantly improves scalability toward 500+ ships.
+- Added `EnemyAppears(AShip* EnemyShip)` Blueprint-implementable event to `AShip`, fired when scanner detects a new enemy ship (`IsEnemy` check). Triggers on runtime overlap registration and on initial `BeginPlay` seeding; suppressed for duplicate registrations, self, non-ship actors, and neutral/allied ships.
+
 ## 2026-05-22 — Ship navigation, AI controller, LevelActorsSubsystem, and content updates
 - Added `EnemyShipRadiusBeginOverlap` Blueprint-implementable event to `AShip` that fires when `ShipRadius` begins overlapping an enemy ship's body (`ShipBase`). Only triggers for ships from enemy factions (relation < 0); does not fire for scanner/radius components or non-ship actors. Intended for threat detection / combat state entry in Blueprints.
 - Added level visual scheme pipeline:
